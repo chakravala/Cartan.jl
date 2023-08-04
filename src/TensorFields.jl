@@ -25,73 +25,153 @@ import Base: @pure
 import AbstractTensors: Values, Variables, FixedVector
 import AbstractTensors: Scalar, GradedVector, Bivector, Trivector
 
-export Values, odesolve
+export Values
 export initmesh, pdegrad
 
 export ElementFunction, IntervalMap, PlaneCurve, SpaceCurve, GridSurface, GridParametric
 export TensorField, ScalarField, VectorField, BivectorField, TrivectorField
 export RealFunction, ComplexMap, ComplexMapping, SpinorField, CliffordField
-export MeshFunction, QuaternionField # PhasorField
-export Section, FiberBundle
+export MeshFunction, GradedField, QuaternionField # PhasorField
+export Section, FiberBundle, AbstractFiber
+export base, fiber, domain, codomain, ↦, →, ←, ↤, basetype, fibertype
 
-struct Section{R,T} <: Number
-    v::Pair{R,T}
-    Section(v::Pair{R,T}) where {R,T} = new{R,T}(v)
-    Section(r::R,t::T) where {R,T} = new{R,T}(r=>t)
-end
-
-Base.:+(a::Section{R},b::Section{R}) where R = a.v.first==b.v.first ? Section(a.v.first,a.v.second+b.v.second) : error("Section $(a.v.first) ≠ $(b.v.first)")
-Base.:-(a::Section{R},b::Section{R}) where R = a.v.first==b.v.first ? Section(a.v.first,a.v.second-b.v.second) : error("Section $(a.v.first) ≠ $(b.v.first)")
-Grassmann.:∧(a::Section{R},b::Section{R}) where R = a.v.first==b.v.first ? Section(a.v.first,a.v.second∧b.v.second) : error("Section $(a.v.first) ≠ $(b.v.first)")
-Grassmann.:∨(a::Section{R},b::Section{R}) where R = a.v.first==b.v.first ? Section(a.v.first,a.v.second∨b.v.second) : error("Section $(a.v.first) ≠ $(b.v.first)")
-Grassmann.contraction(a::Section{R},b::Section{R}) where R = a.v.first==b.v.first ? Section(a.v.first,Grassmann.contraction(a.v.second,b.v.second)) : error("Section $(a.v.first) ≠ $(b.v.first)")
-Base.:*(a::Section{R},b::Section{R}) where R = a.v.first==b.v.first ? Section(a.v.first,a.v.second*b.v.second) : error("Section $(a.v.first) ≠ $(b.v.first)")
-Base.:/(a::Section{R},b::Section{R}) where R = a.v.first==b.v.first ? Section(a.v.first,a.v.second/b.v.second) : error("Section $(a.v.first) ≠ $(b.v.first)")
-Base.:*(a::Number,b::Section) = Section(b.v.first,a*b.v.second)
-Base.:*(a::Section,b::Number) = Section(a.v.first,a.v.second*b)
-Base.:/(a::Section,b::Number) = Section(a.v.first,a.v.second/b)
-Base.abs(a::Section) = Section(a.v.first,abs(a.v.second))
-Grassmann.value(a::Section) = Section(a.v.first,value(a.v.second))
-
-abstract type FiberBundle{T,N} <: AbstractArray{T,N} end
-Base.@pure isfiber(::FiberBundle) = true
+abstract type AbstractFiber <: Number end
+Base.@pure isfiber(::AbstractFiber) = true
 Base.@pure isfiber(::Any) = false
 
-struct TensorField{R,B,T,N} <: FiberBundle{Section{R,T},N}
-    dom::B
-    cod::Array{T,N}
-    TensorField{R}(dom::B,cod::Array{T,N}) where {R,B,T,N} = new{R,B,T,N}(dom,cod)
-    TensorField(dom::B,cod::Array{T,N}) where {N,R,B<:AbstractArray{R,N},T} = new{R,B,T,N}(dom,cod)
-    TensorField(dom::B,cod::Vector{T}) where {B<:ChainBundle,T} = new{eltype(value(points(dom))),B,T,1}(dom,cod)
+struct Section{B,F} <: AbstractFiber
+    v::Pair{B,F}
+    Section(v::Pair{B,F}) where {B,F} = new{B,F}(v)
+    Section(b::B,f::F) where {B,F} = new{B,F}(b=>f)
+    Section(b::B,f::Section{R,F} where R) where {B,F} = new{B,F}(b=>f.v.second)
+    Section(b::Section{B,R} where R,f::F) where {B,F} = new{B,F}(base(b)=>f)
 end
 
-#const ParametricMesh{T<:AbstractVector{<:Chain},S} = TensorField{T,S,1}
-const MeshFunction{R,B<:ChainBundle,T<:Real} = TensorField{R,B,T,1}
-const ElementFunction{R,B<:AbstractVector{R},T<:Real} = TensorField{R,B,T,1}
-const IntervalMap{R<:Real,B<:AbstractVector{R},T} = TensorField{R,B,T,1}
-const RealFunction{R<:Real,B<:AbstractVector{R},T<:Union{Real,Single,Chain{V,G,<:Real,1} where {V,G}}} = ElementFunction{R,B,T}
-const PlaneCurve{R<:Real,B<:AbstractVector{R},T<:Chain{V,G,Q,2} where {V,G,Q}} = TensorField{R,B,T,1}
-const SpaceCurve{R<:Real,B<:AbstractVector{R},T<:Chain{V,G,Q,3} where {V,G,Q}} = TensorField{R,B,T,1}
-const GridSurface{R,B<:AbstractMatrix{R},T<:Real} = TensorField{R,B,T,2}
-const GridParametric{R,B<:AbstractArray{R},T<:Real,N} = TensorField{R,B,T,N}
-const ComplexMapping{R,B,T<:Complex,N} = TensorField{R,B,T,N}
-const ComplexMap{R,B,T<:Couple,N} = TensorField{R,B,T,N}
-const ScalarField{R,B,T<:Single,N} = TensorField{R,B,T,N}
-const VectorField{R,B,T<:Chain{V,1} where V,N} = TensorField{R,B,T,N}
-const SpinorField{R,B,T<:Spinor,N} = TensorField{R,B,T,N}
-#const PhasorField{R,B,T<:Phasor,N} = TensorField{R,B,T,N}
-const QuaternionField{R,B,T<:Quaternion,N} = TensorField{R,B,T,N}
-const CliffordField{R,B,T<:Multivector,N} = TensorField{R,B,T,N}
-const BivectorField{R,B,T<:Chain{V,2} where V,N} = TensorField{R,B,T,N}
-const TrivectorField{R,B,T<:Chain{V,3} where V,N} = TensorField{R,B,T,N}
+Section(b,f::Function) = b ↦ f(b)
 
-TensorField(dom::AbstractArray,fun::Function) = TensorField(dom,fun.(dom))
-TensorField(dom::ChainBundle,fun::Function) = TensorField(dom,fun.(value(points(dom))))
+base(s::Section) = s.v.first
+fiber(s::Section) = s.v.second
+basetype(::Section{B}) where B = B
+fibertype(::Section{B,F} where B) where F = F
+const ↦, domain, codomain = Section, base, fiber
+↤(F,B) = B ↦ F
+
+Base.getindex(s::Section) = s.v.first
+Base.getindex(s::Section,i::Int) = getindex(s.v.second,i)
+Base.getindex(s::Section,i::Integer) = getindex(s.v.second,i)
+
+function Base.show(io::IO, s::Section)
+    p = s.v
+    Base.isdelimited(io, p) && return show_pairtyped(io, s)
+    typeinfos = Base.gettypeinfos(io, p)
+    for i = (1, 2)
+        io_i = IOContext(io, :typeinfo => typeinfos[i])
+        Base.isdelimited(io_i, p[i]) || print(io, "(")
+        show(io_i, p[i])
+        Base.isdelimited(io_i, p[i]) || print(io, ")")
+        i == 1 && print(io, get(io, :compact, false)::Bool ? "↦" : " ↦ ")
+    end
+end
+
+function show_pairtyped(io::IO, s::Section{B,F}) where {B,F}
+    show(io, typeof(s))
+    show(io, (base(s), fiber(s)))
+end
+
+Base.:+(a::Section{R},b::Section{R}) where R = base(a)==base(b) ? Section(base(a),fiber(a)+fiber(b)) : error("Section $(base(a)) ≠ $(base(b))")
+Base.:-(a::Section{R},b::Section{R}) where R = base(a)==base(b) ? Section(base(a),fiber(a)-fiber(b)) : error("Section $(base(a)) ≠ $(base(b))")
+Base.:<(a::Section{R},b::Section{R}) where R = base(a)==base(b) ? Section(base(a),fiber(a)<fiber(b)) : error("Section $(base(a)) ≠ $(base(b))")
+Base.:>(a::Section{R},b::Section{R}) where R = base(a)==base(b) ? Section(base(a),fiber(a)>fiber(b)) : error("Section $(base(a)) ≠ $(base(b))")
+Base.:<<(a::Section{R},b::Section{R}) where R = base(a)==base(b) ? Section(base(a),fiber(a)<<fiber(b)) : error("Section $(base(a)) ≠ $(base(b))")
+Base.:>>(a::Section{R},b::Section{R}) where R = base(a)==base(b) ? Section(base(a),fiber(a)>>fiber(b)) : error("Section $(base(a)) ≠ $(base(b))")
+Base.:&(a::Section{R},b::Section{R}) where R = base(a)==base(b) ? Section(base(a),fiber(a)&fiber(b)) : error("Section $(base(a)) ≠ $(base(b))")
+Grassmann.:∧(a::Section{R},b::Section{R}) where R = base(a)==base(b) ? Section(base(a),fiber(a)∧fiber(b)) : error("Section $(base(a)) ≠ $(base(b))")
+Grassmann.:∨(a::Section{R},b::Section{R}) where R = base(a)==base(b) ? Section(base(a),fiber(a)∨fiber(b)) : error("Section $(base(a)) ≠ $(base(b))")
+Grassmann.contraction(a::Section{R},b::Section{R}) where R = base(a)==base(b) ? Section(base(a),Grassmann.contraction(fiber(a),fiber(b))) : error("Section $(base(a)) ≠ $(base(b))")
+Base.:*(a::Section{R},b::Section{R}) where R = base(a)==base(b) ? Section(base(a),fiber(a)*fiber(b)) : error("Section $(base(a)) ≠ $(base(b))")
+Base.:/(a::Section{R},b::Section{R}) where R = base(a)==base(b) ? Section(base(a),fiber(a)/fiber(b)) : error("Section $(base(a)) ≠ $(base(b))")
+Base.:*(a::Number,b::Section) = base(b) ↦ (a*fiber(b))
+Base.:*(a::Section,b::Number) = base(a) ↦ (fiber(a)*b)
+Base.:/(a::Section,b::Number) = base(a) ↦ (fiber(a)/b)
+Base.:-(s::Section) = base(s) ↦ -(fiber(s))
+Base.:!(s::Section) = base(s) ↦ !(fiber(s))
+Base.:~(s::Section) = base(s) ↦ ~(fiber(s))
+for fun ∈ (:inv,:exp,:log,:abs,:sqrt,:real,:imag,:cos,:sin,:tan,:cot,:sec,:csc,:asec,:acsc,:sech,:csch,:asech,:tanh,:coth,:asinh,:acosh,:atanh,:acoth,:asin,:acos,:atan,:acot,:sinc,:cosc,:abs2,:conj)
+    @eval Base.$fun(s::Section) = base(s) ↦ $fun(fiber(s))
+end
+Grassmann.reverse(s::Section) = base(s) ↦ reverse(fiber(s))
+Grassmann.involute(s::Section) = base(s) ↦ involute(fiber(s))
+Grassmann.clifford(s::Section) = base(s) ↦ clifford(fiber(s))
+Grassmann.even(s::Section) = base(s) ↦ even(fiber(s))
+Grassmann.odd(s::Section) = base(s) ↦ odd(fiber(s))
+Grassmann.scalar(s::Section) = base(s) ↦ scalar(fiber(s))
+Grassmann.vector(s::Section) = base(s) ↦ vector(fiber(s))
+Grassmann.bivector(s::Section) = base(s) ↦ bivector(fiber(s))
+Grassmann.volume(s::Section) = base(s) ↦ volume(fiber(s))
+Grassmann.value(s::Section) = base(s) ↦ value(fiber(s))
+Grassmann.curl(s::Section) = bas(s) ↦ curl(fiber(s))
+Grassmann.∂(s::Section) = base(s) ↦ ∂(fiber(s))
+Grassmann.d(s::Section) = base(s) ↦ d(fiber(s))
+Grassmann.:⋆(s::Section) = base(s) ↦ ⋆(fiber(s))
+LinearAlgebra.norm(s::Section) = base(s) ↦ norm(fiber(s))
+(V::Submanifold)(s::Section) = base(a) ↦ V(fiber(s))
+
+abstract type FiberBundle{E,N} <: AbstractArray{E,N} end
+Base.@pure isfiberbundle(::FiberBundle) = true
+Base.@pure isfiberbundle(::Any) = false
+
+struct TensorField{B,T,F,N} <: FiberBundle{Section{B,F},N}
+    dom::T
+    cod::Array{F,N}
+    TensorField{B}(dom::T,cod::Array{F,N}) where {B,T,F,N} = new{B,T,F,N}(dom,cod)
+    TensorField(dom::T,cod::Array{F,N}) where {N,B,T<:AbstractArray{B,N},F} = new{B,T,F,N}(dom,cod)
+    TensorField(dom::T,cod::Vector{F}) where {T<:ChainBundle,F} = new{eltype(value(points(dom))),T,F,1}(dom,cod)
+end
+
+#const ParametricMesh{B<:Chain,T<:AbstractVector{B},F} = TensorField{B,T,F,1}
+const MeshFunction{B,T<:ChainBundle,F<:Real} = TensorField{B,T,F,1}
+const ElementFunction{B,T<:AbstractVector{B},F<:Real} = TensorField{B,T,F,1}
+const IntervalMap{B<:Real,T<:AbstractVector{B},F} = TensorField{B,T,F,1}
+const RealFunction{B<:Real,T<:AbstractVector{B},F<:Union{Real,Single,Chain{V,G,<:Real,1} where {V,G}}} = ElementFunction{B,T,F}
+const PlaneCurve{B<:Real,T<:AbstractVector{B},F<:Chain{V,G,Q,2} where {V,G,Q}} = TensorField{B,T,F,1}
+const SpaceCurve{B<:Real,T<:AbstractVector{B},F<:Chain{V,G,Q,3} where {V,G,Q}} = TensorField{B,T,F,1}
+const GridSurface{B,T<:AbstractMatrix{B},F<:Real} = TensorField{B,T,F,2}
+const GridParametric{B,T<:AbstractArray{B},F<:Real,N} = TensorField{B,T,F,N}
+const ComplexMapping{B,T,F<:Complex,N} = TensorField{B,T,F,N}
+const ComplexMap{B,T,F<:Couple,N} = TensorField{B,T,F,N}
+const GradedField{G,B,T,F<:Chain{V,G} where V,N} = TensorField{B,T,F,N}
+const VectorField = GradedField{1}
+const ScalarField{B,T,F<:Single,N} = TensorField{B,T,F,N}
+const SpinorField{B,T,F<:Spinor,N} = TensorField{B,T,F,N}
+#const PhasorField{B,T,F<:Phasor,N} = TensorField{B,T,F,N}
+const QuaternionField{B,T,F<:Quaternion,N} = TensorField{B,T,F,N}
+const CliffordField{B,T,F<:Multivector,N} = TensorField{B,T,F,N}
+const BivectorField = GradedField{2}
+const TrivectorField = GradedField{3}
+
+TensorField(dom::AbstractArray,fun::Function) = dom → fun.(dom)
+TensorField(dom::ChainBundle,fun::Function) = dom → fun.(value(points(dom)))
+
+←(F,B) = B → F
+const → = TensorField
+base(t::TensorField) = t.dom
+fiber(t::TensorField) = t.cod
+basetype(::TensorField{B}) where B = B
+fibertype(::TensorField{B,T,F} where {B,T}) where F = F
 
 Base.size(m::TensorField) = size(m.cod)
-Base.getindex(m::TensorField,i::Vararg{Int}) = Section(getindex(domain(m),i...),getindex(codomain(m),i...))
-Base.getindex(m::ElementFunction{R,<:ChainBundle} where R,i::Vararg{Int}) = Section(getindex(value(points(domain(m))),i...),getindex(codomain(m),i...))
-@pure Base.eltype(::Type{TensorField{R,B,T}}) where {R,B,T} = Section{R,T}
+Base.resize!(m::TensorField,i) = (resize!(domain(m),i),resize(codomain(m),i))
+@pure Base.eltype(::Type{TensorField{B,T,F}}) where {B,T,F} = Section{B,F}
+Base.broadcast(f,t::TensorField) = domain(t) → f.(codomain(t))
+Base.getindex(m::TensorField,i::Vararg{Int}) = getindex(domain(m),i...) ↦ getindex(codomain(m),i...)
+Base.getindex(m::ElementFunction{R,<:ChainBundle} where R,i::Vararg{Int}) = getindex(value(points(domain(m))),i...) ↦ getindex(codomain(m),i...)
+Base.setindex!(m::TensorField{B,<:AbstractRange{B}},s::Section,i::Vararg{Int}) where B = setindex!(codomain(m),fiber(s),i...)
+Base.setindex!(m::TensorField{B,<:AbstractVector{B},F},s::F,i::Vararg{Int}) where {B,F} = setindex!(codomain(m),s,i...)
+function Base.setindex!(m::TensorField{B,<:Vector{B}},s::Section,i::Vararg{Int}) where B
+    setindex!(domain(m),base(s),i...)
+    setindex!(codomain(m),fiber(s),i...)
+    return s
+end
 
 function (m::IntervalMap{Float64,Vector{Float64}})(t)
     i = searchsortedfirst(domain(m),t)-1
@@ -105,33 +185,56 @@ function parametric(t,m,d=diff(codomain(m))./diff(domain(m)))
     codomain(m)[i]+(t-domain(m)[i])*d[i]
 end
 
-function (m::TensorField{R,<:ChainBundle} where R)(t)
+function (m::TensorField{B,<:ChainBundle} where B)(t)
     i = domain(m)[findfirst(t,domain(m))]
     (codomain(m)[i])⋅(points(domain(m))[i]/t)
 end
 
-export domain, codomain
-domain(t::TensorField) = t.dom
-codomain(t::TensorField) = t.cod
-
-Base.:*(n::Number,t::TensorField) = TensorField(domain(t),n*codomain(t))
-Base.:*(t::TensorField,n::Number) = TensorField(domain(t),codomain(t)*n)
-Base.:/(n::Number,t::TensorField) = TensorField(domain(t),n./codomain(t))
-Base.:/(t::TensorField,n::Number) = TensorField(domain(t),codomain(t)/n)
-Base.:+(n::Number,t::TensorField) = TensorField(domain(t),n.+codomain(t))
-Base.:+(t::TensorField,n::Number) = TensorField(domain(t),codomain(t).+n)
-Base.:-(n::Number,t::TensorField) = TensorField(domain(t),n.-codomain(t))
-Base.:-(t::TensorField,n::Number) = TensorField(domain(t),codomain(t).-n)
+Base.:^(t::TensorField,n::Int) = domain(t) → codomain(t).^n
+Base.:^(t::TensorField,n::Number) = domain(t) → codomain(t).^n
+Base.:*(n::Number,t::TensorField) = domain(t) → n*codomain(t)
+Base.:*(t::TensorField,n::Number) = domain(t) → codomain(t)*n
+Base.:/(n::Number,t::TensorField) = domain(t) → (n./codomain(t))
+Base.:/(t::TensorField,n::Number) = domain(t) → (codomain(t)/n)
+Base.:+(n::Number,t::TensorField) = domain(t) → (n.+codomain(t))
+Base.:+(t::TensorField,n::Number) = domain(t) → (codomain(t).+n)
+Base.:-(n::Number,t::TensorField) = domain(t) → (n.-codomain(t))
+Base.:-(t::TensorField,n::Number) = domain(t) → (codomain(t).-n)
 Base.:*(a::TensorField,b::TensorField) = checkdomain(a,b) && TensorField(domain(t),codomain(a).*codomain(b))
 Base.:/(a::TensorField,t::TensorField) = checkdomain(a,b) && TensorField(domain(t),codomain(a)./codomain(b))
 Base.:+(a::TensorField,b::TensorField) = checkdomain(a,b) && TensorField(domain(t),codomain(a).+codomain(b))
 Base.:-(a::TensorField,b::TensorField) = checkdomain(a,b) && TensorField(domain(t),codomain(a).-codomain(b))
+Base.:>(a::TensorField,b::TensorField) = checkdomain(a,b) && TensorField(domain(t),codomain(a).>codomain(b))
+Base.:<(a::TensorField,b::TensorField) = checkdomain(a,b) && TensorField(domain(t),codomain(a).<codomain(b))
+Base.:>>(a::TensorField,b::TensorField) = checkdomain(a,b) && TensorField(domain(t),codomain(a).>>codomain(b))
+Base.:<<(a::TensorField,b::TensorField) = checkdomain(a,b) && TensorField(domain(t),codomain(a).<<codomain(b))
+Base.:&(a::TensorField,b::TensorField) = checkdomain(a,b) && TensorField(domain(t),codomain(a).&codomain(b))
 Grassmann.:∧(a::TensorField,b::TensorField) = checkdomain(a,b) && TensorField(domain(t),codomain(a).∧codomain(b))
 Grassmann.:∨(a::TensorField,t::TensorField) = checkdomain(a,b) && TensorField(domain(t),codomain(a).∨codomain(b))
 Grassmann.:⋅(a::TensorField,b::TensorField) = checkdomain(a,b) && TensorField(domain(t),codomain(a).⋅codomain(b))
-Base.abs(t::TensorField) = TensorField(domain(t),abs.(codomain(t)))
-Grassmann.value(t::TensorField) = TensorField(domain(t),value.(codomain(t)))
-absvalue(t::TensorField) = TensorField(domain(t),value.(abs.(codomain(t))))
+Base.:-(t::TensorField) = base(t) ↦ -(fiber(t))
+Base.:!(t::TensorField) = base(t) ↦ !(fiber(t))
+Base.:~(t::TensorField) = base(t) ↦ ~(fiber(t))
+for fun ∈ (:inv,:exp,:log,:abs,:sqrt,:real,:imag,:cos,:sin,:tan,:cot,:sec,:csc,:asec,:acsc,:sech,:csch,:asech,:tanh,:coth,:asinh,:acosh,:atanh,:acoth,:asin,:acos,:atan,:acot,:sinc,:cosc,:abs2,:conj)
+    @eval Base.$fun(t::TensorField) = domain(t) → $fun.(codomain(t))
+end
+Grassmann.reverse(t::TensorField) = domain(t) → reverse.(codomain(t))
+Grassmann.involute(t::TensorField) = domain(t) → involute.(codomain(t))
+Grassmann.clifford(t::TensorField) = domain(t) → clifford.(codomain(t))
+Grassmann.even(t::TensorField) = domain(t) → even.(codomain(t))
+Grassmann.odd(t::TensorField) = domain(t) → odd.(codomain(t))
+Grassmann.scalar(t::TensorField) = domain(t) → scalar.(codomain(t))
+Grassmann.vector(t::TensorField) = domain(t) → vector.(codomain(t))
+Grassmann.bivector(t::TensorField) = domain(t) → bivector.(codomain(t))
+Grassmann.volume(t::TensorField) = domain(t) → volume.(codomain(t))
+Grassmann.value(t::TensorField) = domain(t) → value.(codomain(t))
+absvalue(t::TensorField) = domain(t) → value.(abs.(codomain(t)))
+Grassmann.curl(t::TensorField) = domain(t) → curl.(codomain(t))
+Grassmann.∂(t::TensorField) = domain(t) → ∂.(codomain(t))
+Grassmann.d(t::TensorField) = domain(t) → d.(codomain(t))
+Grassmann.:⋆(t::TensorField) = domain(t) → .⋆(codomain(t))
+LinearAlgebra.norm(t::TensorField) = domain(t) → norm.(codomain(t))
+(V::Submanifold)(t::TensorField) = domain(t) → V.(codomain(t))
 
 checkdomain(a::TensorField,b::TensorField) = domain(a)≠domain(b) ? error("TensorField domains not equal") : true
 
@@ -246,12 +349,12 @@ arclength(f::Vector) = sum(abs.(diff(f)))
 function arclength(f::IntervalMap)
     int = cumsum(abs.(diff(codomain(f))))
     pushfirst!(int,zero(eltype(int)))
-    TensorField(domain(f),int)
+    domain(f) → int
 end # trapz(speed(f))
 function trapz(f::IntervalMap,d=diff(domain(f)))
     int = (d/2).*cumsum(f.cod[2:end]+f.cod[1:end-1])
     pushfirst!(int,zero(eltype(int)))
-    return TensorField(domain(f),int)
+    domain(f) → int
 end
 function trapz(f::Vector,h::Float64)
     int = (h/2)*cumsum(f[2:end]+f[1:end-1])
@@ -259,78 +362,78 @@ function trapz(f::Vector,h::Float64)
     return int
 end
 function linetrapz(γ::IntervalMap,f::Function)
-    trapz(TensorField(γ.dom,f.(codomain(γ)).⋅codomain(tangent(γ))))
+    trapz(domain(γ)→(f.(codomain(γ)).⋅codomain(tangent(γ))))
 end
 function tangent(f::IntervalMap,d=centraldiff(domain(f)))
-    TensorField(domain(f),centraldiff(codomain(f),d))
+    domain(f) → centraldiff(codomain(f),d)
 end
 function tangent(f::GridParametric,d=centraldiff(domain(f)))
-    TensorField(domain(f),centraldiff(Grid(codomain(f)),d))
+    domain(f) → centraldiff(Grid(codomain(f)),d)
 end
 function tangent(f::MeshFunction)
-    TensorField(domain(f),interp(domain(f),gradient(domain(f),codomain(f))))
+    domain(f) → interp(domain(f),gradient(domain(f),codomain(f)))
 end
 function unittangent(f::IntervalMap,d=centraldiff(domain(f)),t=centraldiff(codomain(f),d))
-    TensorField(domain(f),t./abs.(t))
+    domain(f) → (t./abs.(t))
 end
 function unittangent(f::MeshFunction)
     t = interp(domain(f),gradient(domain(f),codomain(f)))
-    TensorField(domain(f),t./abs.(t))
+    domain(f) → (t./abs.(t))
 end
 function speed(f::IntervalMap,d=centraldiff(domain(f)),t=centraldiff(codomain(f),d))
-    TensorField(domain(f),abs.(t))
+    domain(f) → abs.(t)
 end
 function normal(f::IntervalMap,d=centraldiff(domain(f)),t=centraldiff(codomain(f),d))
-    TensorField(domain(f),centraldiff(t,d))
+    domain(f) → centraldiff(t,d)
 end
 function unitnormal(f::IntervalMap,d=centraldiff(domain(f)),t=centraldiff(codomain(f),d),n=centraldiff(t,d))
-    TensorField(domain(f),n./abs.(n))
+    domain(f) → (n./abs.(n))
 end
 
 export curvature, radius, osculatingplane, unitosculatingplane, binormal, unitbinormal, curvaturebivector, torsion, curvaturetrivector, trihedron, frenet, wronskian, bishoppolar, bishop, curvaturetorsion
 
 function curvature(f::SpaceCurve,d=centraldiff(f.dom),t=centraldiff(f.cod,d),a=abs.(t))
-    TensorField(f.dom,abs.(centraldiff(t./a,d))./a)
+    domain(f) → (abs.(centraldiff(t./a,d))./a)
 end
 function radius(f::SpaceCurve,d=centraldiff(f.dom),t=centraldiff(f.cod,d),a=abs.(t))
-    TensorField(f.dom,a./abs.(centraldiff(t./a,d)))
+    domain(f) → (a./abs.(centraldiff(t./a,d)))
 end
 function osculatingplane(f::SpaceCurve,d=centraldiff(f.dom),t=centraldiff(f.cod,d),n=centraldiff(t,d))
-    TensorField(f.dom,t.∧n)
+    domain(f) → (t.∧n)
 end
 function unitosculatingplane(f::SpaceCurve,d=centraldiff(f.dom),t=centraldiff(f.cod,d),n=centraldiff(t,d))
-    TensorField(f.dom,(t./abs.(t)).∧(n./abs.(n)))
+    domain(f) → ((t./abs.(t)).∧(n./abs.(n)))
 end
 function binormal(f::SpaceCurve,d=centraldiff(f.dom),t=centraldiff(f.cod,d),n=centraldiff(t,d))
-    TensorField(f.dom,.⋆(t.∧n))
+    domain(f) → (.⋆(t.∧n))
 end
 function unitbinormal(f::SpaceCurve,d=centraldiff(f.dom),t=centraldiff(f.cod,d))
     a = t./abs.(t)
     n = centraldiff(t./abs.(t),d)
-    TensorField(f.dom,.⋆(a.∧(n./abs.(n))))
+    domain(f) → (.⋆(a.∧(n./abs.(n))))
 end
 function curvaturebivector(f::SpaceCurve,d=centraldiff(f.dom),t=centraldiff(f.cod,d),n=centraldiff(t,d))
     a=abs.(t); ut=t./a
-    TensorField(f.dom,abs.(centraldiff(ut,d))./a.*(ut.∧(n./abs.(n))))
+    domain(f) → (abs.(centraldiff(ut,d))./a.*(ut.∧(n./abs.(n))))
 end
 function torsion(f::SpaceCurve,d=centraldiff(f.dom),t=centraldiff(f.cod,d),n=centraldiff(t,d),b=t.∧n)
-    TensorField(f.dom,(b.∧centraldiff(n,d))./abs.(.⋆b).^2)
+    domain(f) → ((b.∧centraldiff(n,d))./abs.(.⋆b).^2)
 end
 function curvaturetrivector(f::SpaceCurve,d=centraldiff(f.dom),t=centraldiff(f.cod,d),n=centraldiff(t,d),b=t.∧n)
     a=abs.(t); ut=t./a
-    TensorField(f.dom,((abs.(centraldiff(ut,d)./a).^2).*(b.∧centraldiff(n,d))./abs.(.⋆b).^2))
+    domain(f) → ((abs.(centraldiff(ut,d)./a).^2).*(b.∧centraldiff(n,d))./abs.(.⋆b).^2)
 end
-#torsion(f::TensorField,d=centraldiff(f.dom),t=centraldiff(f.cod,d),n=centraldiff(t,d),a=abs.(t)) = TensorField(f.dom,abs.(centraldiff(.⋆((t./a).∧(n./abs.(n))),d))./a)
+#torsion(f::TensorField,d=centraldiff(f.dom),t=centraldiff(f.cod,d),n=centraldiff(t,d),a=abs.(t)) = domain(f) → (abs.(centraldiff(.⋆((t./a).∧(n./abs.(n))),d))./a)
 function trihedron(f::SpaceCurve,d=centraldiff(f.dom),t=centraldiff(f.cod,d),n=centraldiff(t,d))
     (ut,un)=(t./abs.(t),n./abs.(n))
-    Chain.(ut,un,.⋆(ut.∧un))
+    domain(f) → Chain.(ut,un,.⋆(ut.∧un))
 end
 function frenet(f::SpaceCurve,d=centraldiff(f.dom),t=centraldiff(f.cod,d),n=centraldiff(t,d))
     (ut,un)=(t./abs.(t),n./abs.(n))
-    centraldiff(Chain.(ut,un,.⋆(ut.∧un)),d)
+    domain(f) → centraldiff(Chain.(ut,un,.⋆(ut.∧un)),d)
 end
 function wronskian(f::SpaceCurve,d=centraldiff(f.dom),t=centraldiff(f.cod,d),n=centraldiff(t,d))
-    f.cod.∧t.∧n
+    domain(f) → (f.cod.∧t.∧n)
 end
 
 #???
@@ -338,12 +441,12 @@ function compare(f::TensorField)#???
     d = centraldiff(f.dom)
     t = centraldiff(f.cod,d)
     n = centraldiff(t,d)
-    centraldiff(t./abs.(t)).-n./abs.(t)
+    domain(f) → (centraldiff(t./abs.(t)).-n./abs.(t))
 end #????
 
 function curvaturetorsion(f::SpaceCurve,d=centraldiff(f.dom),t=centraldiff(f.cod,d),n=centraldiff(t,d),b=t.∧n)
     a = abs.(t)
-    TensorField(f.dom,Chain.(value.(abs.(centraldiff(t./a,d))./a),getindex.((b.∧centraldiff(n,d))./abs.(.⋆b).^2,1)))
+    domain(f) → Chain.(value.(abs.(centraldiff(t./a,d))./a),getindex.((b.∧centraldiff(n,d))./abs.(.⋆b).^2,1))
 end
 
 function bishoppolar(f::SpaceCurve,κ=value.(curvature(f).cod))
@@ -351,17 +454,17 @@ function bishoppolar(f::SpaceCurve,κ=value.(curvature(f).cod))
     τs = getindex.((torsion(f).cod).*(speed(f).cod),1)
     θ = (d/2).*cumsum(τs[2:end]+τs[1:end-1])
     pushfirst!(θ,zero(eltype(θ)))
-    TensorField(f.dom,Chain.(κ,θ))
+    domain(f) → Chain.(κ,θ)
 end
 function bishop(f::SpaceCurve,κ=value.(curvature(f).cod))
     d = diff(f.dom)
     τs = getindex.((torsion(f).cod).*(speed(f).cod),1)
     θ = (d/2).*cumsum(τs[2:end]+τs[1:end-1])
     pushfirst!(θ,zero(eltype(θ)))
-    TensorField(f.dom,Chain.(κ.*cos.(θ),κ.*sin.(θ)))
+    domain(f) → Chain.(κ.*cos.(θ),κ.*sin.(θ))
 end
-#bishoppolar(f::TensorField) = TensorField(f.dom,Chain.(value.(curvature(f).cod),getindex.(trapz(torsion(f)).cod,1)))
-#bishop(f::TensorField,κ=value.(curvature(f).cod),θ=getindex.(trapz(torsion(f)).cod,1)) = TensorField(f.dom,Chain.(κ.*cos.(θ),κ.*sin.(θ)))
+#bishoppolar(f::TensorField) = domain(f) → Chain.(value.(curvature(f).cod),getindex.(trapz(torsion(f)).cod,1))
+#bishop(f::TensorField,κ=value.(curvature(f).cod),θ=getindex.(trapz(torsion(f)).cod,1)) = domain(f) → Chain.(κ.*cos.(θ),κ.*sin.(θ))
 
 export ProductSpace, RealRegion, Interval, Rectangle, Hyperrectangle, ⧺, ⊕
 import DirectSum: ⊕
@@ -420,12 +523,32 @@ include("element.jl")
 
 function __init__()
     @require Makie="ee78f7c6-11fb-53f2-987a-cfe4a2b5a57a" begin
-        Makie.lines(t::SpaceCurve;args...) = Makie.lines(t.cod;color=value.(speed(t).cod),args...)
-        Makie.lines(t::PlaneCurve;args...) = Makie.lines(t.cod;color=value.(speed(t).cod),args...)
-        Makie.lines(t::RealFunction;args...) = Makie.lines(t.dom,getindex.(value.(t.cod),1);color=value.(speed(t).cod),args...)
-        Makie.linesegments(t::SpaceCurve;args...) = Makie.linesegments(t.cod;color=value.(speed(t).cod),args...)
-        Makie.linesegments(t::PlaneCurve;args...) = Makie.linesegments(t.cod;color=value.(speed(t).cod),args...)
-        Makie.linesegments(t::RealFunction;args...) = Makie.linesegments(t.dom,getindex.(value.(t.cod),1);color=value.(speed(t).cod),args...)
+        export linegraph, linegraph!
+        for lines ∈ (:lines,:lines!,:linesegments,:linesegments!)
+            @eval begin
+                Makie.$lines(t::SpaceCurve;args...) = Makie.$lines(t.cod;color=value.(speed(t).cod),args...)
+                Makie.$lines(t::PlaneCurve;args...) = Makie.$lines(t.cod;color=value.(speed(t).cod),args...)
+                Makie.$lines(t::RealFunction;args...) = Makie.$lines(t.dom,getindex.(value.(t.cod),1);color=value.(speed(t).cod),args...)
+                Makie.$lines(t::ComplexMap{B,<:AbstractVector{B}};args...) where B<:Real = Makie.$lines(real.(value.(t.cod)),imag.(value.(t.cod));color=value.(speed(t).cod),args...)
+                Makie.$lines(t::ComplexMapping{B,<:AbstractVector{B}};args...) where B<:Real = Makie.$lines(real.(t.cod),imag.(t.cod);color=value.(speed(t).cod),args...)
+            end
+        end
+        Makie.lines(t::TensorField{B,<:AbstractVector{B}};args...) where B<:Real = linegraph(t;args...)
+        function linegraph(t::GradedField{G,B,<:AbstractVector{B}};args...) where {G,B<:Real}
+            x,y = domain(t),value.(codomain(t))
+            display(Makie.lines(x,getindex.(y,1);args...))
+            for i ∈ 2:binomial(mdims(codomain(t)),G)
+                Makie.lines!(x,getindex.(y,i);args...)
+            end
+        end
+        Makie.lines!(t::TensorField{B,<:AbstractVector{B}};args...) where B<:Real = linegraph(t;args...)
+        function linegraph!(t::GradedField{G,B,<:AbstractVector{B}};args...) where {G,B<:Real}
+            x,y = domain(t),value.(codomain(t))
+            display(Makie.lines!(x,getindex.(y,1);args...))
+            for i ∈ 2:binomial(mdims(codomain(t)),G)
+                Makie.lines!(x,getindex.(y,i);args...)
+            end
+        end
         Makie.volume(t::GridParametric{<:Chain,<:Hyperrectangle};args...) = Makie.volume(t.dom.v[1],t.dom.v[2],t.dom.v[3],t.cod;args...)
         Makie.volumeslices(t::GridParametric{<:Chain,<:Hyperrectangle};args...) = Makie.volumeslices(t.dom.v[1],t.dom.v[2],t.dom.v[3],t.cod;args...)
         Makie.surface(t::GridSurface{<:Chain,<:RealRegion};args...) = Makie.surface(t.dom.v[1],t.dom.v[2],t.cod;args...)
@@ -461,10 +584,22 @@ function __init__()
     @require UnicodePlots="b8865327-cd53-5732-bb35-84acbb429228" begin
         UnicodePlots.lineplot(t::PlaneCurve;args...) = UnicodePlots.lineplot(getindex.(t.cod,1),getindex.(t.cod,2);args...)
         UnicodePlots.lineplot(t::RealFunction;args...) = UnicodePlots.lineplot(t.dom,getindex.(value.(t.cod),1);args...)
+        UnicodePlots.lineplot(t::ComplexMapping{B,<:AbstractVector{B}};args...) where B<:Real = UnicodePlots.lineplot(real.(t.cod),imag.(t.cod);args...)
+        UnicodePlots.lineplot(t::ComplexMap{B,<:AbstractVector{B}};args...) where B<:Real = UnicodePlots.lineplot(real.(value.(t.cod)),imag.(value.(t.cod));args...)
+        UnicodePlots.lineplot(t::GradedField{G,B,<:AbstractVector{B}};args...) where {G,B<:Real} = UnicodePlots.lineplot(domain(t),Grassmann.array(codomain(t));args...)
         UnicodePlots.contourplot(t::GridSurface{<:Chain,<:RealRegion};args...) = UnicodePlots.contourplot(t.dom.v[1][2:end-1],t.dom.v[2][2:end-1],(x,y)->t(Chain(x,y));args...)
         UnicodePlots.surfaceplot(t::GridSurface{<:Chain,<:RealRegion};args...) = UnicodePlots.surfaceplot(t.dom.v[1][2:end-1],t.dom.v[2][2:end-1],(x,y)->t(Chain(x,y));args...)
         UnicodePlots.spy(t::GridSurface{<:Chain,<:RealRegion};args...) = UnicodePlots.spy(t.cod;args...)
         UnicodePlots.heatmap(t::GridSurface{<:Chain,<:RealRegion};args...) = UnicodePlots.heatmap(t.cod;args...)
+        #Base.show(io::IO,t::PlaneCurve) = UnicodePlots.lineplot(getindex.(t.cod,1),getindex.(t.cod,2))
+        #Base.show(io::IO,t::RealFunction) = UnicodePlots.lineplot(t.dom,getindex.(value.(t.cod),1))
+        #Base.show(io::IO,t::GridSurface{<:Chain,<:RealRegion}) = UnicodePlots.heatmap(t.cod)
+        Base.display(t::PlaneCurve) = (display(typeof(t)); display(UnicodePlots.lineplot(t)))
+        Base.display(t::RealFunction) = (display(typeof(t)); display(UnicodePlots.lineplot(t)))
+        Base.display(t::ComplexMapping{B,<:AbstractVector{B}}) where B<:Real = (display(typeof(t)); display(UnicodePlots.lineplot(t)))
+        Base.display(t::ComplexMap{B,<:AbstractVector{B}}) where B<:Real = (display(typeof(t)); display(UnicodePlots.lineplot(t)))
+        Base.display(t::GradedField{G,B,<:AbstractVector{B}}) where {G,B<:Real} = (display(typeof(t)); display(UnicodePlots.lineplot(t)))
+        Base.display(t::GridSurface{<:Chain,<:RealRegion}) = (display(typeof(t)); display(UnicodePlots.heatmap(t)))
     end
 end
 
