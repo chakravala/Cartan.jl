@@ -96,7 +96,7 @@ Base.:/(a::Section,b::Number) = base(a) ↦ (fiber(a)/b)
 Base.:-(s::Section) = base(s) ↦ -(fiber(s))
 Base.:!(s::Section) = base(s) ↦ !(fiber(s))
 Base.:~(s::Section) = base(s) ↦ ~(fiber(s))
-for fun ∈ (:inv,:exp,:log,:abs,:sqrt,:real,:imag,:cos,:sin,:tan,:cot,:sec,:csc,:asec,:acsc,:sech,:csch,:asech,:tanh,:coth,:asinh,:acosh,:atanh,:acoth,:asin,:acos,:atan,:acot,:sinc,:cosc,:abs2,:conj)
+for fun ∈ (:inv,:exp,:log,:sinh,:cosh,:abs,:sqrt,:real,:imag,:cos,:sin,:tan,:cot,:sec,:csc,:asec,:acsc,:sech,:csch,:asech,:tanh,:coth,:asinh,:acosh,:atanh,:acoth,:asin,:acos,:atan,:acot,:sinc,:cosc,:abs2,:conj)
     @eval Base.$fun(s::Section) = base(s) ↦ $fun(fiber(s))
 end
 Grassmann.reverse(s::Section) = base(s) ↦ reverse(fiber(s))
@@ -160,7 +160,7 @@ basetype(::TensorField{B}) where B = B
 fibertype(::TensorField{B,T,F} where {B,T}) where F = F
 
 Base.size(m::TensorField) = size(m.cod)
-Base.resize!(m::TensorField,i) = (resize!(domain(m),i),resize(codomain(m),i))
+Base.resize!(m::TensorField,i) = (resize!(domain(m),i),resize!(codomain(m),i))
 @pure Base.eltype(::Type{TensorField{B,T,F}}) where {B,T,F} = Section{B,F}
 Base.broadcast(f,t::TensorField) = domain(t) → f.(codomain(t))
 Base.getindex(m::TensorField,i::Vararg{Int}) = getindex(domain(m),i...) ↦ getindex(codomain(m),i...)
@@ -172,6 +172,23 @@ function Base.setindex!(m::TensorField{B,<:Vector{B}},s::Section,i::Vararg{Int})
     setindex!(codomain(m),fiber(s),i...)
     return s
 end
+
+Base.BroadcastStyle(::Type{<:TensorField{B,T,F} where {B,T}}) where F = Broadcast.ArrayStyle{TensorField{F}}()
+
+function Base.similar(bc::Broadcast.Broadcasted{Broadcast.ArrayStyle{TensorField{F}}}, ::Type{ElType}) where {F,ElType}
+    # Scan the inputs for the ArrayAndChar:
+    t = find_tf(bc)
+    # Use the char field of A to create the output
+    domain(t) → similar(Array{F}, axes(bc))
+end
+
+"`A = find_tf(As)` returns the first TensorField among the arguments."
+find_tf(bc::Base.Broadcast.Broadcasted) = find_tf(bc.args)
+find_tf(args::Tuple) = find_tf(find_tf(args[1]), Base.tail(args))
+find_tf(x) = x
+find_tf(::Tuple{}) = nothing
+find_tf(a::TensorField, rest) = a
+find_tf(::Any, rest) = find_tf(rest)
 
 function (m::IntervalMap{Float64,Vector{Float64}})(t)
     i = searchsortedfirst(domain(m),t)-1
@@ -200,22 +217,22 @@ Base.:+(n::Number,t::TensorField) = domain(t) → (n.+codomain(t))
 Base.:+(t::TensorField,n::Number) = domain(t) → (codomain(t).+n)
 Base.:-(n::Number,t::TensorField) = domain(t) → (n.-codomain(t))
 Base.:-(t::TensorField,n::Number) = domain(t) → (codomain(t).-n)
-Base.:*(a::TensorField,b::TensorField) = checkdomain(a,b) && TensorField(domain(t),codomain(a).*codomain(b))
-Base.:/(a::TensorField,t::TensorField) = checkdomain(a,b) && TensorField(domain(t),codomain(a)./codomain(b))
-Base.:+(a::TensorField,b::TensorField) = checkdomain(a,b) && TensorField(domain(t),codomain(a).+codomain(b))
-Base.:-(a::TensorField,b::TensorField) = checkdomain(a,b) && TensorField(domain(t),codomain(a).-codomain(b))
-Base.:>(a::TensorField,b::TensorField) = checkdomain(a,b) && TensorField(domain(t),codomain(a).>codomain(b))
-Base.:<(a::TensorField,b::TensorField) = checkdomain(a,b) && TensorField(domain(t),codomain(a).<codomain(b))
-Base.:>>(a::TensorField,b::TensorField) = checkdomain(a,b) && TensorField(domain(t),codomain(a).>>codomain(b))
-Base.:<<(a::TensorField,b::TensorField) = checkdomain(a,b) && TensorField(domain(t),codomain(a).<<codomain(b))
-Base.:&(a::TensorField,b::TensorField) = checkdomain(a,b) && TensorField(domain(t),codomain(a).&codomain(b))
-Grassmann.:∧(a::TensorField,b::TensorField) = checkdomain(a,b) && TensorField(domain(t),codomain(a).∧codomain(b))
-Grassmann.:∨(a::TensorField,t::TensorField) = checkdomain(a,b) && TensorField(domain(t),codomain(a).∨codomain(b))
-Grassmann.:⋅(a::TensorField,b::TensorField) = checkdomain(a,b) && TensorField(domain(t),codomain(a).⋅codomain(b))
+Base.:*(a::TensorField,b::TensorField) = checkdomain(a,b) && TensorField(domain(a),codomain(a).*codomain(b))
+Base.:/(a::TensorField,t::TensorField) = checkdomain(a,b) && TensorField(domain(a),codomain(a)./codomain(b))
+Base.:+(a::TensorField,b::TensorField) = checkdomain(a,b) && TensorField(domain(a),codomain(a).+codomain(b))
+Base.:-(a::TensorField,b::TensorField) = checkdomain(a,b) && TensorField(domain(a),codomain(a).-codomain(b))
+Base.:>(a::TensorField,b::TensorField) = checkdomain(a,b) && TensorField(domain(a),codomain(a).>codomain(b))
+Base.:<(a::TensorField,b::TensorField) = checkdomain(a,b) && TensorField(domain(a),codomain(a).<codomain(b))
+Base.:>>(a::TensorField,b::TensorField) = checkdomain(a,b) && TensorField(domain(a),codomain(a).>>codomain(b))
+Base.:<<(a::TensorField,b::TensorField) = checkdomain(a,b) && TensorField(domain(a),codomain(a).<<codomain(b))
+Base.:&(a::TensorField,b::TensorField) = checkdomain(a,b) && TensorField(domain(a),codomain(a).&codomain(b))
+Grassmann.:∧(a::TensorField,b::TensorField) = checkdomain(a,b) && TensorField(domain(a),codomain(a).∧codomain(b))
+Grassmann.:∨(a::TensorField,t::TensorField) = checkdomain(a,b) && TensorField(domain(a),codomain(a).∨codomain(b))
+Grassmann.:⋅(a::TensorField,b::TensorField) = checkdomain(a,b) && TensorField(domain(a),codomain(a).⋅codomain(b))
 Base.:-(t::TensorField) = base(t) ↦ -(fiber(t))
 Base.:!(t::TensorField) = base(t) ↦ !(fiber(t))
 Base.:~(t::TensorField) = base(t) ↦ ~(fiber(t))
-for fun ∈ (:inv,:exp,:log,:abs,:sqrt,:real,:imag,:cos,:sin,:tan,:cot,:sec,:csc,:asec,:acsc,:sech,:csch,:asech,:tanh,:coth,:asinh,:acosh,:atanh,:acoth,:asin,:acos,:atan,:acot,:sinc,:cosc,:abs2,:conj)
+for fun ∈ (:inv,:exp,:log,:sinh,:cosh,:abs,:sqrt,:real,:imag,:cos,:sin,:tan,:cot,:sec,:csc,:asec,:acsc,:sech,:csch,:asech,:tanh,:coth,:asinh,:acosh,:atanh,:acoth,:asin,:acos,:atan,:acot,:sinc,:cosc,:abs2,:conj)
     @eval Base.$fun(t::TensorField) = domain(t) → $fun.(codomain(t))
 end
 Grassmann.reverse(t::TensorField) = domain(t) → reverse.(codomain(t))

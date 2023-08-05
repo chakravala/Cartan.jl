@@ -46,28 +46,141 @@ Hyperrectangle (alias for ProductSpace{V, T, 3, 3} where {V, T})
 
 Construct `dom → fun == dom → fun.(dom)` category with `\rightarrow` to initialize an example
 ```julia
-julia> using Grassmann, TensorFields
+julia> using Grassmann, TensorFields, UnicodePlots
 
-julia> dom = (0:0.1:2π)⊕(0:0.1:2π);
+julia> dom = (2π:0.01:4π)⊕(0:0.01:2π);
 
-julia> fun(v) = (v[1]-v[2])*cos(v[2]);
+julia> fun(v) = (v[1]-v[2])*cos(v[1]*v[2]/2);
 
 julia> cat = dom → fun; # dom → fun.(dom)
 
 julia> typeof(cat)
 TensorField{Chain{⟨++⟩, 1, Float64, 2}, ProductSpace{⟨++⟩, Float64, 2, 2, StepRangeLen{Float64, Base.TwicePrecision{Float64}, Base.TwicePrecision{Float64}, Int64}}, Float64, 2}
 
-julia> typeof(tangent(cat))
-VectorField{Chain{⟨++⟩, 1, Float64, 2}, ProductSpace{⟨++⟩, Float64, 2, 2, StepRangeLen{Float64, TwicePrecision{Float64}, TwicePrecision{Float64}, Int64}}, Chain{⟨××⟩, 1, Float64, 2}, 2} (alias for TensorField{Chain{⟨++⟩, 1, Float64, 2}, ProductSpace{⟨++⟩, Float64, 2, 2, StepRangeLen{Float64, Base.TwicePrecision{Float64}, Base.TwicePrecision{Float64}, Int64}}, Chain{⟨××⟩, 1, Float64, 2}, 2})
-
 julia> supertype(ans)
-FiberBundle{Section{Chain{⟨++⟩, 1, Float64, 2}, Chain{⟨××⟩, 1, Float64, 2}}, 2}
+FiberBundle{Section{Chain{⟨++⟩, 1, Float64, 2}, Float64}, 2}
+
+julia> contourplot(cat)
+     ┌────────────────────────────────────────┐  500
+   7 │⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀│ ┌──┐
+     │⠀⠀⠀⠀⠀⠀⠀⠀⠀⣀⣀⠀⠀⠀⠀⠀⠀⠀⠤⣄⡀⠠⢤⣀⠀⠀⠀⠀⠀⠀⠠⠤⠄⠀⠀⠀⠀⠀⠀⠀│ │▄▄│
+     │⠀⠀⠀⠀⠀⠀⠀⠀⠀⠘⠲⣍⡓⠦⢄⣀⠀⠀⠀⠀⠉⠓⠲⢬⣙⡲⢤⣀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀│ │▄▄│
+     │⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠉⠓⠦⣌⡙⠲⢤⣀⡀⠀⠀⠀⠀⠉⠉⠉⠀⠀⠀⠀⠀⠀⠀⢠⣖⠆⠀⠀│ │▄▄│
+     │⠀⠀⠀⠀⠘⢿⣒⠦⢤⣀⠀⠀⠀⠀⠀⠀⠉⠙⠒⠦⢭⣓⣦⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠈⠁⠀⠀│ │▄▄│
+     │⠀⠀⠀⠀⠀⠀⠈⠓⠦⢬⣉⠓⠦⢤⣀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠘⠯⣍⣉⠓⠒⠂⠀⠀│ │▄▄│
+     │⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠈⠉⠓⠒⠮⠽⠶⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⣀⣀⣀⣀⡀⠀⠀⠈⠉⠙⠂⠀⠀│ │▄▄│
+     │⠀⢐⡒⠦⢤⣀⡀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠑⠲⠤⣄⣉⡉⠉⠓⠒⠲⠄⠀⠀│ │▄▄│
+     │⠀⠀⠈⠙⠒⠦⠭⢽⣲⣤⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⣀⣀⣀⣀⣀⣀⠀⠀⠀⠀⠉⠉⠙⠒⣒⡆⠀⠀│ │▄▄│
+     │⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠓⠲⠤⢤⣀⣈⡉⠉⠉⠓⠒⠒⠲⠤⠭⠇⠀⠀│ │▄▄│
+     │⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠉⠉⠉⢓⣒⣒⣲⣤⣬⡇⠀⠀│ │▄▄│
+     │⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠾⣍⣉⣉⠉⠉⠉⠉⠙⠒⠒⠒⠒⠒⠦⠬⠭⠷⠶⢶⣦⡄⠀⠀│ │▄▄│
+     │⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠈⠉⠉⠉⠓⠒⠒⠒⠒⢦⣤⣤⣤⣼⣿⣿⣯⣭⡅⠀⠀│ │▄▄│
+     │⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⣀⣀⣀⣀⣀⡠⠤⠤⠤⠤⣄⣀⣀⣀⣀⣀⣀⣛⣛⣒⣦⣤⣤⣤⣬⣭⣍⡁⠀⠀│ │▄▄│
+   0 │⠀⠀⠀⠀⠀⠀⠀⠀⠐⠯⢥⣀⣀⣀⣀⣀⣀⣀⣀⣀⣀⣀⣀⣀⣀⣀⣀⣐⣶⣯⣭⣭⣭⢍⣉⣉⣉⡁⠀⠀│ └──┘
+     └────────────────────────────────────────┘ -400
+     ⠀6⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀13⠀     
+```
+Visualizing `TensorField` reperesentations can be standardized in combination with [Makie.jl](https://github.com/MakieOrg/Makie.jl) or [UnicodePlots.jl](https://github.com/JuliaPlots/UnicodePlots.jl).
+```Julia
+julia> using Grassmann, TensorFields, UnicodePlots
+
+julia> t = 0:0.01:2π → identity
+TensorField{Float64, StepRangeLen{Float64, Base.TwicePrecision{Float64}, Base.TwicePrecision{Float64}, Int64}, Float64, 1}
+     ┌────────────────────────────────────────┐ 
+   7 │⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀│ 
+     │⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⢀⡤⠀⠀⠀⠀│ 
+     │⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⣠⠖⠋⠀⠀⠀⠀⠀│ 
+     │⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⣀⡴⠋⠀⠀⠀⠀⠀⠀⠀⠀│ 
+     │⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⢀⡤⠚⠁⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀│ 
+     │⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⣠⠖⠋⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀│ 
+     │⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⣀⠴⠋⠁⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀│ 
+     │⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⢀⡤⠞⠁⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀│ 
+     │⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⣠⠖⠋⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀│ 
+     │⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⣀⠴⠋⠁⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀│ 
+     │⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⢀⡤⠞⠁⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀│ 
+     │⠀⠀⠀⠀⠀⠀⠀⠀⣠⠖⠋⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀│ 
+     │⠀⠀⠀⠀⠀⣀⡴⠋⠁⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀│ 
+     │⠀⠀⢀⡤⠞⠁⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀│ 
+   0 │⣠⠖⠋⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀│ 
+     └────────────────────────────────────────┘ 
+     ⠀0⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀7⠀ 
+
+julia> cos(3t) + im*sin(2t)
+TensorField{Float64, StepRangeLen{Float64, Base.TwicePrecision{Float64}, Base.TwicePrecision{Float64}, Int64}, ComplexF64, 1}
+      ┌────────────────────────────────────────┐ 
+    1 │⡴⠊⠉⠉⠉⠉⠉⠉⠉⠉⠉⠉⠑⠒⠒⠤⠤⢤⣀⣀⣇⣀⡠⠤⠔⠒⠒⠊⠉⠉⠉⠉⠉⠉⠉⠉⠉⠉⠑⢢│ 
+      │⢧⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⢀⡠⠤⠔⠒⠉⠉⡏⠉⠒⠢⠤⢄⡀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⢀⡼│ 
+      │⠀⠙⢦⡀⠀⠀⠀⠀⢀⡠⠔⠒⠋⠁⠀⠀⠀⠀⠀⠀⡇⠀⠀⠀⠀⠀⠈⠉⠒⠤⣀⠀⠀⠀⠀⠀⣀⡴⠋⠀│ 
+      │⠀⠀⠀⠈⠒⣄⡤⠊⠁⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⡇⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠉⠒⢤⣴⠊⠁⠀⠀⠀│ 
+      │⠀⠀⢀⠔⠊⠀⠈⠑⠢⢄⡀⠀⠀⠀⠀⠀⠀⠀⠀⠀⡇⠀⠀⠀⠀⠀⠀⠀⠀⢀⡠⠔⠊⠁⠀⠑⠢⡀⠀⠀│ 
+      │⠀⡔⠁⠀⠀⠀⠀⠀⠀⠀⠈⠒⠤⣀⡀⠀⠀⠀⠀⠀⡇⠀⠀⠀⠀⠀⣀⠤⠊⠁⠀⠀⠀⠀⠀⠀⠀⠈⢦⠀│ 
+      │⡞⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠈⠒⠤⣀⠀⠀⡇⠀⣀⠤⠚⠉⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⢳│ 
+      │⡧⠤⠤⠤⠤⠤⠤⠤⠤⠤⠤⠤⠤⠤⠤⠤⠤⠤⣭⠶⡷⣭⠤⠤⠤⠤⠤⠤⠤⠤⠤⠤⠤⠤⠤⠤⠤⠤⠤⢼│ 
+      │⢧⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⣀⠤⠒⠉⠀⠀⡇⠀⠉⠒⠤⣀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⡼│ 
+      │⠈⠳⡄⠀⠀⠀⠀⠀⠀⠀⣀⠤⠔⠉⠀⠀⠀⠀⠀⠀⡇⠀⠀⠀⠀⠀⠑⠒⠤⣀⠀⠀⠀⠀⠀⠀⠀⢀⠞⠁│ 
+      │⠀⠀⠈⠲⢄⡀⢀⡠⠔⠉⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⡇⠀⠀⠀⠀⠀⠀⠀⠀⠀⠑⠢⢄⡀⠀⡠⠖⠁⠀⠀│ 
+      │⠀⠀⠀⢀⡤⠛⠣⢄⣀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⡇⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⢀⡠⠜⠛⠤⡀⠀⠀⠀│ 
+      │⠀⡠⠖⠁⠀⠀⠀⠀⠀⠉⠒⠤⣀⡀⠀⠀⠀⠀⠀⠀⡇⠀⠀⠀⠀⠀⠀⣀⠤⠒⠊⠁⠀⠀⠀⠀⠈⠳⣄⠀│ 
+      │⡞⠁⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠉⠉⠒⠢⠤⣄⣀⣇⣀⠤⠴⠒⠉⠉⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⢳│ 
+   -1 │⠣⢄⣀⣀⣀⣀⣀⣀⣀⣀⣀⣀⠤⠤⠤⠔⠒⠒⠉⠉⡏⠉⠒⠒⠲⠤⠤⠤⣀⣀⣀⣀⣀⣀⣀⣀⣀⣀⡠⠞│ 
+      └────────────────────────────────────────┘ 
+      ⠀-1⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀1⠀ 
+```
+In the above example, a technique is demonstrated where an identity `TensorField` is constructed from an interval, resulting in `t` which can be used to parametrize functions on the complex plane.
+Constructing a `TensorField` can be accomplished in various ways,
+there are explicit techniques to construct a `TensorField` as well as implicit methods.
+Additional packages such as `Adapode` can build on the `TensorField` concept by generating them from differential equations.
+```Julia
+julia> using Grassmann, TensorFields, Adapode, UnicodePlots
+
+julia> Lorenz(x) = Chain(
+               10.0(x[2]-x[1]),
+               x[1]*(28.0-x[3])-x[2],
+               x[1]*x[2]-(8/3)*x[3]);
+
+julia> sol = odesolve(Lorenz,Chain(10.,10.,10.))
+TensorField{Float64, StepRangeLen{Float64, Base.TwicePrecision{Float64}, Base.TwicePrecision{Float64}, Int64}, Chain{⟨×××⟩, 1, Float64, 3}, 1}
+            ┌────────────────────────────────────────┐   
+    42.9279 │⢰⡆⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⣿⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⢠⡄⠀⠀⠀⠀⠀⠀⠀⠀│ y1
+            │⢸⢧⠀⠀⢰⡆⠀⠀⢠⢧⠀⠀⠀⠀⣿⡀⠀⠀⣀⠀⠀⢀⣄⠀⠀⠀⣷⠀⠀⠀⢸⡇⠀⠀⢸⣇⠀⠀⠀⠀│ y2
+            │⢸⢸⠀⠀⢸⢳⠀⠀⢸⢸⠀⠀⠀⠀⡇⡇⠀⢰⢻⠀⠀⢸⢸⠀⠀⢸⢹⡀⠀⠀⣸⢳⠀⠀⢸⢸⠀⠀⠀⠀│ y3
+            │⢸⠸⡄⠀⡏⢸⡀⠀⢸⠘⡆⠀⠀⢠⠇⢧⠀⢸⠈⡇⠀⢸⠘⡆⠀⢸⠀⡇⠀⠀⡇⢸⡀⠀⣸⠈⠀⠀⠀⠀│   
+            │⣼⠀⣇⠀⡇⠀⡇⠀⡼⠀⢧⠀⠀⢸⠀⢸⡀⡞⠀⢳⠀⡏⠀⢧⠀⣸⠀⢳⠀⠀⡇⠀⡇⠀⡇⠀⠀⠀⠀⠀│   
+            │⣿⠀⠸⣴⠃⠀⢹⡀⡇⠀⠸⡄⠀⢸⠀⠀⠧⠇⠀⠘⣦⠇⠀⠸⡄⣇⠀⠸⡄⠀⣷⠀⢹⠀⡇⠀⠀⠀⠀⠀│   
+            │⣿⡇⠀⠉⠀⠀⠀⠳⠃⠀⠀⢧⠀⢸⠀⠀⠀⣶⡀⠀⠀⣿⡀⠀⠙⣿⡆⠀⢳⢸⣿⡄⠈⠿⠁⠀⠀⠀⠀⠀│   
+            │⠏⣇⠀⠀⠀⠀⠀⠀⠀⠀⠀⠘⢦⡞⠀⠀⢰⡟⣷⠀⢸⡏⣧⠀⢰⡟⣷⠀⠈⣻⣿⡇⠀⠀⠀⠀⠀⠀⠀⠀│   
+            │⠀⣿⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⢀⣠⣾⠁⢿⣆⣾⠁⡿⡄⣼⠃⣿⡄⢀⣿⠘⣧⠀⠀⠀⠀⠀⠀⠀⠀│   
+            │⣀⣿⣄⣀⣀⣀⣀⣀⣀⣠⣄⣀⣀⣀⣸⣸⣁⣀⣘⣚⣁⣀⣹⣟⣋⣀⣸⣳⣾⣃⣀⣿⣄⣀⣀⣠⣀⣀⣀⣀│   
+            │⠀⠳⢽⡄⠀⣯⠿⣦⠀⣞⡏⠈⢿⡄⢸⡇⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠓⠻⣆⠀⣏⠀⠀⠀⠀│   
+            │⠀⠀⠀⣿⣀⡿⠀⢻⡆⣿⠀⠀⠘⣧⣼⠃⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⢻⡄⣿⠀⠀⠀⠀│   
+            │⠀⠀⠀⢸⣿⠇⠀⠘⣧⡏⠀⠀⠀⣿⣿⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⢸⣷⡇⠀⠀⠀⠀│   
+            │⠀⠀⠀⠀⠿⠀⠀⠀⣿⠁⠀⠀⠀⢹⡟⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⣿⠁⠀⠀⠀⠀│   
+   -22.4896 │⠀⠀⠀⠀⠀⠀⠀⠀⠈⠀⠀⠀⠀⢸⡇⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠈⠀⠀⠀⠀⠀│   
+            └────────────────────────────────────────┘   
+            ⠀0⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀7⠀   
+
+julia> typeof(sol) <: SpaceCurve
+true
+
+julia> speed(sol)
+TensorField{Float64, StepRangeLen{Float64, Base.TwicePrecision{Float64}, Base.TwicePrecision{Float64}, Int64}, Single{⟨×××⟩, 0, v, Float64}, 1}
+       ┌────────────────────────────────────────┐ 
+   300 │⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⡄⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀│ 
+       │⢀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⢰⡇⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀│ 
+       │⣼⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⢸⢳⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀│ 
+       │⡏⡇⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⢸⢸⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⣤⠀⠀⠀⠀⠀⠀⠀⠀⠀│ 
+       │⡇⡇⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⢸⢸⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⣿⠀⠀⠀⠀⠀⠀⠀⠀⠀│ 
+       │⡇⡇⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⢸⢸⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⡏⡇⠀⠀⠀⠀⠀⠀⠀⠀│ 
+       │⠀⢧⠀⠀⠀⠀⠀⠀⣸⡄⠀⠀⠀⢸⢸⡀⠀⠀⠀⠀⠀⠀⠀⠀⠀⢀⠀⠀⠀⠀⡇⡇⠀⠀⣾⡀⠀⠀⠀⠀│ 
+       │⠀⢸⠀⠀⣀⠀⠀⠀⡇⡇⠀⠀⠀⡏⠀⡇⠀⠀⠀⠀⠀⠀⠀⠀⠀⣸⡇⠀⠀⢸⠁⡇⠀⠀⡇⡇⠀⠀⠀⠀│ 
+       │⠀⢸⠀⠀⣿⡀⠀⠀⡇⢹⠀⠀⠀⡇⠀⡇⠀⠀⠀⠀⠀⣴⡀⠀⠀⡇⢳⠀⠀⢸⠀⢳⠀⠀⡇⢧⠀⠀⠀⠀│ 
+       │⠀⢸⠀⢠⠇⣇⠀⠀⡇⢸⠀⠀⠀⡇⠀⡇⠀⡴⡄⠀⠀⡇⢧⠀⠀⡇⢸⠀⠀⢸⠀⢸⠀⢠⠇⢸⠀⠀⠀⠀│ 
+       │⠀⠘⡆⢸⠀⢸⠀⢸⠁⠘⡆⠀⠀⡇⠀⣇⠀⡇⢳⠀⢀⡇⢸⡀⢀⡇⠈⡇⠀⢸⠀⢸⠀⢸⠀⠘⠀⠀⠀⠀│ 
+       │⠀⠀⡇⣸⠀⠘⡆⢸⠀⠀⣇⠀⢰⠃⠀⢸⢠⠇⠈⡇⢸⠀⠀⡇⢸⠀⠀⢧⠀⡏⠀⠈⡇⢸⠀⠀⠀⠀⠀⠀│ 
+       │⠀⠀⠹⠇⠀⠀⢳⡞⠀⠀⠸⡄⢸⠀⠀⠘⡾⠀⠀⠹⠞⠀⠀⠹⠼⠀⠀⠘⣆⡇⠀⠀⢳⡏⠀⠀⠀⠀⠀⠀│ 
+       │⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠙⠋⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠈⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀│ 
+     0 │⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀│ 
+       └────────────────────────────────────────┘ 
+       ⠀0⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀7⠀ 
 ```
 Many of these methods can automatically generalize to higher dimensional manifolds and are compatible with discrete differential geometry.
-```Julia
-julia> F(t) = Chain(cos(t)+t*sin(t),sin(t)-t*cos(t),t^2)
-
-julia> typeof((0:0.01:2π) → F) <: SpaceCurve
-true
-```
-Visualizing `TensorField` reperesentations can be standardized in combination with packages such as [Makie.jl](https://github.com/MakieOrg/Makie.jl) or [UnicodePlots.jl](https://github.com/JuliaPlots/UnicodePlots.jl).
