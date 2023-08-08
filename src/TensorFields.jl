@@ -190,11 +190,11 @@ find_tf(::Tuple{}) = nothing
 find_tf(a::TensorField, rest) = a
 find_tf(::Any, rest) = find_tf(rest)
 
-function (m::IntervalMap{Float64,Vector{Float64}})(t)
+function (m::IntervalMap{Float64,<:AbstractVector{Float64}})(t)
     i = searchsortedfirst(domain(m),t)-1
     m.cod[i]+(t-m.dom[i])/(m.dom[i+1]-m.dom[i])*(m.cod[i+1]-m.cod[i])
 end
-function (m::IntervalMap{Float64,Vector{Float64}})(t::Vector,d=diff(m.cod)./diff(m.dom))
+function (m::IntervalMap{Float64,<:AbstractVector{Float64}})(t::Vector,d=diff(m.cod)./diff(m.dom))
     [parametric(i,m,d) for i ∈ t]
 end
 function parametric(t,m,d=diff(codomain(m))./diff(domain(m)))
