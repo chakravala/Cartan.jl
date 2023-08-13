@@ -31,7 +31,7 @@ export initmesh, pdegrad
 
 export ElementFunction, IntervalMap, PlaneCurve, SpaceCurve, SurfaceGrid, ScalarGrid
 export TensorField, ScalarField, VectorField, BivectorField, TrivectorField
-export RealFunction, ComplexMap, ComplexMapping, SpinorField, CliffordField
+export RealFunction, ComplexMap, SpinorField, CliffordField
 export MeshFunction, GradedField, QuaternionField # PhasorField
 export Section, FiberBundle, AbstractFiber
 export base, fiber, domain, codomain, ↦, →, ←, ↤, basetype, fibertype
@@ -153,6 +153,9 @@ Base.:*(a::Section,b::Number) = base(a) ↦ (fiber(a)*b)
 Base.:/(a::Section,b::Number) = base(a) ↦ (fiber(a)/b)
 LinearAlgebra.norm(s::Section) = base(s) ↦ norm(fiber(s))
 (V::Submanifold)(s::Section) = base(a) ↦ V(fiber(s))
+(::Type{T})(s::Section) where T<:Real = base(s) ↦ T(fiber(s))
+(::Type{Complex})(s::Section) = base(s) ↦ Complex(fiber(s))
+(::Type{Complex{T}})(s::Section) where T = base(s) ↦ Complex{T}(fiber(s))
 
 # FiberBundle
 
@@ -302,10 +305,13 @@ for fun ∈ (:reverse,:involute,:clifford,:even,:odd,:scalar,:vector,:bivector,:
     @eval Grassmann.$fun(t::TensorField) = domain(t) → $fun.(codomain(t))
 end
 
-Base.inv(t::TensorField) = fiber(t) → base(t)
+Base.inv(t::TensorField) = codomain(t) → domain(t)
 absvalue(t::TensorField) = domain(t) → value.(abs.(codomain(t)))
 LinearAlgebra.norm(t::TensorField) = domain(t) → norm.(codomain(t))
 (V::Submanifold)(t::TensorField) = domain(t) → V.(codomain(t))
+(::Type{T})(t::TensorField) where T<:Real = domain(t) ↦ T.(codomain(t))
+(::Type{Complex})(t::TensorField) = domain(t) ↦ Complex.(codomain(t))
+(::Type{Complex{T}})(t::TensorField) where T = domain(t) ↦ Complex{T}.(codomain(t))
 
 checkdomain(a::TensorField,b::TensorField) = domain(a)≠domain(b) ? error("TensorField domains not equal") : true
 
