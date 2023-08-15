@@ -130,10 +130,61 @@ function trapz(f::IntervalMap,d=diff(domain(f)))
     pushfirst!(int,zero(eltype(int)))
     domain(f) → int
 end
+function trapz(f::IntervalMap{B,<:AbstractRange} where B<:AbstractReal)
+    trapz(f,Real(domain(f).step))
+end
 function trapz(f::Vector,h::Float64)
     int = (h/2)*cumsum(f[2:end]+f[1:end-1])
     pushfirst!(int,zero(eltype(int)))
     return int
+end
+function trapz(f::RectangleMap,D=diff.(domain(f).v))
+    s,d = size(f),D./2
+    int = cumsum(f.cod[2:end,:]+f.cod[1:end-1,:],dims=1)
+    for i ∈ 1:s[1]-1
+        int[i,:] .*= d[1][i]
+    end
+    int = vcat(zeros(1,s[2]),int)
+    int = cumsum(int[:,2:end]+int[:,1:end-1],dims=2)
+    for i ∈ 1:s[2]-1
+        int[:,i] .*= d[2][i]
+    end
+    domain(f) → hcat(zeros(s[1],1),int)
+end
+function trapz(f::RectangleMap{B,<:Rectangle{V,T,<:AbstractRange} where {V,T,N}} where B)
+    domain(f) → trapz(codomain(f),Real(domain(f).v[1].step),Real(domain(f).v[2].step))
+end
+function trapz(f::Matrix,x::Float64,y::Float64=x)
+    s = size(f)
+    int = vcat(zeros(1,s[2]),(x/2)*cumsum(f[2:end,:]+f[1:end-1,:],dims=1))
+    hcat(zeros(s[1],1),(y/2)*cumsum(int[:,2:end]+int[:,1:end-1],dims=2))
+end
+function trapz(f::HyperrectangleMap,D=diff.(domain(f).v))
+    s,d = size(f),D./2
+    int = cumsum(f[2:end,:,:]+f[1:end-1,:,:],dims=1)
+    for i ∈ 1:s[1]-1
+        int[i,:,:] .*= d[1][i]
+    end
+    int = cat(zeros(1,s[2],s[3]),int,dims=1)
+    int = cumsum(int[:,2:end,:]+int[:,1:end-1,:],dims=2)
+    for i ∈ 1:s[2]-1
+        int[:,i,:] .*= d[2][i]
+    end
+    int = cat(zeros(s[1],1,s[3]),int,dims=2)
+    int = cumsum(int[:,:,2:end]+int[:,:,1:end-1],dims=3)
+    for i ∈ 1:s[3]-1
+        int[:,:,i] .*= d[3][i]
+    end
+    domain(f) → cat(zeros(s[1],s[2],1),int,dims=3)
+end
+function trapz(f::HyperrectangleMap{B,<:Hyperrectangle{V,T,<:AbstractRange} where {V,T,N}} where B)
+    domain(f) → trapz(codomain(f),Real(domain(f).v[1].step),Real(domain(f).v[2].step),Real(domain(f).v[3].step))
+end
+function trapz(f::Array{T,3} where T,x::Float64,y::Float64=x,z::Float64=x)
+    s = size(f)
+    int = cat(zeros(1,s[2],s[3]),(x/2)*cumsum(f[2:end,:,:]+f[1:end-1,:,:],dims=1),dims=1)
+    int = cat(zeros(s[1],1,s[3]),(y/2)*cumsum(int[:,2:end,:]+int[:,1:end-1,:],dims=2),dims=2)
+    cat(zeros(s[1],s[2],1),(z/2)*cumsum(int[:,:,2:end]+int[:,:,1:end-1],dims=2),dims=3)
 end
 function linetrapz(γ::IntervalMap,f::Function)
     trapz(domain(γ)→(f.(codomain(γ)).⋅codomain(tangent(γ))))
@@ -145,6 +196,9 @@ function tangent_fast(f::IntervalMap,d=centraldiff_fast(domain(f)))
     domain(f) → centraldiff_fast(codomain(f),d)
 end
 function tangent(f::ScalarGrid,d=centraldiff(domain(f)))
+    domain(f) → centraldiff(Grid(codomain(f)),d)
+end
+function tangent(f::RectangleMap,d=centraldiff(domain(f)))
     domain(f) → centraldiff(Grid(codomain(f)),d)
 end
 function tangent(f::MeshFunction)

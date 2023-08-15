@@ -29,8 +29,9 @@ import DirectSum: ⊕
 export Values
 export initmesh, pdegrad
 
-export ElementFunction, IntervalMap, PlaneCurve, SpaceCurve, SurfaceGrid, ScalarGrid
+export IntervalMap, RectangleMap, HyperrectangleMap, PlaneCurve, SpaceCurve
 export TensorField, ScalarField, VectorField, BivectorField, TrivectorField
+export ElementFunction, SurfaceGrid, VolumeGrid, ScalarGrid
 export RealFunction, ComplexMap, SpinorField, CliffordField
 export MeshFunction, GradedField, QuaternionField # PhasorField
 export Section, FiberBundle, AbstractFiber
@@ -49,6 +50,7 @@ const RealRegion{V,T<:Real,N,S<:AbstractVector{T}} = ProductSpace{V,T,N,N,S}
 const Interval{V,T,S} = RealRegion{V,T,1,S}
 const Rectangle{V,T,S} = RealRegion{V,T,2,S}
 const Hyperrectangle{V,T,S} = RealRegion{V,T,3,S}
+
 RealRegion{V}(v::Values{N,S}) where {V,T<:Real,N,S<:AbstractVector{T}} = ProductSpace{V,T,N}(v)
 RealRegion(v::Values{N,S}) where {T<:Real,N,S<:AbstractVector{T}} = ProductSpace{Submanifold(N),T,N}(v)
 ProductSpace{V}(v::Values{N,S}) where {V,T<:Real,N,S<:AbstractVector{T}} = ProductSpace{V,T,N}(v)
@@ -177,11 +179,15 @@ end
 const MeshFunction{B,T<:ChainBundle,F<:AbstractReal} = TensorField{B,T,F,1}
 const ElementFunction{B,T<:AbstractVector{B},F<:AbstractReal} = TensorField{B,T,F,1}
 const IntervalMap{B<:AbstractReal,T<:AbstractVector{B},F} = TensorField{B,T,F,1}
+const RectangleMap{B,T<:Rectangle,F} = TensorField{B,T,F,2}
+const HyperrectangleMap{B,T<:Hyperrectangle,F} = TensorField{B,T,F,3}
 const RealFunction{B<:AbstractReal,T<:AbstractVector{B},F<:AbstractReal} = TensorField{B,T,F,1}
 const PlaneCurve{B<:AbstractReal,T<:AbstractVector{B},F<:Chain{V,G,Q,2} where {V,G,Q}} = TensorField{B,T,F,1}
 const SpaceCurve{B<:AbstractReal,T<:AbstractVector{B},F<:Chain{V,G,Q,3} where {V,G,Q}} = TensorField{B,T,F,1}
 const SurfaceGrid{B,T<:AbstractMatrix{B},F<:AbstractReal} = TensorField{B,T,F,2}
+const VolumeGrid{B,T<:AbstractMatrix{B},F<:AbstractReal} = TensorField{B,T,F,3}
 const ScalarGrid{B,T<:AbstractArray{B},F<:AbstractReal,N} = TensorField{B,T,F,N}
+const ParametricGrid{B,T<:AbstractArray{B},F,N} = TensorField{B,T,F,N}
 const CliffordField{B,T,F<:Multivector,N} = TensorField{B,T,F,N}
 const QuaternionField{B,T,F<:Quaternion,N} = TensorField{B,T,F,N}
 const ComplexMap{B,T,F<:AbstractComplex,N} = TensorField{B,T,F,N}
@@ -193,6 +199,7 @@ const VectorField = GradedField{1}
 const BivectorField = GradedField{2}
 const TrivectorField = GradedField{3}
 
+TensorField(dom,fun::BitArray) = dom → Float64.(fun)
 TensorField(dom,fun::TensorField) = dom → fiber(fun)
 TensorField(dom::TensorField,fun) = base(dom) → fun
 TensorField(dom::TensorField,fun::Array) = base(dom) → fun
@@ -346,21 +353,21 @@ function __init__()
                 Makie.lines!(x,Real.(getindex.(y,i));args...)
             end
         end
-        Makie.volume(t::ScalarGrid{<:Chain,<:Hyperrectangle};args...) = Makie.volume(domain(t).v...,Real.(codomain(t));args...)
-        Makie.volumeslices(t::ScalarGrid{<:Chain,<:Hyperrectangle};args...) = Makie.volumeslices(domain(t).v...,Real.(codomain(t));args...)
-        Makie.surface(t::SurfaceGrid{<:Chain,<:RealRegion};args...) = Makie.surface(domain(t).v...,Real.(codomain(t));args...)
-        Makie.contour(t::SurfaceGrid{<:Chain,<:RealRegion};args...) = Makie.contour(domain(t).v...,Real.(codomain(t));args...)
-        Makie.contourf(t::SurfaceGrid{<:Chain,<:RealRegion};args...) = Makie.contourf(domain(t).v...,Real.(codomain(t));args...)
-        Makie.contour3d(t::SurfaceGrid{<:Chain,<:RealRegion};args...) = Makie.contour3d(domain(t).v...,Real.(codomain(t));args...)
-        Makie.heatmap(t::SurfaceGrid{<:Chain,<:RealRegion};args...) = Makie.heatmap(domain(t).v...,Real.(codomain(t));args...)
-        Makie.wireframe(t::SurfaceGrid{<:Chain,<:RealRegion};args...) = Makie.wireframe(domain(t).v...,Real.(codomain(t));args...)
+        Makie.volume(t::VolumeGrid;args...) = Makie.volume(domain(t).v...,Real.(codomain(t));args...)
+        Makie.volumeslices(t::VolumeGrid;args...) = Makie.volumeslices(domain(t).v...,Real.(codomain(t));args...)
+        Makie.surface(t::SurfaceGrid;args...) = Makie.surface(domain(t).v...,Real.(codomain(t));args...)
+        Makie.contour(t::SurfaceGrid;args...) = Makie.contour(domain(t).v...,Real.(codomain(t));args...)
+        Makie.contourf(t::SurfaceGrid;args...) = Makie.contourf(domain(t).v...,Real.(codomain(t));args...)
+        Makie.contour3d(t::SurfaceGrid;args...) = Makie.contour3d(domain(t).v...,Real.(codomain(t));args...)
+        Makie.heatmap(t::SurfaceGrid;args...) = Makie.heatmap(domain(t).v...,Real.(codomain(t));args...)
+        Makie.wireframe(t::SurfaceGrid;args...) = Makie.wireframe(domain(t).v...,Real.(codomain(t));args...)
         #Makie.spy(t::SurfaceGrid{<:Chain,<:RealRegion};args...) = Makie.spy(t.v...,Real.(codomain(t));args...)
         Makie.streamplot(f::Function,t::Rectangle;args...) = Makie.streamplot(f,t.v...;args...)
         Makie.streamplot(f::Function,t::Hyperrectangle;args...) = Makie.streamplot(f,t.v...;args...)
-        Makie.streamplot(m::TensorField{R,<:RealRegion,<:AbstractReal} where R;args...) = Makie.streamplot(tangent(m);args...)
-        Makie.streamplot(m::TensorField{R,<:ChainBundle,<:AbstractReal} where R,dims...;args...) = Makie.streamplot(tangent(m),dims...;args...)
+        Makie.streamplot(m::ScalarField{<:Chain,<:RealRegion,<:AbstractReal};args...) = Makie.streamplot(tangent(m);args...)
+        Makie.streamplot(m::ScalarField{R,<:ChainBundle,<:AbstractReal} where R,dims...;args...) = Makie.streamplot(tangent(m),dims...;args...)
         Makie.streamplot(m::VectorField{R,<:ChainBundle} where R,dims...;args...) = Makie.streamplot(p->Makie.Point(m(Chain(one(eltype(p)),p.data...))),dims...;args...)
-        Makie.streamplot(m::VectorField{R,<:RealRegion} where R;args...) = Makie.streamplot(p->Makie.Point(m(Chain(p.data...))),domain(m).v...;args...)
+        Makie.streamplot(m::VectorField{<:Chain,<:RealRegion};args...) = Makie.streamplot(p->Makie.Point(m(Chain(p.data...))),domain(m).v...;args...)
         Makie.arrows(t::VectorField{<:Chain,<:Rectangle};args...) = Makie.arrows(domain(t).v...,getindex.(codomain(t),1),getindex.(codomain(t),2);args...)
         Makie.arrows!(t::VectorField{<:Chain,<:Rectangle};args...) = Makie.arrows!(domain(t).v...,getindex.(codomain(t),1),getindex.(codomain(t),2);args...)
         Makie.arrows(t::VectorField{<:Chain,<:Hyperrectangle};args...) = Makie.arrows(Makie.Point.(domain(t))[:],Makie.Point.(codomain(t))[:];args...)
@@ -383,15 +390,15 @@ function __init__()
         UnicodePlots.lineplot(t::RealFunction;args...) = UnicodePlots.lineplot(Real.(domain(t)),Real.(codomain(t));args...)
         UnicodePlots.lineplot(t::ComplexMap{B,<:AbstractVector{B}};args...) where B<:AbstractReal = UnicodePlots.lineplot(real.(Complex.(codomain(t))),imag.(Complex.(codomain(t)));args...)
         UnicodePlots.lineplot(t::GradedField{G,B,<:AbstractVector{B}};args...) where {G,B<:AbstractReal} = UnicodePlots.lineplot(Real.(domain(t)),Grassmann.array(codomain(t));args...)
-        UnicodePlots.contourplot(t::SurfaceGrid{<:Chain,<:RealRegion};args...) = UnicodePlots.contourplot(t.dom.v[1][2:end-1],t.dom.v[2][2:end-1],(x,y)->t(Chain(x,y));args...)
-        UnicodePlots.surfaceplot(t::SurfaceGrid{<:Chain,<:RealRegion};args...) = UnicodePlots.surfaceplot(t.dom.v[1][2:end-1],t.dom.v[2][2:end-1],(x,y)->t(Chain(x,y));args...)
-        UnicodePlots.spy(t::SurfaceGrid{<:Chain,<:RealRegion};args...) = UnicodePlots.spy(Real.(codomain(t));args...)
-        UnicodePlots.heatmap(t::SurfaceGrid{<:Chain,<:RealRegion};args...) = UnicodePlots.heatmap(Real.(codomain(t));args...)
+        UnicodePlots.contourplot(t::SurfaceGrid;args...) = UnicodePlots.contourplot(t.dom.v[1][2:end-1],t.dom.v[2][2:end-1],(x,y)->t(Chain(x,y));args...)
+        UnicodePlots.surfaceplot(t::SurfaceGrid;args...) = UnicodePlots.surfaceplot(t.dom.v[1][2:end-1],t.dom.v[2][2:end-1],(x,y)->t(Chain(x,y));args...)
+        UnicodePlots.spy(t::SurfaceGrid;args...) = UnicodePlots.spy(Real.(codomain(t));args...)
+        UnicodePlots.heatmap(t::SurfaceGrid;args...) = UnicodePlots.heatmap(Real.(codomain(t));args...)
         Base.display(t::PlaneCurve) = (display(typeof(t)); display(UnicodePlots.lineplot(t)))
         Base.display(t::RealFunction) = (display(typeof(t)); display(UnicodePlots.lineplot(t)))
         Base.display(t::ComplexMap{B,<:AbstractVector{B}}) where B<:AbstractReal = (display(typeof(t)); display(UnicodePlots.lineplot(t)))
         Base.display(t::GradedField{G,B,<:AbstractVector{B}}) where {G,B<:AbstractReal} = (display(typeof(t)); display(UnicodePlots.lineplot(t)))
-        Base.display(t::SurfaceGrid{<:Chain,<:RealRegion}) = (display(typeof(t)); display(UnicodePlots.heatmap(t)))
+        Base.display(t::SurfaceGrid) = (display(typeof(t)); display(UnicodePlots.heatmap(t)))
     end
 end
 
