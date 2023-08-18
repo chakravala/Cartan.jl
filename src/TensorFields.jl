@@ -18,7 +18,7 @@ module TensorFields
 #  / / |  __/ | | \__ \ (_) | | / /   | |  __/ | (_| \__ \
 #  \/   \___|_| |_|___/\___/|_| \/    |_|\___|_|\__,_|___/
 
-using SparseArrays, LinearAlgebra
+using SparseArrays, LinearAlgebra, Base.Threads
 using AbstractTensors, DirectSum, Grassmann, Requires
 import Grassmann: value, vector, valuetype, tangent
 import Base: @pure
@@ -34,6 +34,7 @@ export TensorField, ScalarField, VectorField, BivectorField, TrivectorField
 export ElementFunction, SurfaceGrid, VolumeGrid, ScalarGrid
 export RealFunction, ComplexMap, SpinorField, CliffordField
 export MeshFunction, GradedField, QuaternionField # PhasorField
+export ParametricMap, RectangleMap, HyperrectangleMap
 export Section, FiberBundle, AbstractFiber
 export base, fiber, domain, codomain, ↦, →, ←, ↤, basetype, fibertype
 export ProductSpace, RealRegion, Interval, Rectangle, Hyperrectangle, ⧺, ⊕
@@ -88,6 +89,10 @@ end
 @generated ⧺(a::Complex...) = :(Chain($([:(a[$i]) for i ∈ 1:length(a)]...)))
 ⧺(a::Chain{A,G},b::Chain{B,G}) where {A,B,G} = Chain{A∪B,G}(vcat(a.v,b.v))
 
+remove(t::ProductSpace{V,T,2} where {V,T},::Val{1}) = t.v[2]
+remove(t::ProductSpace{V,T,2} where {V,T},::Val{2}) = t.v[1]
+@generated remove(t::ProductSpace{V,T,N} where {V,T},::Val{J}) where {N,J} = :(ProductSpace(domain(t).v[$(Values([i for i ∈ 1:N if i≠J]...))]))
+
 # AbstractFiber
 
 abstract type AbstractFiber <: Number end
@@ -110,6 +115,8 @@ base(s::Section) = s.v.first
 fiber(s::Section) = s.v.second
 basetype(::Section{B}) where B = B
 fibertype(::Section{B,F} where B) where F = F
+basetype(::Type{<:Section{B}}) where B = B
+fibertype(::Type{<:Section{B,F} where B}) where F = F
 const ↦, domain, codomain = Section, base, fiber
 ↤(F,B) = B ↦ F
 
@@ -181,13 +188,14 @@ const ElementFunction{B,T<:AbstractVector{B},F<:AbstractReal} = TensorField{B,T,
 const IntervalMap{B<:AbstractReal,T<:AbstractVector{B},F} = TensorField{B,T,F,1}
 const RectangleMap{B,T<:Rectangle,F} = TensorField{B,T,F,2}
 const HyperrectangleMap{B,T<:Hyperrectangle,F} = TensorField{B,T,F,3}
+const ParametricMap{B,T<:RealRegion,F,N} = TensorField{B,T,F,N}
 const RealFunction{B<:AbstractReal,T<:AbstractVector{B},F<:AbstractReal} = TensorField{B,T,F,1}
 const PlaneCurve{B<:AbstractReal,T<:AbstractVector{B},F<:Chain{V,G,Q,2} where {V,G,Q}} = TensorField{B,T,F,1}
 const SpaceCurve{B<:AbstractReal,T<:AbstractVector{B},F<:Chain{V,G,Q,3} where {V,G,Q}} = TensorField{B,T,F,1}
 const SurfaceGrid{B,T<:AbstractMatrix{B},F<:AbstractReal} = TensorField{B,T,F,2}
-const VolumeGrid{B,T<:AbstractMatrix{B},F<:AbstractReal} = TensorField{B,T,F,3}
+const VolumeGrid{B,T<:AbstractArray{B,3},F<:AbstractReal} = TensorField{B,T,F,3}
 const ScalarGrid{B,T<:AbstractArray{B},F<:AbstractReal,N} = TensorField{B,T,F,N}
-const ParametricGrid{B,T<:AbstractArray{B},F,N} = TensorField{B,T,F,N}
+#const ParametricGrid{B,T<:AbstractArray{B},F,N} = TensorField{B,T,F,N}
 const CliffordField{B,T,F<:Multivector,N} = TensorField{B,T,F,N}
 const QuaternionField{B,T,F<:Quaternion,N} = TensorField{B,T,F,N}
 const ComplexMap{B,T,F<:AbstractComplex,N} = TensorField{B,T,F,N}
@@ -215,6 +223,8 @@ base(t::TensorField) = t.dom
 fiber(t::TensorField) = t.cod
 basetype(::TensorField{B}) where B = B
 fibertype(::TensorField{B,T,F} where {B,T}) where F = F
+basetype(::Type{<:TensorField{B}}) where B = B
+fibertype(::Type{<:TensorField{B,T,F} where {B,T}}) where F = F
 unitdomain(t::TensorField) = base(t)*inv(base(t)[end])
 arcdomain(t::TensorField) = unitdomain(t)*arclength(codomain(t))
 
@@ -225,20 +235,21 @@ Base.broadcast(f,t::TensorField) = domain(t) → f.(codomain(t))
 Base.getindex(m::TensorField,i::Vararg{Int}) = getindex(domain(m),i...) ↦ getindex(codomain(m),i...)
 Base.getindex(m::ElementFunction{R,<:ChainBundle} where R,i::Vararg{Int}) = getindex(value(points(domain(m))),i...) ↦ getindex(codomain(m),i...)
 Base.setindex!(m::TensorField{B,<:AbstractRange{B}},s::Section,i::Vararg{Int}) where B = setindex!(codomain(m),fiber(s),i...)
-Base.setindex!(m::TensorField{B,<:AbstractVector{B},F},s::F,i::Vararg{Int}) where {B,F} = setindex!(codomain(m),s,i...)
-function Base.setindex!(m::TensorField{B,<:Vector{B}},s::Section,i::Vararg{Int}) where B
+Base.setindex!(m::TensorField{B,<:RealRegion{V,T,N,<:AbstractRange} where {V,T,N}},s::Section,i::Vararg{Int}) where B = setindex!(codomain(m),fiber(s),i...)
+Base.setindex!(m::TensorField{B,<:AbstractArray{B},F},s::F,i::Vararg{Int}) where {B,F} = setindex!(codomain(m),s,i...)
+function Base.setindex!(m::TensorField{B,<:Array{B}},s::Section,i::Vararg{Int}) where B
     setindex!(domain(m),base(s),i...)
     setindex!(codomain(m),fiber(s),i...)
     return s
 end
 
-Base.BroadcastStyle(::Type{<:TensorField{B,T,F} where {B,T}}) where F = Broadcast.ArrayStyle{TensorField{F}}()
+Base.BroadcastStyle(::Type{<:TensorField{B,T,F,N}}) where {B,T,F,N} = Broadcast.ArrayStyle{TensorField{B,T,F,N}}()
 
-function Base.similar(bc::Broadcast.Broadcasted{Broadcast.ArrayStyle{TensorField{F}}}, ::Type{ElType}) where {F,ElType}
-    # Scan the inputs for the ArrayAndChar:
+function Base.similar(bc::Broadcast.Broadcasted{Broadcast.ArrayStyle{TensorField{B,T,F,N}}}, ::Type{ElType}) where {B,T,F,N,ElType}
+    # Scan the inputs for the TensorField:
     t = find_tf(bc)
-    # Use the char field of A to create the output
-    domain(t) → similar(Array{F}, axes(bc))
+    # Use the domain field of t to create the output
+    domain(t) → similar(Array{fibertype(ElType),N}, axes(bc))
 end
 
 "`A = find_tf(As)` returns the first TensorField among the arguments."
@@ -355,7 +366,16 @@ function __init__()
         end
         Makie.volume(t::VolumeGrid;args...) = Makie.volume(domain(t).v...,Real.(codomain(t));args...)
         Makie.volumeslices(t::VolumeGrid;args...) = Makie.volumeslices(domain(t).v...,Real.(codomain(t));args...)
-        Makie.surface(t::SurfaceGrid;args...) = Makie.surface(domain(t).v...,Real.(codomain(t));args...)
+        Makie.surface(t::SurfaceGrid;args...) = Makie.surface(domain(t).v...,Real.(codomain(t));color=Real.(abs.(codomain(tangent_fast(t)))),args...)
+        function Makie.surface(t::GradedField{G,B,<:Rectangle};args...) where {G,B}
+            x,y = domain(t),value.(codomain(t))
+            yi = Real.(getindex.(y,1))
+            display(Makie.surface(x.v...,yi;color=Real.(abs.(codomain(tangent_fast(x→yi)))),args...))
+            for i ∈ 1:binomial(mdims(eltype(codomain(t))),G)
+                yi = Real.(getindex.(y,i))
+                Makie.surface!(x.v...,yi;color=Real.(abs.(codomain(tangent_fast(x→yi)))),args...)
+            end
+        end
         Makie.contour(t::SurfaceGrid;args...) = Makie.contour(domain(t).v...,Real.(codomain(t));args...)
         Makie.contourf(t::SurfaceGrid;args...) = Makie.contourf(domain(t).v...,Real.(codomain(t));args...)
         Makie.contour3d(t::SurfaceGrid;args...) = Makie.contour3d(domain(t).v...,Real.(codomain(t));args...)
@@ -364,8 +384,8 @@ function __init__()
         #Makie.spy(t::SurfaceGrid{<:Chain,<:RealRegion};args...) = Makie.spy(t.v...,Real.(codomain(t));args...)
         Makie.streamplot(f::Function,t::Rectangle;args...) = Makie.streamplot(f,t.v...;args...)
         Makie.streamplot(f::Function,t::Hyperrectangle;args...) = Makie.streamplot(f,t.v...;args...)
-        Makie.streamplot(m::ScalarField{<:Chain,<:RealRegion,<:AbstractReal};args...) = Makie.streamplot(tangent(m);args...)
-        Makie.streamplot(m::ScalarField{R,<:ChainBundle,<:AbstractReal} where R,dims...;args...) = Makie.streamplot(tangent(m),dims...;args...)
+        Makie.streamplot(m::ScalarField{<:Chain,<:RealRegion,<:AbstractReal};args...) = Makie.streamplot(tangent_fast(m);args...)
+        Makie.streamplot(m::ScalarField{R,<:ChainBundle,<:AbstractReal} where R,dims...;args...) = Makie.streamplot(tangent_fast(m),dims...;args...)
         Makie.streamplot(m::VectorField{R,<:ChainBundle} where R,dims...;args...) = Makie.streamplot(p->Makie.Point(m(Chain(one(eltype(p)),p.data...))),dims...;args...)
         Makie.streamplot(m::VectorField{<:Chain,<:RealRegion};args...) = Makie.streamplot(p->Makie.Point(m(Chain(p.data...))),domain(m).v...;args...)
         Makie.arrows(t::VectorField{<:Chain,<:Rectangle};args...) = Makie.arrows(domain(t).v...,getindex.(codomain(t),1),getindex.(codomain(t),2);args...)
