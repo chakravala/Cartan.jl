@@ -20,14 +20,14 @@ module TensorFields
 
 using SparseArrays, LinearAlgebra, Base.Threads
 using AbstractTensors, DirectSum, Grassmann, Requires
-import Grassmann: value, vector, valuetype, tangent
-import Base: @pure
+import Grassmann: value, vector, valuetype, tangent, Derivation
+import Base: @pure, OneTo
 import AbstractTensors: Values, Variables, FixedVector
 import AbstractTensors: Scalar, GradedVector, Bivector, Trivector
 import DirectSum: ⊕
 
-export Values
-export initmesh, pdegrad
+export Values, Derivation
+export initmesh, pdegrad, det
 
 export IntervalMap, RectangleMap, HyperrectangleMap, PlaneCurve, SpaceCurve
 export TensorField, ScalarField, VectorField, BivectorField, TrivectorField
@@ -36,7 +36,7 @@ export RealFunction, ComplexMap, SpinorField, CliffordField
 export MeshFunction, GradedField, QuaternionField # PhasorField
 export ParametricMap, RectangleMap, HyperrectangleMap
 export Section, FiberBundle, AbstractFiber
-export base, fiber, domain, codomain, ↦, →, ←, ↤, basetype, fibertype
+export base, fiber, domain, codomain, ↦, →, ←, ↤, basetype, fibertype, graph
 export ProductSpace, RealRegion, Interval, Rectangle, Hyperrectangle, ⧺, ⊕
 
 # ProductSpace
@@ -111,12 +111,17 @@ end
 
 Section(b,f::Function) = b ↦ f(b)
 
+fiber(s) = s
+fibertype(s) = typeof(s)
+fibertype(::Type{T}) where T = T
 base(s::Section) = s.v.first
 fiber(s::Section) = s.v.second
 basetype(::Section{B}) where B = B
 fibertype(::Section{B,F} where B) where F = F
 basetype(::Type{<:Section{B}}) where B = B
 fibertype(::Type{<:Section{B,F} where B}) where F = F
+graph(s::Section{<:AbstractReal,<:AbstractReal}) = Chain(Real(base(s)),Real(fiber(s)))
+graph(s::Section{<:Chain,<:AbstractReal}) = Chain(value(base(s))...,Real(fiber(s)))
 const ↦, domain, codomain = Section, base, fiber
 ↤(F,B) = B ↦ F
 
@@ -161,6 +166,7 @@ Base.:*(a::Number,b::Section) = base(b) ↦ (a*fiber(b))
 Base.:*(a::Section,b::Number) = base(a) ↦ (fiber(a)*b)
 Base.:/(a::Section,b::Number) = base(a) ↦ (fiber(a)/b)
 LinearAlgebra.norm(s::Section) = base(s) ↦ norm(fiber(s))
+LinearAlgebra.det(s::Section) = base(s) ↦ det(fiber(s))
 (V::Submanifold)(s::Section) = base(a) ↦ V(fiber(s))
 (::Type{T})(s::Section) where T<:Real = base(s) ↦ T(fiber(s))
 (::Type{Complex})(s::Section) = base(s) ↦ Complex(fiber(s))
@@ -219,14 +225,20 @@ TensorField(dom::ChainBundle,fun::Function) = dom → fun.(value(points(dom)))
 
 ←(F,B) = B → F
 const → = TensorField
+base(t::Array) = ProductSpace(Values(axes(t)))
+fiber(t::Array) = t
 base(t::TensorField) = t.dom
 fiber(t::TensorField) = t.cod
 basetype(::TensorField{B}) where B = B
+basetype(::Array{T}) where T = Int
 fibertype(::TensorField{B,T,F} where {B,T}) where F = F
+fibertype(::Array{T}) where T = T
 basetype(::Type{<:TensorField{B}}) where B = B
 fibertype(::Type{<:TensorField{B,T,F} where {B,T}}) where F = F
+
 unitdomain(t::TensorField) = base(t)*inv(base(t)[end])
 arcdomain(t::TensorField) = unitdomain(t)*arclength(codomain(t))
+graph(t::TensorField) = graph.(t)
 
 Base.size(m::TensorField) = size(m.cod)
 Base.resize!(m::TensorField,i) = (resize!(domain(m),i),resize!(codomain(m),i))
@@ -281,9 +293,12 @@ end
 function (m::TensorField{R,<:Rectangle} where R)(t::Chain)
     x,y = domain(m).v[1],domain(m).v[2]
     i,j = searchsortedfirst(x,t[1])-1,searchsortedfirst(y,t[2])-1
-    f1 = m.cod[i,j]+(t[1]-x[i])/(x[i+1]-x[i])*(m.cod[i+1,j]-m.cod[i,j])
-    f2 = m.cod[i,j+1]+(t[1]-x[i])/(x[i+1]-x[i])*(m.cod[i+1,j+1]-m.cod[i,j+1])
-    f1+(t[2]-y[i])/(y[i+1]-y[i])*(f2-f1)
+    #f1 = m.cod[i,j]+(t[1]-x[i])/(x[i+1]-x[i])*(m.cod[i+1,j]-m.cod[i,j])
+    #f2 = m.cod[i,j+1]+(t[1]-x[i])/(x[i+1]-x[i])*(m.cod[i+1,j+1]-m.cod[i,j+1])
+    #f1+(t[2]-y[i])/(y[i+1]-y[i])*(f2-f1)
+    f1 = ((x[i+1]-t[1])*m.cod[i,j]+(t[1]-x[i])*m.cod[i+1,j])/(x[i+1]-x[i])
+    f2 = ((x[i+1]-t[1])*m.cod[i,j+1]+(t[1]-x[i])*m.cod[i+1,j+1])/(x[i+1]-x[i])
+    ((y[i+1]-t[2])*f1+(t[2]-y[i])*f2)/(y[i+1]-y[i])
 end
 
 (m::TensorField{R,<:Hyperrectangle} where R)(x,y,z) = m(Chain(x,y,z))
@@ -299,37 +314,61 @@ function (m::TensorField{R,<:Hyperrectangle} where R)(t::Chain)
     g1+(t[3]-z[i])/(z[i+1]-z[i])*(g2-g1)
 end
 
+valmat(t::Values{N,<:Vector},s=size(t[1])) where N = [Values((t[q][i] for q ∈ OneTo(N))...) for i ∈ OneTo(s[1])]
+valmat(t::Values{N,<:Matrix},s=size(t[1])) where N = [Values((t[q][i,j] for q ∈ OneTo(N))...) for i ∈ OneTo(s[1]), j ∈ OneTo(s[2])]
+valmat(t::Values{N,<:Array{T,3} where T},s=size(t[1])) where N = [Values((t[q][i,j,k] for q ∈ OneTo(N))...) for i ∈ OneTo(s[1]), j ∈ OneTo(s[2]), k ∈ OneTo(s[3])]
+
+fromany(t::Chain{V,G,Any}) where {V,G} = Chain{V,G}(value(t)...)
+fromany(t::Chain) = t
+
+TensorField(t::Chain{V,G}) where {V,G} = base(t[1]) → Chain{V,G}.(valmat(fiber.(value(t))))
+Grassmann.Chain(t::TensorField{B,T,<:Union{Real,Complex}} where {B,T}) = Chain{Submanifold(ndims(t)),0}(t)
+function Grassmann.Chain(t::TensorField{B,T,<:Chain{V,G}} where {B,T}) where {V,G}
+    Chain{V,G}((base(t) → getindex.(fiber(t),j) for j ∈ 1:binomial(mdims(V),G))...)
+end
 Base.:^(t::TensorField,n::Int) = domain(t) → codomain(t).^n
 Base.:^(t::TensorField,n::Number) = domain(t) → codomain(t).^n
-Base.:*(n::Number,t::TensorField) = domain(t) → n*codomain(t)
-Base.:*(t::TensorField,n::Number) = domain(t) → codomain(t)*n
-Base.:/(n::Number,t::TensorField) = domain(t) → (n./codomain(t))
-Base.:/(t::TensorField,n::Number) = domain(t) → (codomain(t)/n)
-Base.:+(n::Number,t::TensorField) = domain(t) → (n.+codomain(t))
-Base.:+(t::TensorField,n::Number) = domain(t) → (codomain(t).+n)
-Base.:-(n::Number,t::TensorField) = domain(t) → (n.-codomain(t))
-Base.:-(t::TensorField,n::Number) = domain(t) → (codomain(t).-n)
-
 for op ∈ (:*,:/,:+,:-,:>,:<,:>>,:<<,:&)
-    @eval Base.$op(a::TensorField,b::TensorField) = checkdomain(a,b) && TensorField(domain(a),$op.(codomain(a),codomain(b)))
+    @eval begin
+        Base.$op(a::TensorField,b::TensorField) = checkdomain(a,b) && (domain(a) → $op.(codomain(a),codomain(b)))
+        Base.$op(a::TensorField,b::Number) = domain(a) → $op.(codomain(a),Ref(b))
+        Base.$op(a::Number,b::TensorField) = domain(b) → $op.(Ref(a),codomain(b))
+    end
 end
 for op ∈ (:∧,:∨,:⋅)
-    @eval Grassmann.$op(a::TensorField,b::TensorField) = checkdomain(a,b) && TensorField(domain(a),$op.(codomain(a),codomain(b)))
+    @eval begin
+        Grassmann.$op(a::TensorField,b::TensorField) = checkdomain(a,b) && (domain(a) → $op.(codomain(a),codomain(b)))
+        Grassmann.$op(a::TensorField,b::Number) = domain(a) → $op.(codomain(a),Ref(b))
+        Grassmann.$op(a::Number,b::TensorField) = domain(b) → $op.(Ref(a),codomain(b))
+    end
 end
 for fun ∈ (:-,:!,:~,:exp,:log,:sinh,:cosh,:abs,:sqrt,:real,:imag,:cos,:sin,:tan,:cot,:sec,:csc,:asec,:acsc,:sech,:csch,:asech,:tanh,:coth,:asinh,:acosh,:atanh,:acoth,:asin,:acos,:atan,:acot,:sinc,:cosc,:abs2,:conj)
     @eval Base.$fun(t::TensorField) = domain(t) → $fun.(codomain(t))
 end
-for fun ∈ (:reverse,:involute,:clifford,:even,:odd,:scalar,:vector,:bivector,:volume,:value,:curl,:∂,:d,:⋆)
+for fun ∈ (:reverse,:involute,:clifford,:even,:odd,:scalar,:vector,:bivector,:volume,:value,:⋆)
     @eval Grassmann.$fun(t::TensorField) = domain(t) → $fun.(codomain(t))
 end
+for fun ∈ (:sum,:prod)
+    @eval Base.$fun(t::TensorField) = domain(t)[end] ↦ $fun(codomain(t))
+end
+for fun ∈ (:cumsum,:cumprod)
+    @eval function Base.$fun(t::TensorField)
+         out = $fun(codomain(t))
+         pushfirst!(out,zero(eltype(out)))
+         domain(t) → out
+    end
+end
 
+Grassmann.signbit(::TensorField) = false
 Base.inv(t::TensorField) = codomain(t) → domain(t)
+Base.diff(t::TensorField) = diff(domain(t)) → diff(codomain(t))
 absvalue(t::TensorField) = domain(t) → value.(abs.(codomain(t)))
+LinearAlgebra.det(t::TensorField) = domain(t) → det.(codomain(t))
 LinearAlgebra.norm(t::TensorField) = domain(t) → norm.(codomain(t))
 (V::Submanifold)(t::TensorField) = domain(t) → V.(codomain(t))
-(::Type{T})(t::TensorField) where T<:Real = domain(t) ↦ T.(codomain(t))
-(::Type{Complex})(t::TensorField) = domain(t) ↦ Complex.(codomain(t))
-(::Type{Complex{T}})(t::TensorField) where T = domain(t) ↦ Complex{T}.(codomain(t))
+(::Type{T})(t::TensorField) where T<:Real = domain(t) → T.(codomain(t))
+(::Type{Complex})(t::TensorField) = domain(t) → Complex.(codomain(t))
+(::Type{Complex{T}})(t::TensorField) where T = domain(t) → Complex{T}.(codomain(t))
 
 checkdomain(a::TensorField,b::TensorField) = domain(a)≠domain(b) ? error("TensorField domains not equal") : true
 
@@ -366,28 +405,37 @@ function __init__()
         end
         Makie.volume(t::VolumeGrid;args...) = Makie.volume(domain(t).v...,Real.(codomain(t));args...)
         Makie.volumeslices(t::VolumeGrid;args...) = Makie.volumeslices(domain(t).v...,Real.(codomain(t));args...)
-        Makie.surface(t::SurfaceGrid;args...) = Makie.surface(domain(t).v...,Real.(codomain(t));color=Real.(abs.(codomain(tangent_fast(t)))),args...)
+        Makie.surface(t::SurfaceGrid;args...) = Makie.surface(domain(t).v...,Real.(codomain(t));color=Real.(abs.(codomain(gradient_fast(t)))),args...)
+        Makie.surface!(t::SurfaceGrid;args...) = Makie.surface!(domain(t).v...,Real.(codomain(t));color=Real.(abs.(codomain(gradient_fast(t)))),args...)
         function Makie.surface(t::GradedField{G,B,<:Rectangle};args...) where {G,B}
             x,y = domain(t),value.(codomain(t))
             yi = Real.(getindex.(y,1))
-            display(Makie.surface(x.v...,yi;color=Real.(abs.(codomain(tangent_fast(x→yi)))),args...))
+            display(Makie.surface(x.v...,yi;color=Real.(abs.(codomain(gradient_fast(x→yi)))),args...))
             for i ∈ 1:binomial(mdims(eltype(codomain(t))),G)
                 yi = Real.(getindex.(y,i))
-                Makie.surface!(x.v...,yi;color=Real.(abs.(codomain(tangent_fast(x→yi)))),args...)
+                Makie.surface!(x.v...,yi;color=Real.(abs.(codomain(gradient_fast(x→yi)))),args...)
             end
         end
         Makie.contour(t::SurfaceGrid;args...) = Makie.contour(domain(t).v...,Real.(codomain(t));args...)
         Makie.contourf(t::SurfaceGrid;args...) = Makie.contourf(domain(t).v...,Real.(codomain(t));args...)
         Makie.contour3d(t::SurfaceGrid;args...) = Makie.contour3d(domain(t).v...,Real.(codomain(t));args...)
         Makie.heatmap(t::SurfaceGrid;args...) = Makie.heatmap(domain(t).v...,Real.(codomain(t));args...)
+        Makie.contour!(t::SurfaceGrid;args...) = Makie.contour!(domain(t).v...,Real.(codomain(t));args...)
+        Makie.contourf!(t::SurfaceGrid;args...) = Makie.contourf!(domain(t).v...,Real.(codomain(t));args...)
+        Makie.contour3d!(t::SurfaceGrid;args...) = Makie.contour3d!(domain(t).v...,Real.(codomain(t));args...)
+        Makie.heatmap!(t::SurfaceGrid;args...) = Makie.heatmap!(domain(t).v...,Real.(codomain(t));args...)
+
         Makie.wireframe(t::SurfaceGrid;args...) = Makie.wireframe(domain(t).v...,Real.(codomain(t));args...)
+        Makie.wireframe!(t::SurfaceGrid;args...) = Makie.wireframe!(domain(t).v...,Real.(codomain(t));args...)
         #Makie.spy(t::SurfaceGrid{<:Chain,<:RealRegion};args...) = Makie.spy(t.v...,Real.(codomain(t));args...)
         Makie.streamplot(f::Function,t::Rectangle;args...) = Makie.streamplot(f,t.v...;args...)
         Makie.streamplot(f::Function,t::Hyperrectangle;args...) = Makie.streamplot(f,t.v...;args...)
-        Makie.streamplot(m::ScalarField{<:Chain,<:RealRegion,<:AbstractReal};args...) = Makie.streamplot(tangent_fast(m);args...)
-        Makie.streamplot(m::ScalarField{R,<:ChainBundle,<:AbstractReal} where R,dims...;args...) = Makie.streamplot(tangent_fast(m),dims...;args...)
+        Makie.streamplot(m::ScalarField{<:Chain,<:RealRegion,<:AbstractReal};args...) = Makie.streamplot(gradient_fast(m);args...)
+        Makie.streamplot(m::ScalarField{R,<:ChainBundle,<:AbstractReal} where R,dims...;args...) = Makie.streamplot(gradient_fast(m),dims...;args...)
         Makie.streamplot(m::VectorField{R,<:ChainBundle} where R,dims...;args...) = Makie.streamplot(p->Makie.Point(m(Chain(one(eltype(p)),p.data...))),dims...;args...)
         Makie.streamplot(m::VectorField{<:Chain,<:RealRegion};args...) = Makie.streamplot(p->Makie.Point(m(Chain(p.data...))),domain(m).v...;args...)
+        Makie.arrows(t::ScalarField{<:Chain,<:Rectangle};args...) = Makie.arrows(Point.(fiber(graph(Real(int))))[:],Point.(fiber(normal(Real(int))))[:];args...)
+        Makie.arrows!(t::ScalarField{<:Chain,<:Rectangle};args...) = Makie.arrows!(Point.(fiber(graph(Real(int))))[:],Point.(fiber(normal(Real(int))))[:];args...)
         Makie.arrows(t::VectorField{<:Chain,<:Rectangle};args...) = Makie.arrows(domain(t).v...,getindex.(codomain(t),1),getindex.(codomain(t),2);args...)
         Makie.arrows!(t::VectorField{<:Chain,<:Rectangle};args...) = Makie.arrows!(domain(t).v...,getindex.(codomain(t),1),getindex.(codomain(t),2);args...)
         Makie.arrows(t::VectorField{<:Chain,<:Hyperrectangle};args...) = Makie.arrows(Makie.Point.(domain(t))[:],Makie.Point.(codomain(t))[:];args...)

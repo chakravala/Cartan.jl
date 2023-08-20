@@ -49,7 +49,8 @@ function gradienthat(t,m=volumes(t))
 end
 
 laplacian(t,u,m=volumes(t),g=gradienthat(t,m)) = value.(abs.(gradient(t,u,m,g)))
-gradient(t,u,m=volumes(t),g=gradienthat(t,m)) = [u[value(t[k])]⋅value(g[k]) for k ∈ 1:length(t)]
+gradient(t::ChainBundle,u::Vector,m=volumes(t),g=gradienthat(t,m)) = [u[value(t[k])]⋅value(g[k]) for k ∈ 1:length(t)]
+gradient(t::Vector,u::Vector,m=volumes(t),g=gradienthat(t,m)) = [u[value(t[k])]⋅value(g[k]) for k ∈ 1:length(t)]
 
 for T ∈ (:Values,:Variables)
     @eval function assemblelocal!(M,mat,m,tk::$T{N}) where N

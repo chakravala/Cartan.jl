@@ -13,6 +13,9 @@
 #   https://crucialflow.com
 
 export bound, boundabove, boundbelow, boundlog, isclosed
+export centraldiff, centraldiff_slow, centraldiff_fast
+export gradient, gradient_slow, gradient_fast, unitgradient
+export integral, integrate, ∫
 
 # analysis
 
@@ -51,25 +54,106 @@ end
 
 centraldiffdiff(f,dt,l) = centraldiff(centraldiff(f,dt,l),dt,l)
 centraldiffdiff(f,dt) = centraldiffdiff(f,dt,size(f))
+centraldiff(f::AbstractVector,args...) = centraldiff_slow(f,args...)
+centraldiff(f::AbstractArray,args...) = centraldiff_fast(f,args...)
 
-for cd ∈ (:centraldiff,:centraldiff_fast)
+gradient(f::IntervalMap,args...) = gradient_slow(f,args...)
+gradient(f::TensorField{B,<:AbstractArray} where B,args...) = gradient_fast(f,args...)
+function gradient(f::MeshFunction)
+    domain(f) → interp(domain(f),gradient(domain(f),codomain(f)))
+end
+function unitgradient(f::TensorField{B,<:AbstractArray} where B,d=centraldiff(domain(f)),t=centraldiff(codomain(f),d))
+    domain(f) → (t./abs.(t))
+end
+function unitgradient(f::MeshFunction)
+    t = interp(domain(f),gradient(domain(f),codomain(f)))
+    domain(f) → (t./abs.(t))
+end
+
+(::Derivation)(t::TensorField) = getnabla(t)
+function getnabla(t::TensorField)
+    n = ndims(t)
+    V = Submanifold(tangent(S"0",1,n))
+    Chain(Values{n,Any}(Λ(V).b[2:n+1]...))
+end
+
+Grassmann.curl(t::TensorField) = ⋆d(t)
+Grassmann.d(t::TensorField) = TensorField(fromany(∇(t)∧Chain(t)))
+Grassmann.∂(t::TensorField) = TensorField(fromany(Chain(t)⋅∇(t)))
+
+for op ∈ (:(Base.:*),:(Base.:/),:(Grassmann.:∧),:(Grassmann.:∨))
     @eval begin
+        $op(::Derivation,t::TensorField) = TensorField(fromany($op(∇(t),Chain(t))))
+        $op(t::TensorField,::Derivation) = TensorField(fromany($op(Chain(t),∇(t))))
+    end
+end
+LinearAlgebra.dot(::Derivation,t::TensorField) = TensorField(fromany(Grassmann.contraction(∇(t),Chain(t))))
+LinearAlgebra.dot(t::TensorField,::Derivation) = TensorField(fromany(Grassmann.contraction(Chain(t),∇(t))))
+
+function Base.:*(n::Submanifold,t::TensorField)
+    if istangent(n)
+        gradient(t,indices(n)[1])
+    else
+        domain(t) → (Ref(n).*codomain(t))
+    end
+end
+function Base.:*(t::TensorField,n::Submanifold)
+    if istangent(n)
+        gradient(t,indices(n)[1])
+    else
+        domain(t) → (codomain(t).*Ref(n))
+    end
+end
+function LinearAlgebra.dot(n::Submanifold,t::TensorField)
+    if istangent(n)
+        gradient(t,indices(n)[1])
+    else
+        domain(t) → dot.(Ref(n),codomain(t))
+    end
+end
+function LinearAlgebra.dot(t::TensorField,n::Submanifold)
+    if istangent(n)
+        gradient(t,indices(n)[1])
+    else
+        domain(t) → dot.(codomain(t),Ref(n))
+    end
+end
+
+for fun ∈ (:_slow,:_fast)
+    cd,grad = Symbol(:centraldiff,fun),Symbol(:gradient,fun)
+    @eval begin
+        function $grad(f::IntervalMap,d::AbstractVector=$cd(domain(f)))
+            domain(f) → $cd(codomain(f),d)
+        end
+        function $grad(f::TensorField{B,<:AbstractArray} where B,d::AbstractArray=$cd(domain(f)))
+            domain(f) → $cd(Grid(codomain(f)),d)
+        end
+        function $grad(f::IntervalMap,::Val{1},d::AbstractVector=$cd(domain(f)))
+            domain(f) → $cd(codomain(f),d)
+        end
+        function $grad(f::TensorField{B,<:RealRegion} where B,n::Val{N},d::AbstractArray=$cd(domain(f).v[N])) where N
+            domain(f) → $cd(Grid(codomain(f)),n,d)
+        end
+        function $grad(f::TensorField{B,<:AbstractArray} where B,n::Val,d::AbstractArray=$cd(domain(f),n))
+            domain(f) → $cd(Grid(codomain(f)),n,d)
+        end
+        $grad(f::TensorField,n::Int,args...) = $grad(f,Val(n),args...)
         $cd(f::AbstractArray,args...) = $cd(Grid(f),args...)
-        function $cd(f::Grid{1},dt::Float64,l=size(f.v))
+        function $cd(f::Grid{1},dt::Real,l::Tuple=size(f.v))
             d = similar(f.v)
-            @threads for i ∈ 1:l
+            @threads for i ∈ 1:l[1]
                 d[i] = $cd(f,l,i)/$cd(i,dt,l)
             end
             return d
         end
-        function $cd(f::Grid{1},dt::Vector,l=size(f.v))
+        function $cd(f::Grid{1},dt::Vector,l::Tuple=size(f.v))
             d = similar(f.v)
             @threads for i ∈ 1:l[1]
                 d[i] = $cd(f,l,i)/dt[i]
             end
             return d
         end
-        function $cd(f::Grid{1},l=size(f.v))
+        function $cd(f::Grid{1},l::Tuple=size(f.v))
             d = similar(f.v)
             @threads for i ∈ 1:l[1]
                 d[i] = $cd(f,l,i)
@@ -79,7 +163,7 @@ for cd ∈ (:centraldiff,:centraldiff_fast)
         function $cd(f::Grid{2},dt::AbstractMatrix,l::Tuple=size(f.v))
             d = Array{Chain{Submanifold(2),1,eltype(f.v),2},2}(undef,l...)
             @threads for i ∈ 1:l[1]; for j ∈ 1:l[2]
-                d[i,j] = Chain($cd(f,l,i,j).v./(dt[i,j].v))
+                d[i,j] = Chain($cd(f,l,i,j).v./dt[i,j].v)
             end end
             return d
         end
@@ -93,7 +177,7 @@ for cd ∈ (:centraldiff,:centraldiff_fast)
         function $cd(f::Grid{3},dt::AbstractArray{T,3} where T,l::Tuple=size(f.v))
             d = Array{Chain{Submanifold(3),1,eltype(f.v),3},3}(undef,l...)
             @threads for i ∈ 1:l[1]; for j ∈ 1:l[2]; for k ∈ 1:l[3]
-                d[i,j,k] = Chain($cd(f,l,i,j,k).v./(dt[i,j,k].v))
+                d[i,j,k] = Chain($cd(f,l,i,j,k).v./dt[i,j,k].v)
             end end end
             return d
         end
@@ -104,43 +188,92 @@ for cd ∈ (:centraldiff,:centraldiff_fast)
             end end end
             return d
         end
-        $cd(f::Grid{1},l,i::Int) = $cd(f,l[1],Val(1),i)
-        @generated function $cd(f::Grid{M},l,i::Vararg{Int}) where M
-            :(Chain($([:($$cd(f,l[$k],Val($k),i...)) for k ∈ 1:M]...)))
+        function $cd(f::Grid{2},n::Val{1},dt::AbstractVector,l::Tuple=size(f.v))
+            d = Array{eltype(f.v),2}(undef,l...)
+            @threads for i ∈ 1:l[1]; for j ∈ 1:l[2]
+                d[i,j] = $cd(f,l[1],n,i,j)/dt[i]
+            end end
+            return d
+        end
+        function $cd(f::Grid{2},n::Val{2},dt::AbstractVector,l::Tuple=size(f.v))
+            d = Array{eltype(f.v),2}(undef,l...)
+            @threads for i ∈ 1:l[1]; for j ∈ 1:l[2]
+                d[i,j] = $cd(f,l[2],n,i,j)/dt[j]
+            end end
+            return d
+        end
+        function $cd(f::Grid{2},n::Val{N},l::Tuple=size(f.v)) where N
+            d = Array{eltype(f.v),2}(undef,l...)
+            @threads for i ∈ 1:l[1]; for j ∈ 1:l[2]
+                d[i,j] = $cd(f,l[N],n,i,j)
+            end end
+            return d
+        end
+        function $cd(f::Grid{3},n::Val{1},dt::AbstractVector,l::Tuple=size(f.v))
+            d = Array{eltype(f.v),3}(undef,l...)
+            @threads for i ∈ 1:l[1]; for j ∈ 1:l[2]; for k ∈ 1:l[3]
+                d[i,j,k] = $cd(f,l[1],n,i,j,k)/dt[i]
+            end end end
+            return d
+        end
+        function $cd(f::Grid{3},n::Val{2},dt::AbstractVector,l::Tuple=size(f.v))
+            d = Array{eltype(f.v),3}(undef,l...)
+            @threads for i ∈ 1:l[1]; for j ∈ 1:l[2]; for k ∈ 1:l[3]
+                d[i,j,k] = $cd(f,l[2],n,i,j,k)/dt[j]
+            end end end
+            return d
+        end
+        function $cd(f::Grid{3},n::Val{3},dt::AbstractVector,l::Tuple=size(f.v))
+            d = Array{eltype(f.v),3}(undef,l...)
+            @threads for i ∈ 1:l[1]; for j ∈ 1:l[2]; for k ∈ 1:l[3]
+                d[i,j,k] = $cd(f,l[3],n,i,j,k)/dt[k]
+            end end end
+            return d
+        end
+        function $cd(f::Grid{3},n::Val{N},l::Tuple=size(f.v)) where N
+            d = Array{eltype(f.v),3}(undef,l...)
+            @threads for i ∈ 1:l[1]; for j ∈ 1:l[2]; for k ∈ 1:l[3]
+                d[i,j,k] = $cd(f,l[N],n,i,j,k)
+            end end end
+            return d
+        end
+        $cd(f::Grid{1},l::Tuple,i::Int) = $cd(f,l[1],Val(1),i)
+        @generated function $cd(f::Grid{N},l::Tuple,i::Vararg{Int}) where N
+            :(Chain($([:($$cd(f,l[$n],Val($n),i...)) for n ∈ 1:N]...)))
         end
         $cd(f::RealRegion) = ProductSpace($cd.(f.v))
-        function $cd(f::StepRangeLen,l=length(f))
-            d = Vector{Float64}(undef,l)
-            @threads for i ∈ 1:l
-                d[i] = $cd(i,Float64(f.step),l)
+        function $cd(f::AbstractRange,l::Tuple=size(f))
+            d = Vector{eltype(f)}(undef,l[1])
+            @threads for i ∈ 1:l[1]
+                d[i] = $cd(i,step(f),l[1])
             end
             return d
         end
-        function $cd(dt::Float64,l::Int)
-            d = Vector{Float64}(undef,l)
-            @threads for i ∈ 1:l
-                d[i] = $cd(i,dt,l)
+        function $cd(dt::Real,l::Tuple)
+            d = Vector{Float64}(undef,l[1])
+            @threads for i ∈ 1:l[1]
+                d[i] = $cd(i,dt,l[1])
             end
             return d
         end
     end
 end
 
-function centraldiff(f::Grid,l,k::Val{N},i::Vararg{Int}) where N #l=size(f)[N]
+function centraldiff_slow(f::Grid,l::Int,n::Val{N},i::Vararg{Int}) where N #l=size(f)[N]
     if isone(i[N])
-        18f[1,k,i...]-9f[2,k,i...]+2f[3,k,i...]-11f.v[i...]
+        18f[1,n,i...]-9f[2,n,i...]+2f[3,n,i...]-11f.v[i...]
     elseif i[N]==l
-        11f.v[i...]-18f[-1,k,i...]+9f[-2,k,i...]-2f[-3,k,i...]
+        11f.v[i...]-18f[-1,n,i...]+9f[-2,n,i...]-2f[-3,n,i...]
     elseif i[N]==2
-        6f[1,k,i...]-f[2,k,i...]-3f.v[i...]-2f[-1,k,i...]
+        6f[1,n,i...]-f[2,n,i...]-3f.v[i...]-2f[-1,n,i...]
     elseif i[N]==l-1
-        3f.v[i...]-6f[-1,k,i...]+f[-2,k,i...]+2f[1,k,i...]
+        3f.v[i...]-6f[-1,n,i...]+f[-2,n,i...]+2f[1,n,i...]
     else
-        f[-2,k,i...]+8f[1,k,i...]-8f[-1,k,i...]-f[2,k,i...]
+        f[-2,n,i...]+8f[1,n,i...]-8f[-1,n,i...]-f[2,n,i...]
     end
 end
 
-function centraldiff(i::Int,dt::Float64,l::Int)
+function centraldiff_slow(i::Int,dt::Real,l::Int)
     if i∈(1,2,l-1,l)
         6dt
     else
@@ -148,18 +281,18 @@ function centraldiff(i::Int,dt::Float64,l::Int)
     end
 end
 
-function centraldiff_fast(f::Grid,l,k::Val{N},i::Vararg{Int}) where N
+function centraldiff_fast(f::Grid,l::Int,n::Val{N},i::Vararg{Int}) where N
     if isone(i[N]) # 4f[1,k,i...]-f[2,k,i...]-3f.v[i...]
-        18f[1,k,i...]-9f[2,k,i...]+2f[3,k,i...]-11f.v[i...]
+        18f[1,n,i...]-9f[2,n,i...]+2f[3,n,i...]-11f.v[i...]
     elseif i[N]==l # 3f.v[i...]-4f[-1,k,i...]+f[-2,k,i...]
-        11f.v[i...]-18f[-1,k,i...]+9f[-2,k,i...]-2f[-3,k,i...]
+        11f.v[i...]-18f[-1,n,i...]+9f[-2,n,i...]-2f[-3,n,i...]
     else
-        f[1,k,i...]-f[-1,k,i...]
+        f[1,n,i...]-f[-1,n,i...]
     end
 end
 
-centraldiff_fast(i::Int,dt::Float64,l::Int) = i∈(1,l) ? 6dt : 2dt
-#centraldiff_fast(i::Int,dt::Float64,l::Int) = 2dt
+centraldiff_fast(i::Int,dt::Real,l::Int) = i∈(1,l) ? 6dt : 2dt
+#centraldiff_fast(i::Int,dt::Real,l::Int) = 2dt
 
 qnumber(n,q) = (q^n-1)/(q-1)
 qfactorial(n,q) = prod(cumsum([q^k for k ∈ 0:n-1]))
@@ -198,37 +331,39 @@ end
 
 # trapezoid # ⎎, ∇
 
+integrate(args...) = trapz(args...)
+
 arclength(f::Vector) = sum(value.(abs.(diff(f))))
 trapz(f::IntervalMap,d::AbstractVector=diff(domain(f))) = sum((d/2).*(f.cod[2:end]+f.cod[1:end-1]))
-trapz(f::Vector,h::Float64) = h*((f[1]+f[end])/2+sum(f[2:end-1]))
+trapz1(f::Vector,h::Real) = h*((f[1]+f[end])/2+sum(f[2:end-1]))
 function trapz(f::IntervalMap{B,<:AbstractRange} where B<:AbstractReal)
-    trapz(codomain(f),Real(domain(f).step))
+    trapz1(codomain(f),step(domain(f)))
 end
 function trapz(f::RectangleMap{B,<:Rectangle{V,T,<:AbstractRange} where {V,T}} where B)
-    trapz(codomain(f),Real(domain(f).v[1].step),Real(domain(f).v[2].step))
+    trapz1(codomain(f),step(domain(f).v[1]),step(domain(f).v[2]))
 end
 function trapz(f::HyperrectangleMap{B,<:Hyperrectangle{V,T,<:AbstractRange} where {V,T}} where B)
-    trapz(codomain(f),Real(domain(f).v[1].step),Real(domain(f).v[2].step),Real(domain(f).v[3].step))
+    trapz1(codomain(f),step(domain(f).v[1]),step(domain(f).v[2]),step(domain(f).v[3]))
 end
 function trapz(f::ParametricMap{B,<:RealRegion{V,T,4,<:AbstractRange} where {V,T}} where B)
-    trapz(codomain(f),Real(domain(f).v[1].step),Real(domain(f).v[2].step),Real(domain(f).v[3].step),Real(domain(f).v[4].step))
+    trapz1(codomain(f),step(domain(f).v[1]),step(domain(f).v[2]),step(domain(f).v[3]),step(domain(f).v[4]))
 end
 function trapz(f::ParametricMap{B,<:RealRegion{V,T,5,<:AbstractRange} where {V,T}} where B)
-    trapz(codomain(f),Real(domain(f).v[1].step),Real(domain(f).v[2].step),Real(domain(f).v[3].step),Real(domain(f).v[4].step),Real(domain(f).v[5].step))
+    trapz1(codomain(f),step(domain(f).v[1]),step(domain(f).v[2]),step(domain(f).v[3]),step(domain(f).v[4]),step(domain(f).v[5]))
 end
 trapz(f::IntervalMap,j::Int) = trapz(f,Val(j))
 trapz(f::IntervalMap,j::Val{1}) = trapz(f)
 trapz(f::ParametricMap,j::Int) = trapz(f,Val(j))
 trapz(f::ParametricMap,j::Val{J}) where J = remove(domain(f),j) → trapz2(codomain(f),j,diff(domain(f).v[J]))
-trapz(f::ParametricMap{B,<:RealRegion{V,<:Real,N,<:AbstractRange} where {V,N}} where B,j::Val{J}) where J = remove(domain(f),j) → trapz(codomain(f),j,Real(domain(f).v[J].step))
-gentrapz(n,j,h=:h,f=:f) = :($h*(($(select(n,j,1))+$(select(n,j,:(size(f)[$j]))))/2+$(select(n,j,1,:(sum($(select(n,j,:(2:$(:end)-1),f)),dims=$j))))))
+trapz(f::ParametricMap{B,<:RealRegion{V,<:Real,N,<:AbstractRange} where {V,N}} where B,j::Val{J}) where J = remove(domain(f),j) → trapz1(codomain(f),j,step(domain(f).v[J]))
+gentrapz1(n,j,h=:h,f=:f) = :($h*(($(select(n,j,1))+$(select(n,j,:(size(f)[$j]))))/2+$(select(n,j,1,:(sum($(select(n,j,:(2:$(:end)-1),f)),dims=$j))))))
 selectaxes(n,j) = (i≠3 ? i : 0 for i ∈ 1:10)
-@generated function trapz(f::Array{T,N} where T,::Val{J},h::Float64,s=size(f)) where {N,J}
-    gentrapz(N,J)
+@generated function trapz1(f::Array{T,N} where T,::Val{J},h::Real,s::Tuple=size(f)) where {N,J}
+    gentrapz1(N,J)
 end
-@generated function trapz(f::Array{T,N} where T,h::Float64...) where N
+@generated function trapz1(f::Array{T,N} where T,h::D...) where {N,D<:Real}
     Expr(:block,:(s=size(f)),
-         [:(i = $(gentrapz(j,j,:(h[$j]),j≠N ? :i : :f,))) for j ∈ N:-1:1]...)
+         [:(i = $(gentrapz1(j,j,:(h[$j]),j≠N ? :i : :f,))) for j ∈ N:-1:1]...)
 end
 function gentrapz2(n,j,f=:f,d=:(d[$j]))
     z = n≠1 ? :zeros : :zero
@@ -254,6 +389,9 @@ for N ∈ 2:5
     end
 end
 
+integral(args...) = cumtrapz(args...)
+const ∫ = integral
+
 arctime(f) = inv(arclength(f))
 function arclength(f::IntervalMap)
     int = cumsum(abs.(diff(codomain(f))))
@@ -265,41 +403,41 @@ function cumtrapz(f::IntervalMap,d::AbstractVector=diff(domain(f)))
     pushfirst!(i,zero(eltype(i)))
     domain(f) → i
 end
-function cumtrapz(f::Vector,h::Float64)
+function cumtrapz1(f::Vector,h::Real)
     i = (h/2)*cumsum(f[2:end]+f[1:end-1])
     pushfirst!(i,zero(eltype(i)))
     return i
 end
 function cumtrapz(f::IntervalMap{B,<:AbstractRange} where B<:AbstractReal)
-    domain(f) → cumtrapz(codomain(f),Real(domain(f).step))
+    domain(f) → cumtrapz1(codomain(f),step(domain(f)))
 end
 function cumtrapz(f::RectangleMap{B,<:Rectangle{V,T,<:AbstractRange} where {V,T}} where B)
-    domain(f) → cumtrapz(codomain(f),Real(domain(f).v[1].step),Real(domain(f).v[2].step))
+    domain(f) → cumtrapz1(codomain(f),step(domain(f).v[1]),step(domain(f).v[2]))
 end
 function cumtrapz(f::HyperrectangleMap{B,<:Hyperrectangle{V,T,<:AbstractRange} where {V,T}} where B)
-    domain(f) → cumtrapz(codomain(f),Real(domain(f).v[1].step),Real(domain(f).v[2].step),Real(domain(f).v[3].step))
+    domain(f) → cumtrapz1(codomain(f),step(domain(f).v[1]),step(domain(f).v[2]),step(domain(f).v[3]))
 end
 function cumtrapz(f::ParametricMap{B,<:RealRegion{V,T,<:AbstractRange,4} where {V,T}} where B)
-    domain(f) → cumtrapz(codomain(f),Real(domain(f).v[1].step),Real(domain(f).v[2].step),Real(domain(f).v[3].step),Real(domain(f).v[4].step))
+    domain(f) → cumtrapz1(codomain(f),step(domain(f).v[1]),step(domain(f).v[2]),step(domain(f).v[3]),step(domain(f).v[4]))
 end
 function cumtrapz(f::ParametricMap{B,<:RealRegion{V,T,<:AbstractRange,5} where {V,T}} where B)
-    domain(f) → cumtrapz(codomain(f),Real(domain(f).v[1].step),Real(domain(f).v[2].step),Real(domain(f).v[3].step),Real(domain(f).v[4].step),Real(domain(f).v[5].step))
+    domain(f) → cumtrapz1(codomain(f),step(domain(f).v[1]),step(domain(f).v[2]),step(domain(f).v[3]),step(domain(f).v[4]),step(domain(f).v[5]))
 end
 cumtrapz(f::IntervalMap,j::Int) = cumtrapz(f,Val(j))
 cumtrapz(f::IntervalMap,j::Val{1}) = cumtrapz(f)
 cumtrapz(f::ParametricMap,j::Int) = cumtrapz(f,Val(j))
 cumtrapz(f::ParametricMap,j::Val{J}) where J = domain(f) → cumtrapz2(codomain(f),j,diff(domain(f).v[J]))
-cumtrapz(f::ParametricMap{B,<:RealRegion{V,<:Real,N,<:AbstractRange} where {V,N}} where B,j::Val{J}) where J = domain(f) → cumtrapz(codomain(f),j,Real(domain(f).v[J].step))
+cumtrapz(f::ParametricMap{B,<:RealRegion{V,<:Real,N,<:AbstractRange} where {V,N}} where B,j::Val{J}) where J = domain(f) → cumtrapz1(codomain(f),j,step(domain(f).v[J]))
 selectzeros(n,j) = :(zeros($([i≠j ? :(s[$i]) : 1 for i ∈ 1:n]...)))
 selectzeros2(n,j) = :(zeros($([i≠j ? i<j ? :(s[$i]) : :(s[$i]-1) : 1 for i ∈ 1:n]...)))
 gencat(n,j=n,cat=n≠2 ? :cat : j≠2 ? :vcat : :hcat) = :($cat($(selectzeros2(n,j)),$(j≠1 ? gencat(n,j-1) : :i);$((cat≠:cat ? () : (Expr(:kw,:dims,j),))...)))
-gencumtrapz(n,j,h=:h,f=:f) = :(($h/2)*cumsum($(select(n,j,:(2:$(:end)),f)).+$(select(n,j,:(1:$(:end)-1),f)),dims=$j))
-@generated function cumtrapz(f::Array{T,N} where T,::Val{J},h::Float64,s=size(f)) where {N,J}
-    :(cat($(selectzeros(N,J)),$(gencumtrapz(N,J)),dims=$J))
+gencumtrapz1(n,j,h=:h,f=:f) = :(($h/2)*cumsum($(select(n,j,:(2:$(:end)),f)).+$(select(n,j,:(1:$(:end)-1),f)),dims=$j))
+@generated function cumtrapz1(f::Array{T,N} where T,::Val{J},h::Real,s::Tuple=size(f)) where {N,J}
+    :(cat($(selectzeros(N,J)),$(gencumtrapz1(N,J)),dims=$J))
 end
-@generated function cumtrapz(f::Array{T,N} where T,h::Float64...) where N
+@generated function cumtrapz1(f::Array{T,N} where T,h::D...) where {N,D<:Real}
     Expr(:block,:(s=size(f)),
-         [:(i = $(gencumtrapz(N,j,:(h[$j]),j≠1 ? :i : :f,))) for j ∈ 1:N]...,
+         [:(i = $(gencumtrapz1(N,j,:(h[$j]),j≠1 ? :i : :f,))) for j ∈ 1:N]...,
         gencat(N))
 end
 function gencumtrapz2(n,j,d=:(d[$j]),f=j≠1 ? :i : :f)
@@ -326,49 +464,29 @@ for N ∈ 2:5
     end
 end
 function linecumtrapz(γ::IntervalMap,f::Function)
-    cumtrapz(domain(γ)→(f.(codomain(γ)).⋅codomain(tangent(γ))))
+    cumtrapz(domain(γ)→(f.(codomain(γ)).⋅codomain(gradient(γ))))
 end
 
 # differential geometry
 
 export arclength, arctime, trapz, cumtrapz, linecumtrapz, psum, pcumsum
 export centraldiff, tangent, tangent_fast, unittangent, speed, normal, unitnormal
+export curvenormal, unitcurvenormal
 
-function tangent(f::IntervalMap,d=centraldiff(domain(f)))
-    domain(f) → centraldiff(codomain(f),d)
-end
-function tangent(f::ScalarGrid,d=centraldiff(domain(f)))
-    domain(f) → centraldiff(Grid(codomain(f)),d)
-end
-function tangent(f::RectangleMap,d=centraldiff(domain(f)))
-    domain(f) → centraldiff(Grid(codomain(f)),d)
-end
-function tangent(f::MeshFunction)
-    domain(f) → interp(domain(f),gradient(domain(f),codomain(f)))
-end
-function tangent_fast(f::IntervalMap,d=centraldiff_fast(domain(f)))
-    domain(f) → centraldiff_fast(codomain(f),d)
-end
-function tangent_fast(f::ScalarGrid,d=centraldiff_fast(domain(f)))
-    domain(f) → centraldiff_fast(Grid(codomain(f)),d)
-end
-function tangent_fast(f::RectangleMap,d=centraldiff_fast(domain(f)))
-    domain(f) → centraldiff_fast(Grid(codomain(f)),d)
-end
-function unittangent(f::IntervalMap,d=centraldiff(domain(f)),t=centraldiff(codomain(f),d))
-    domain(f) → (t./abs.(t))
-end
-function unittangent(f::MeshFunction)
-    t = interp(domain(f),gradient(domain(f),codomain(f)))
-    domain(f) → (t./abs.(t))
-end
+tangent(f::IntervalMap) = gradient(f)
+tangent(f::ScalarField) = det(gradient(graph(f)))
+normal(f::ScalarField) = ⋆tangent(f)
+unittangent(f::ScalarField,n=tangent(f)) = domain(f) → (codomain(n)./abs.(.⋆codomain(n)))
+unittangent(f::IntervalMap) = unitgradient(f)
+unitnormal(f) = ⋆unittangent(f)
+
 function speed(f::IntervalMap,d=centraldiff(domain(f)),t=centraldiff(codomain(f),d))
     domain(f) → abs.(t)
 end
-function normal(f::IntervalMap,d=centraldiff(domain(f)),t=centraldiff(codomain(f),d))
+function curvenormal(f::IntervalMap,d=centraldiff(domain(f)),t=centraldiff(codomain(f),d))
     domain(f) → centraldiff(t,d)
 end
-function unitnormal(f::IntervalMap,d=centraldiff(domain(f)),t=centraldiff(codomain(f),d),n=centraldiff(t,d))
+function unitcurvenormal(f::IntervalMap,d=centraldiff(domain(f)),t=centraldiff(codomain(f),d),n=centraldiff(t,d))
     domain(f) → (n./abs.(n))
 end
 
