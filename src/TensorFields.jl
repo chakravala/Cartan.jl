@@ -272,9 +272,22 @@ find_tf(::Tuple{}) = nothing
 find_tf(a::TensorField, rest) = a
 find_tf(::Any, rest) = find_tf(rest)
 
+linterp(x,x1,x2,f1,f2) = f1 + (f2-f1)*(x-x1)/(x2-x1)
+function bilinterp(x,y,x1,x2,y1,y2,f11,f21,f12,f22)
+    f1 = linterp(x,x1,x2,f11,f21)
+    f2 = linterp(x,x1,x2,f12,f22)
+    linterp(y,y1,y2,f1,f2)
+end
+function trilinterp(x,y,z,x1,x2,y1,y2,z1,z2,f111,f211,f121,f221,f112,f212,f122,f222)
+    f1 = bilinterp(x,y,x1,x2,y1,y2,f111,f211,f121,f221)
+    f2 = bilinterp(x,y,x1,x2,y1,y2,f112,f212,f122,f222)
+    linterp(z,z1,z2,f1,f2)
+end
+
+(m::IntervalMap{B,<:AbstractVector{B}})(s::Section) where B<:AbstractReal = base(s) ↦ m(fiber(s))
 function (m::IntervalMap{B,<:AbstractVector{B}})(t) where B<:AbstractReal
-    i = searchsortedfirst(domain(m),t)-1
-    m.cod[i]+(t-m.dom[i])/(m.dom[i+1]-m.dom[i])*(m.cod[i+1]-m.cod[i])
+    i = searchsortedfirst(domain(m),t[1])-1
+    linterp(t[1],m.dom[i],m.dom[i+1],m.cod[i],m.cod[i+1])
 end
 function (m::IntervalMap{B,<:AbstractVector{B}})(t::Vector,d=diff(m.cod)./diff(m.dom)) where B<:AbstractReal
     [parametric(i,m,d) for i ∈ t]
@@ -290,28 +303,32 @@ function (m::TensorField{B,<:ChainBundle} where B)(t)
 end
 
 (m::TensorField{R,<:Rectangle} where R)(x,y) = m(Chain(x,y))
+(m::TensorField{R,<:Rectangle} where R)(s::Section) = base(s) ↦ m(fiber(s))
 function (m::TensorField{R,<:Rectangle} where R)(t::Chain)
     x,y = domain(m).v[1],domain(m).v[2]
     i,j = searchsortedfirst(x,t[1])-1,searchsortedfirst(y,t[2])-1
-    #f1 = m.cod[i,j]+(t[1]-x[i])/(x[i+1]-x[i])*(m.cod[i+1,j]-m.cod[i,j])
-    #f2 = m.cod[i,j+1]+(t[1]-x[i])/(x[i+1]-x[i])*(m.cod[i+1,j+1]-m.cod[i,j+1])
-    #f1+(t[2]-y[i])/(y[i+1]-y[i])*(f2-f1)
-    f1 = ((x[i+1]-t[1])*m.cod[i,j]+(t[1]-x[i])*m.cod[i+1,j])/(x[i+1]-x[i])
-    f2 = ((x[i+1]-t[1])*m.cod[i,j+1]+(t[1]-x[i])*m.cod[i+1,j+1])/(x[i+1]-x[i])
-    ((y[i+1]-t[2])*f1+(t[2]-y[i])*f2)/(y[i+1]-y[i])
+    #f1 = linterp(t[1],x[i],x[i+1],m.cod[i,j],m.cod[i+1,j])
+    #f2 = linterp(t[1],x[i],x[i+1],m.cod[i,j+1],m.cod[i+1,j+1])
+    #linterp(t[2],y[j],y[j+1],f1,f2)
+    bilinterp(t[1],t[2],x[i],x[i+1],y[j],y[j+1],
+        m.cod[i,j],m.cod[i+1,j],m.cod[i,j+1],m.cod[i+1,j+1])
 end
 
 (m::TensorField{R,<:Hyperrectangle} where R)(x,y,z) = m(Chain(x,y,z))
+(m::TensorField{R,<:Hyperrectangle} where R)(s::Section) = base(s) ↦ m(fiber(s))
 function (m::TensorField{R,<:Hyperrectangle} where R)(t::Chain)
     x,y,z = domain(m).v[1],domain(m).v[2],domain(m).v[3]
     i,j,k = searchsortedfirst(x,t[1])-1,searchsortedfirst(y,t[2])-1,searchsortedfirst(z,t[3])-1
-    f1 = m.cod[i,j,k]+(t[1]-x[i])/(x[i+1]-x[i])*(m.cod[i+1,j,k]-m.cod[i,j,k])
-    f2 = m.cod[i,j+1,k]+(t[1]-x[i])/(x[i+1]-x[i])*(m.cod[i+1,j+1,k]-m.cod[i,j+1,k])
-    g1 = f1+(t[2]-y[i])/(y[i+1]-y[i])*(f2-f1)
-    f3 = m.cod[i,j,k+1]+(t[1]-x[i])/(x[i+1]-x[i])*(m.cod[i+1,j,k+1]-m.cod[i,j,k+1])
-    f4 = m.cod[i,j+1,k+1]+(t[1]-x[i])/(x[i+1]-x[i])*(m.cod[i+1,j+1,k+1]-m.cod[i,j+1,k+1])
-    g2 = f3+(t[2]-y[i])/(y[i+1]-y[i])*(f4-f3)
-    g1+(t[3]-z[i])/(z[i+1]-z[i])*(g2-g1)
+    #f1 = linterp(t[1],x[i],x[i+1],m.cod[i,j,k],m.cod[i+1,j,k])
+    #f2 = linterp(t[1],x[i],x[i+1],m.cod[i,j+1,k],m.cod[i+1,j+1,k])
+    #g1 = linterp(t[2],y[j],y[j+1],f1,f2)
+    #f3 = linterp(t[1],x[i],x[i+1],m.cod[i,j,k+1],m.cod[i+1,j,k+1])
+    #f4 = linterp(t[1],x[i],x[i+1],m.cod[i,j+1,k+1],m.cod[i+1,j+1,k+1])
+    #g2 = linterp(t[2],y[j],y[j+1],f3,f4)
+    #linterp(t[3],z[k],z[k+1],g1,g2)
+    trilinterp(t[1],t[2],t[3],x[i],x[i+1],y[j],y[j+1],z[k],z[k+1],
+        m.cod[i,j,k],m.cod[i+1,j,k],m.cod[i,j+1,k],m.cod[i+1,j+1,k],
+        m.cod[i,j,k+1],m.cod[i+1,j,k+1],m.cod[i,j+1,k+1],m.cod[i+1,j+1,k+1])
 end
 
 valmat(t::Values{N,<:Vector},s=size(t[1])) where N = [Values((t[q][i] for q ∈ OneTo(N))...) for i ∈ OneTo(s[1])]
@@ -434,8 +451,8 @@ function __init__()
         Makie.streamplot(m::ScalarField{R,<:ChainBundle,<:AbstractReal} where R,dims...;args...) = Makie.streamplot(gradient_fast(m),dims...;args...)
         Makie.streamplot(m::VectorField{R,<:ChainBundle} where R,dims...;args...) = Makie.streamplot(p->Makie.Point(m(Chain(one(eltype(p)),p.data...))),dims...;args...)
         Makie.streamplot(m::VectorField{<:Chain,<:RealRegion};args...) = Makie.streamplot(p->Makie.Point(m(Chain(p.data...))),domain(m).v...;args...)
-        Makie.arrows(t::ScalarField{<:Chain,<:Rectangle};args...) = Makie.arrows(Point.(fiber(graph(Real(int))))[:],Point.(fiber(normal(Real(int))))[:];args...)
-        Makie.arrows!(t::ScalarField{<:Chain,<:Rectangle};args...) = Makie.arrows!(Point.(fiber(graph(Real(int))))[:],Point.(fiber(normal(Real(int))))[:];args...)
+        Makie.arrows(t::ScalarField{<:Chain,<:Rectangle};args...) = Makie.arrows(Makie.Point.(fiber(graph(Real(int))))[:],Makie.Point.(fiber(normal(Real(int))))[:];args...)
+        Makie.arrows!(t::ScalarField{<:Chain,<:Rectangle};args...) = Makie.arrows!(Makie.Point.(fiber(graph(Real(int))))[:],Makie.Point.(fiber(normal(Real(int))))[:];args...)
         Makie.arrows(t::VectorField{<:Chain,<:Rectangle};args...) = Makie.arrows(domain(t).v...,getindex.(codomain(t),1),getindex.(codomain(t),2);args...)
         Makie.arrows!(t::VectorField{<:Chain,<:Rectangle};args...) = Makie.arrows!(domain(t).v...,getindex.(codomain(t),1),getindex.(codomain(t),2);args...)
         Makie.arrows(t::VectorField{<:Chain,<:Hyperrectangle};args...) = Makie.arrows(Makie.Point.(domain(t))[:],Makie.Point.(codomain(t))[:];args...)
