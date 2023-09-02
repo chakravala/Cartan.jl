@@ -32,6 +32,7 @@ ScalarGrid (alias for TensorField{B, T, F} where {B, T<:(AbstractArray{B}), F<:A
 CliffordField (alias for TensorField{B, T, F} where {B, T, F<:Multivector})
 QuaternionField (alias for TensorField{B, T, F} where {B, T, F<:(Quaternion)})
 ComplexMap (alias for TensorField{B, T, F} where {B, T, F<:(Union{Complex{T}, Single{V, G, B, Complex{T}} where {V, G, B}, Chain{V, G, Complex{T}, 1} where {V, G}, Couple{V, B, T} where {V, B}} where T<:Real)})
+PhasorField (alias for TensorField{B, T, F} where {B, T, F<:Phasor})
 SpinorField (alias for TensorField{B, T, F} where {B, T, F<:AbstractSpinor})
 GradedField{G} where G (alias for TensorField{B, T, F} where {G, B, T, F<:(Chain{V, G} where V)})
 ScalarField (alias for TensorField{B, T, F} where {B, T, F<:Union{Real, Single{V, G, B, <:Real} where {V, G, B}, Chain{V, G, <:Real, 1} where {V, G}}})

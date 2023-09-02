@@ -33,7 +33,7 @@ export IntervalMap, RectangleMap, HyperrectangleMap, PlaneCurve, SpaceCurve
 export TensorField, ScalarField, VectorField, BivectorField, TrivectorField
 export ElementFunction, SurfaceGrid, VolumeGrid, ScalarGrid
 export RealFunction, ComplexMap, SpinorField, CliffordField
-export MeshFunction, GradedField, QuaternionField # PhasorField
+export MeshFunction, GradedField, QuaternionField, PhasorField
 export ParametricMap, RectangleMap, HyperrectangleMap
 export Section, FiberBundle, AbstractFiber
 export base, fiber, domain, codomain, ↦, →, ←, ↤, basetype, fibertype, graph
@@ -205,7 +205,7 @@ const ScalarGrid{B,T<:AbstractArray{B},F<:AbstractReal,N} = TensorField{B,T,F,N}
 const CliffordField{B,T,F<:Multivector,N} = TensorField{B,T,F,N}
 const QuaternionField{B,T,F<:Quaternion,N} = TensorField{B,T,F,N}
 const ComplexMap{B,T,F<:AbstractComplex,N} = TensorField{B,T,F,N}
-#const PhasorField{B,T,F<:Phasor,N} = TensorField{B,T,F,N}
+const PhasorField{B,T,F<:Phasor,N} = TensorField{B,T,F,N}
 const SpinorField{B,T,F<:AbstractSpinor,N} = TensorField{B,T,F,N}
 const GradedField{G,B,T,F<:Chain{V,G} where V,N} = TensorField{B,T,F,N}
 const ScalarField{B,T,F<:AbstractReal,N} = TensorField{B,T,F,N}
@@ -396,6 +396,7 @@ include("element.jl")
 function __init__()
     @require Makie="ee78f7c6-11fb-53f2-987a-cfe4a2b5a57a" begin
         export linegraph, linegraph!
+        funsym(sym) = String(sym)[end] == '!' ? sym : Symbol(sym,:!)
         for lines ∈ (:lines,:lines!,:linesegments,:linesegments!)
             @eval begin
                 Makie.$lines(t::SpaceCurve;args...) = Makie.$lines(codomain(t);color=Real.(codomain(speed(t))),args...)
@@ -405,6 +406,7 @@ function __init__()
             end
         end
         Makie.lines(t::TensorField{B,<:AbstractVector{B}};args...) where B<:AbstractReal = linegraph(t;args...)
+        Makie.lines!(t::TensorField{B,<:AbstractVector{B}};args...) where B<:AbstractReal = linegraph(t;args...)
         function linegraph(t::GradedField{G,B,<:AbstractVector{B}};args...) where {G,B<:AbstractReal}
             x,y = Real.(domain(t)),value.(codomain(t))
             display(Makie.lines(x,Real.(getindex.(y,1));args...))
@@ -412,7 +414,6 @@ function __init__()
                 Makie.lines!(x,Real.(getindex.(y,i));args...)
             end
         end
-        Makie.lines!(t::TensorField{B,<:AbstractVector{B}};args...) where B<:AbstractReal = linegraph(t;args...)
         function linegraph!(t::GradedField{G,B,<:AbstractVector{B}};args...) where {G,B<:AbstractReal}
             x,y = Real.(domain(t)),value.(codomain(t))
             display(Makie.lines!(x,Real.(getindex.(y,1));args...))
@@ -421,48 +422,54 @@ function __init__()
             end
         end
         Makie.volume(t::VolumeGrid;args...) = Makie.volume(domain(t).v...,Real.(codomain(t));args...)
+        Makie.volume!(t::VolumeGrid;args...) = Makie.volume!(domain(t).v...,Real.(codomain(t));args...)
         Makie.volumeslices(t::VolumeGrid;args...) = Makie.volumeslices(domain(t).v...,Real.(codomain(t));args...)
-        Makie.surface(t::SurfaceGrid;args...) = Makie.surface(domain(t).v...,Real.(codomain(t));color=Real.(abs.(codomain(gradient_fast(t)))),args...)
-        Makie.surface!(t::SurfaceGrid;args...) = Makie.surface!(domain(t).v...,Real.(codomain(t));color=Real.(abs.(codomain(gradient_fast(t)))),args...)
-        function Makie.surface(t::GradedField{G,B,<:Rectangle};args...) where {G,B}
-            x,y = domain(t),value.(codomain(t))
-            yi = Real.(getindex.(y,1))
-            display(Makie.surface(x.v...,yi;color=Real.(abs.(codomain(gradient_fast(x→yi)))),args...))
-            for i ∈ 1:binomial(mdims(eltype(codomain(t))),G)
-                yi = Real.(getindex.(y,i))
-                Makie.surface!(x.v...,yi;color=Real.(abs.(codomain(gradient_fast(x→yi)))),args...)
+        for fun ∈ (:surface,:surface!)
+            @eval begin
+                Makie.$fun(t::SurfaceGrid;args...) = Makie.$fun(domain(t).v...,Real.(codomain(t));color=Real.(abs.(codomain(gradient_fast(Real(t))))),args...)
+                function Makie.$fun(t::GradedField{G,B,<:Rectangle};args...) where {G,B}
+                    x,y = domain(t),value.(codomain(t))
+                    yi = Real.(getindex.(y,1))
+                    display(Makie.$fun(x.v...,yi;color=Real.(abs.(codomain(gradient_fast(x→yi)))),args...))
+                    for i ∈ 2:binomial(mdims(eltype(codomain(t))),G)
+                        yi = Real.(getindex.(y,i))
+                        Makie.$(funsym(fun))(x.v...,yi;color=Real.(abs.(codomain(gradient_fast(x→yi)))),args...)
+                    end
+                end
             end
         end
-        Makie.contour(t::SurfaceGrid;args...) = Makie.contour(domain(t).v...,Real.(codomain(t));args...)
-        Makie.contourf(t::SurfaceGrid;args...) = Makie.contourf(domain(t).v...,Real.(codomain(t));args...)
-        Makie.contour3d(t::SurfaceGrid;args...) = Makie.contour3d(domain(t).v...,Real.(codomain(t));args...)
-        Makie.heatmap(t::SurfaceGrid;args...) = Makie.heatmap(domain(t).v...,Real.(codomain(t));args...)
-        Makie.contour!(t::SurfaceGrid;args...) = Makie.contour!(domain(t).v...,Real.(codomain(t));args...)
-        Makie.contourf!(t::SurfaceGrid;args...) = Makie.contourf!(domain(t).v...,Real.(codomain(t));args...)
-        Makie.contour3d!(t::SurfaceGrid;args...) = Makie.contour3d!(domain(t).v...,Real.(codomain(t));args...)
-        Makie.heatmap!(t::SurfaceGrid;args...) = Makie.heatmap!(domain(t).v...,Real.(codomain(t));args...)
-
-        Makie.wireframe(t::SurfaceGrid;args...) = Makie.wireframe(domain(t).v...,Real.(codomain(t));args...)
-        Makie.wireframe!(t::SurfaceGrid;args...) = Makie.wireframe!(domain(t).v...,Real.(codomain(t));args...)
-        #Makie.spy(t::SurfaceGrid{<:Chain,<:RealRegion};args...) = Makie.spy(t.v...,Real.(codomain(t));args...)
-        Makie.streamplot(f::Function,t::Rectangle;args...) = Makie.streamplot(f,t.v...;args...)
-        Makie.streamplot(f::Function,t::Hyperrectangle;args...) = Makie.streamplot(f,t.v...;args...)
-        Makie.streamplot(m::ScalarField{<:Chain,<:RealRegion,<:AbstractReal};args...) = Makie.streamplot(gradient_fast(m);args...)
-        Makie.streamplot(m::ScalarField{R,<:ChainBundle,<:AbstractReal} where R,dims...;args...) = Makie.streamplot(gradient_fast(m),dims...;args...)
-        Makie.streamplot(m::VectorField{R,<:ChainBundle} where R,dims...;args...) = Makie.streamplot(p->Makie.Point(m(Chain(one(eltype(p)),p.data...))),dims...;args...)
-        Makie.streamplot(m::VectorField{<:Chain,<:RealRegion};args...) = Makie.streamplot(p->Makie.Point(m(Chain(p.data...))),domain(m).v...;args...)
-        Makie.arrows(t::ScalarField{<:Chain,<:Rectangle};args...) = Makie.arrows(Makie.Point.(fiber(graph(Real(int))))[:],Makie.Point.(fiber(normal(Real(int))))[:];args...)
-        Makie.arrows!(t::ScalarField{<:Chain,<:Rectangle};args...) = Makie.arrows!(Makie.Point.(fiber(graph(Real(int))))[:],Makie.Point.(fiber(normal(Real(int))))[:];args...)
-        Makie.arrows(t::VectorField{<:Chain,<:Rectangle};args...) = Makie.arrows(domain(t).v...,getindex.(codomain(t),1),getindex.(codomain(t),2);args...)
-        Makie.arrows!(t::VectorField{<:Chain,<:Rectangle};args...) = Makie.arrows!(domain(t).v...,getindex.(codomain(t),1),getindex.(codomain(t),2);args...)
-        Makie.arrows(t::VectorField{<:Chain,<:Hyperrectangle};args...) = Makie.arrows(Makie.Point.(domain(t))[:],Makie.Point.(codomain(t))[:];args...)
-        Makie.arrows!(t::VectorField{<:Chain,<:Hyperrectangle};args...) = Makie.arrows!(Makie.Point.(domain(t))[:],Makie.Point.(codomain(t))[:];args...)
-        Makie.arrows(t::Rectangle,f::Function;args...) = Makie.arrows(t.v...,f;args...)
-        Makie.arrows!(t::Rectangle,f::Function;args...) = Makie.arrows!(t.v...,f;args...)
-        Makie.arrows(t::Hyperrectangle,f::Function;args...) = Makie.arrows(t.v...,f;args...)
-        Makie.arrows!(t::Hyperrectangle,f::Function;args...) = Makie.arrows!(t.v...,f;args...)
-        Makie.arrows(t::MeshFunction;args...) = Makie.arrows(points(domain(t)),Real.(codomain(t));args...)
-        Makie.arrows!(t::MeshFunction;args...) = Makie.arrows!(points(domain(t)),Real.(codomain(t));args...)
+        for fun ∈ (:contour,:contour!,:contourf,:contourf!,:contour3d,:contour3d!,:heatmap,:heatmap!,:wireframe,:wireframe!)
+            @eval begin
+                Makie.$fun(t::SurfaceGrid;args...) = Makie.$fun(domain(t).v...,Real.(codomain(t));args...)
+                function Makie.$fun(t::GradedField{G,B,<:Rectangle};args...) where {G,B}
+                    x,y = domain(t),value.(codomain(t))
+                    display(Makie.$fun(x.v...,Real.(getindex.(y,1));args...))
+                    for i ∈ 2:binomial(mdims(eltype(codomain(t))),G)
+                        Makie.$(funsym(fun))(x.v...,Real.(getindex.(y,i));args...)
+                    end
+                end
+            end
+        end
+        for fun ∈ (:streamplot,:streamplot!)
+            @eval begin
+                Makie.$fun(f::Function,t::Rectangle;args...) = Makie.$fun(f,t.v...;args...)
+                Makie.$fun(f::Function,t::Hyperrectangle;args...) = Makie.$fun(f,t.v...;args...)
+                Makie.$fun(m::ScalarField{<:Chain,<:RealRegion,<:AbstractReal};args...) = Makie.$fun(gradient_fast(m);args...)
+                Makie.$fun(m::ScalarField{R,<:ChainBundle,<:AbstractReal} where R,dims...;args...) = Makie.$fun(gradient_fast(m),dims...;args...)
+                Makie.$fun(m::VectorField{R,<:ChainBundle} where R,dims...;args...) = Makie.$fun(p->Makie.Point(m(Chain(one(eltype(p)),p.data...))),dims...;args...)
+                Makie.$fun(m::VectorField{<:Chain,<:RealRegion};args...) = Makie.$fun(p->Makie.Point(m(Chain(p.data...))),domain(m).v...;args...)
+            end
+        end
+        for fun ∈ (:arrows,:arrows!)
+            @eval begin
+                Makie.$fun(t::ScalarField{<:Chain,<:Rectangle};args...) = Makie.$fun(Makie.Point.(fiber(graph(Real(int))))[:],Makie.Point.(fiber(normal(Real(int))))[:];args...)
+                Makie.$fun(t::VectorField{<:Chain,<:Rectangle};args...) = Makie.$fun(domain(t).v...,getindex.(codomain(t),1),getindex.(codomain(t),2);args...)
+                Makie.$fun(t::VectorField{<:Chain,<:Hyperrectangle};args...) = Makie.$fun(Makie.Point.(domain(t))[:],Makie.Point.(codomain(t))[:];args...)
+                Makie.$fun(t::Rectangle,f::Function;args...) = Makie.$fun(t.v...,f;args...)
+                Makie.$fun(t::Hyperrectangle,f::Function;args...) = Makie.$fun(t.v...,f;args...)
+                Makie.$fun(t::MeshFunction;args...) = Makie.$fun(points(domain(t)),Real.(codomain(t));args...)
+            end
+        end
         Makie.mesh(t::ElementFunction;args...) = Makie.mesh(domain(t);color=Real.(codomain(t)),args...)
         Makie.mesh!(t::ElementFunction;args...) = Makie.mesh!(domain(t);color=Real.(codomain(t)),args...)
         Makie.mesh(t::MeshFunction;args...) = Makie.mesh(domain(t);color=Real.(codomain(t)),args...)
