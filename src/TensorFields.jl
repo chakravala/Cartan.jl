@@ -20,7 +20,7 @@ module TensorFields
 
 using SparseArrays, LinearAlgebra, Base.Threads
 using AbstractTensors, DirectSum, Grassmann, Requires
-import Grassmann: value, vector, valuetype, tangent, Derivation
+import Grassmann: value, vector, valuetype, tangent, Derivation, radius
 import Base: @pure, OneTo
 import AbstractTensors: Values, Variables, FixedVector
 import AbstractTensors: Scalar, GradedVector, Bivector, Trivector
@@ -150,7 +150,7 @@ end
 for fun ∈ (:-,:!,:~,:inv,:exp,:log,:sinh,:cosh,:abs,:sqrt,:real,:imag,:cos,:sin,:tan,:cot,:sec,:csc,:asec,:acsc,:sech,:csch,:asech,:tanh,:coth,:asinh,:acosh,:atanh,:acoth,:asin,:acos,:atan,:acot,:sinc,:cosc,:abs2,:conj)
     @eval Base.$fun(s::Section) = base(s) ↦ $fun(fiber(s))
 end
-for fun ∈ (:reverse,:involute,:clifford,:even,:odd,:scalar,:vector,:bivector,:volume,:value,:curl,:∂,:d,:⋆)
+for fun ∈ (:reverse,:involute,:clifford,:even,:odd,:scalar,:vector,:bivector,:volume,:value,:curl,:∂,:d,:⋆,:angle,:radius)
     @eval Grassmann.$fun(s::Section) = base(s) ↦ $fun(fiber(s))
 end
 for op ∈ (:+,:-,:*,:/,:<,:>,:<<,:>>,:&)
@@ -171,6 +171,8 @@ LinearAlgebra.det(s::Section) = base(s) ↦ det(fiber(s))
 (::Type{T})(s::Section) where T<:Real = base(s) ↦ T(fiber(s))
 (::Type{Complex})(s::Section) = base(s) ↦ Complex(fiber(s))
 (::Type{Complex{T}})(s::Section) where T = base(s) ↦ Complex{T}(fiber(s))
+Grassmann.Phasor(s::Section) = base(s) ↦ Phasor(fiber(s))
+Grassmann.Couple(s::Section) = base(s) ↦ Couple(fiber(s))
 
 # FiberBundle
 
@@ -362,7 +364,7 @@ end
 for fun ∈ (:-,:!,:~,:exp,:log,:sinh,:cosh,:abs,:sqrt,:real,:imag,:cos,:sin,:tan,:cot,:sec,:csc,:asec,:acsc,:sech,:csch,:asech,:tanh,:coth,:asinh,:acosh,:atanh,:acoth,:asin,:acos,:atan,:acot,:sinc,:cosc,:abs2,:conj)
     @eval Base.$fun(t::TensorField) = domain(t) → $fun.(codomain(t))
 end
-for fun ∈ (:reverse,:involute,:clifford,:even,:odd,:scalar,:vector,:bivector,:volume,:value,:⋆)
+for fun ∈ (:reverse,:involute,:clifford,:even,:odd,:scalar,:vector,:bivector,:volume,:value,:⋆,:angle,:radius)
     @eval Grassmann.$fun(t::TensorField) = domain(t) → $fun.(codomain(t))
 end
 for fun ∈ (:sum,:prod)
@@ -386,6 +388,8 @@ LinearAlgebra.norm(t::TensorField) = domain(t) → norm.(codomain(t))
 (::Type{T})(t::TensorField) where T<:Real = domain(t) → T.(codomain(t))
 (::Type{Complex})(t::TensorField) = domain(t) → Complex.(codomain(t))
 (::Type{Complex{T}})(t::TensorField) where T = domain(t) → Complex{T}.(codomain(t))
+Grassmann.Phasor(s::TensorField) = domain(s) → Phasor(codomain(s))
+Grassmann.Couple(s::TensorField) = domain(s) → Couple(codomain(s))
 
 checkdomain(a::TensorField,b::TensorField) = domain(a)≠domain(b) ? error("TensorField domains not equal") : true
 
@@ -427,6 +431,7 @@ function __init__()
         for fun ∈ (:surface,:surface!)
             @eval begin
                 Makie.$fun(t::SurfaceGrid;args...) = Makie.$fun(domain(t).v...,Real.(codomain(t));color=Real.(abs.(codomain(gradient_fast(Real(t))))),args...)
+                Makie.$fun(t::ComplexMap{B,<:Rectangle} where B;args...) = Makie.$fun(domain(t).v...,Real.(radius.(codomain(t)));color=Real.(angle.(codomain(t))),colormap=:twilight,args...)
                 function Makie.$fun(t::GradedField{G,B,<:Rectangle};args...) where {G,B}
                     x,y = domain(t),value.(codomain(t))
                     yi = Real.(getindex.(y,1))
@@ -436,6 +441,16 @@ function __init__()
                         Makie.$(funsym(fun))(x.v...,yi;color=Real.(abs.(codomain(gradient_fast(x→yi)))),args...)
                     end
                 end
+            end
+        end
+        for fun ∈ (:contour,:contour!,:contourf,:contourf!,:contour3d,:contour3d!,:wireframe,:wireframe!)
+            @eval begin
+                Makie.$fun(t::ComplexMap{B,<:Rectangle} where B;args...) = Makie.$fun(domain(t).v...,Real.(radius.(codomain(t)));args...)
+            end
+        end
+        for fun ∈ (:heatmap,:heatmap!)
+            @eval begin
+                Makie.$fun(t::ComplexMap{B,<:Rectangle} where B;args...) = Makie.$fun(domain(t).v...,Real.(angle.(codomain(t)));colormap=:twilight,args...)
             end
         end
         for fun ∈ (:contour,:contour!,:contourf,:contourf!,:contour3d,:contour3d!,:heatmap,:heatmap!,:wireframe,:wireframe!)
@@ -482,13 +497,17 @@ function __init__()
         UnicodePlots.lineplot(t::RealFunction;args...) = UnicodePlots.lineplot(Real.(domain(t)),Real.(codomain(t));args...)
         UnicodePlots.lineplot(t::ComplexMap{B,<:AbstractVector{B}};args...) where B<:AbstractReal = UnicodePlots.lineplot(real.(Complex.(codomain(t))),imag.(Complex.(codomain(t)));args...)
         UnicodePlots.lineplot(t::GradedField{G,B,<:AbstractVector{B}};args...) where {G,B<:AbstractReal} = UnicodePlots.lineplot(Real.(domain(t)),Grassmann.array(codomain(t));args...)
+        UnicodePlots.contourplot(t::ComplexMap{B,<:Rectangle} where B;args...) = UnicodePlots.contourplot(t.dom.v[1][2:end-1],t.dom.v[2][2:end-1],(x,y)->radius(t(Chain(x,y)));args...)
         UnicodePlots.contourplot(t::SurfaceGrid;args...) = UnicodePlots.contourplot(t.dom.v[1][2:end-1],t.dom.v[2][2:end-1],(x,y)->t(Chain(x,y));args...)
         UnicodePlots.surfaceplot(t::SurfaceGrid;args...) = UnicodePlots.surfaceplot(t.dom.v[1][2:end-1],t.dom.v[2][2:end-1],(x,y)->t(Chain(x,y));args...)
+        UnicodePlots.surfaceplot(t::ComplexMap{B,<:Rectangle} where B;args...) = UnicodePlots.surfaceplot(t.dom.v[1][2:end-1],t.dom.v[2][2:end-1],(x,y)->radius(t(Chain(x,y)));colormap=:twilight,args...)
         UnicodePlots.spy(t::SurfaceGrid;args...) = UnicodePlots.spy(Real.(codomain(t));args...)
-        UnicodePlots.heatmap(t::SurfaceGrid;args...) = UnicodePlots.heatmap(Real.(codomain(t));args...)
+        UnicodePlots.heatmap(t::SurfaceGrid;args...) = UnicodePlots.heatmap(Real.(codomain(t));xfact=step(t.dom.v[1]),yfact=step(t.dom.v[2]),xoffset=t.dom.v[1][1],yoffset=t.dom.v[2][1],args...)
+        UnicodePlots.heatmap(t::ComplexMap{B,<:Rectangle} where B;args...) = UnicodePlots.heatmap(Real.(angle.(codomain(t)));xfact=step(t.dom.v[1]),yfact=step(t.dom.v[2]),xoffset=t.dom.v[1][1],yoffset=t.dom.v[2][1],colormap=:twilight,args...)
         Base.display(t::PlaneCurve) = (display(typeof(t)); display(UnicodePlots.lineplot(t)))
         Base.display(t::RealFunction) = (display(typeof(t)); display(UnicodePlots.lineplot(t)))
         Base.display(t::ComplexMap{B,<:AbstractVector{B}}) where B<:AbstractReal = (display(typeof(t)); display(UnicodePlots.lineplot(t)))
+        Base.display(t::ComplexMap{B,<:Rectangle} where B) = (display(typeof(t)); display(UnicodePlots.heatmap(t)))
         Base.display(t::GradedField{G,B,<:AbstractVector{B}}) where {G,B<:AbstractReal} = (display(typeof(t)); display(UnicodePlots.lineplot(t)))
         Base.display(t::SurfaceGrid) = (display(typeof(t)); display(UnicodePlots.heatmap(t)))
     end
