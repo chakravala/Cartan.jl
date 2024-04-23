@@ -18,13 +18,11 @@ module TensorFields
 #  / / |  __/ | | \__ \ (_) | | / /   | |  __/ | (_| \__ \
 #  \/   \___|_| |_|___/\___/|_| \/    |_|\___|_|\__,_|___/
 
-using SparseArrays, LinearAlgebra, Base.Threads
-using AbstractTensors, DirectSum, Grassmann, Requires
-import Grassmann: value, vector, valuetype, tangent, Derivation, radius
+using SparseArrays, LinearAlgebra, Base.Threads, Grassmann, Requires
+import Grassmann: value, vector, valuetype, tangent, Derivation, radius, ⊕
+import Grassmann: Values, Variables, FixedVector
+import Grassmann: Scalar, GradedVector, Bivector, Trivector
 import Base: @pure, OneTo
-import AbstractTensors: Values, Variables, FixedVector
-import AbstractTensors: Scalar, GradedVector, Bivector, Trivector
-import DirectSum: ⊕
 
 export Values, Derivation
 export initmesh, pdegrad, det
@@ -153,18 +151,18 @@ end
 for fun ∈ (:reverse,:involute,:clifford,:even,:odd,:scalar,:vector,:bivector,:volume,:value,:curl,:∂,:d,:⋆,:angle,:radius)
     @eval Grassmann.$fun(s::Section) = base(s) ↦ $fun(fiber(s))
 end
-for op ∈ (:+,:-,:*,:/,:<,:>,:<<,:>>,:&)
-    @eval Base.$op(a::Section{R},b::Section{R}) where R = base(a)==base(b) ? Section(base(a),$op(fiber(a),fiber(b))) : error("Section $(base(a)) ≠ $(base(b))")
-end
-for op ∈ (:∧,:∨)
-    @eval Grassmann.$op(a::Section{R},b::Section{R}) where R = base(a)==base(b) ? Section(base(a),$op(fiber(a),fiber(b))) : error("Section $(base(a)) ≠ $(base(b))")
+for op ∈ (:+,:-,:*,:/,:^,:<,:>,:<<,:>>,:&,:∧,:∨)
+    let bop = op ∈ (:∧,:∨) ? :(Grassmann.$op) : :(Base.$op)
+        @eval begin
+            $bop(a::Section{R},b::Section{R}) where R = base(a)==base(b) ? Section(base(a),$op(fiber(a),fiber(b))) : error("Section $(base(a)) ≠ $(base(b))")
+            $bop(a::Number,b::Section) = base(b) ↦ $op(a,fiber(b))
+            $bop(a::Section,b::Number) = base(a) ↦ $op(fiber(a),b)
+        end
+    end
 end
 
 Grassmann.contraction(a::Section{R},b::Section{R}) where R = base(a)==base(b) ? Section(base(a),Grassmann.contraction(fiber(a),fiber(b))) : error("Section $(base(a)) ≠ $(base(b))")
 
-Base.:*(a::Number,b::Section) = base(b) ↦ (a*fiber(b))
-Base.:*(a::Section,b::Number) = base(a) ↦ (fiber(a)*b)
-Base.:/(a::Section,b::Number) = base(a) ↦ (fiber(a)/b)
 LinearAlgebra.norm(s::Section) = base(s) ↦ norm(fiber(s))
 LinearAlgebra.det(s::Section) = base(s) ↦ det(fiber(s))
 (V::Submanifold)(s::Section) = base(a) ↦ V(fiber(s))
@@ -346,19 +344,13 @@ function Grassmann.Chain(t::TensorField{B,T,<:Chain{V,G}} where {B,T}) where {V,
     Chain{V,G}((base(t) → getindex.(fiber(t),j) for j ∈ 1:binomial(mdims(V),G))...)
 end
 Base.:^(t::TensorField,n::Int) = domain(t) → codomain(t).^n
-Base.:^(t::TensorField,n::Number) = domain(t) → codomain(t).^n
-for op ∈ (:*,:/,:+,:-,:>,:<,:>>,:<<,:&)
-    @eval begin
-        Base.$op(a::TensorField,b::TensorField) = checkdomain(a,b) && (domain(a) → $op.(codomain(a),codomain(b)))
-        Base.$op(a::TensorField,b::Number) = domain(a) → $op.(codomain(a),Ref(b))
-        Base.$op(a::Number,b::TensorField) = domain(b) → $op.(Ref(a),codomain(b))
-    end
-end
-for op ∈ (:∧,:∨,:⋅)
-    @eval begin
-        Grassmann.$op(a::TensorField,b::TensorField) = checkdomain(a,b) && (domain(a) → $op.(codomain(a),codomain(b)))
-        Grassmann.$op(a::TensorField,b::Number) = domain(a) → $op.(codomain(a),Ref(b))
-        Grassmann.$op(a::Number,b::TensorField) = domain(b) → $op.(Ref(a),codomain(b))
+for op ∈ (:*,:/,:+,:-,:^,:>,:<,:>>,:<<,:&,:∧,:∨,:⋅)
+    let bop = op ∈ (:∧,:∨,:⋅) ? :(Grassmann.$op) : :(Base.$op)
+        @eval begin
+            $bop(a::TensorField,b::TensorField) = checkdomain(a,b) && (domain(a) → $op.(codomain(a),codomain(b)))
+            $bop(a::TensorField,b::Number) = domain(a) → $op.(codomain(a),Ref(b))
+            $bop(a::Number,b::TensorField) = domain(b) → $op.(Ref(a),codomain(b))
+        end
     end
 end
 for fun ∈ (:-,:!,:~,:exp,:log,:sinh,:cosh,:abs,:sqrt,:real,:imag,:cos,:sin,:tan,:cot,:sec,:csc,:asec,:acsc,:sech,:csch,:asech,:tanh,:coth,:asinh,:acosh,:atanh,:acoth,:asin,:acos,:atan,:acot,:sinc,:cosc,:abs2,:conj)
