@@ -19,7 +19,7 @@ module TensorFields
 #  \/   \___|_| |_|___/\___/|_| \/    |_|\___|_|\__,_|___/
 
 using SparseArrays, LinearAlgebra, Base.Threads, Grassmann, Requires
-import Grassmann: value, vector, valuetype, tangent, Derivation, radius, ⊕
+import Grassmann: value, vector, valuetype, tangent, istangent, Derivation, radius, ⊕
 import Grassmann: Values, Variables, FixedVector
 import Grassmann: Scalar, GradedVector, Bivector, Trivector
 import Base: @pure, OneTo
@@ -145,14 +145,14 @@ function show_pairtyped(io::IO, s::Section{B,F}) where {B,F}
     show(io, (base(s), fiber(s)))
 end
 
-for fun ∈ (:-,:!,:~,:inv,:exp,:log,:sinh,:cosh,:abs,:sqrt,:real,:imag,:cos,:sin,:tan,:cot,:sec,:csc,:asec,:acsc,:sech,:csch,:asech,:tanh,:coth,:asinh,:acosh,:atanh,:acoth,:asin,:acos,:atan,:acot,:sinc,:cosc,:abs2,:conj)
+for fun ∈ (:-,:!,:~,:inv,:exp,:log,:sinh,:cosh,:abs,:sqrt,:cbrt,:real,:imag,:cos,:sin,:tan,:cot,:sec,:csc,:asec,:acsc,:sech,:csch,:asech,:tanh,:coth,:asinh,:acosh,:atanh,:acoth,:asin,:acos,:atan,:acot,:sinc,:cosc,:abs2,:conj,:deg2rad)
     @eval Base.$fun(s::Section) = base(s) ↦ $fun(fiber(s))
 end
-for fun ∈ (:reverse,:involute,:clifford,:even,:odd,:scalar,:vector,:bivector,:volume,:value,:curl,:∂,:d,:⋆,:angle,:radius)
+for fun ∈ (:reverse,:involute,:clifford,:even,:odd,:scalar,:vector,:bivector,:volume,:value,:curl,:∂,:d,:⋆,:angle,:radius,:complementleft,:complementlefthodge,:pseudoabs,:pseudoabs2,:pseudoexp,:pseudolog,:pseudoinv,:pseudosqrt,:pseudocbrt,:pseudocos,:pseudosin,:pseudotan,:pseudocosh,:pseudosinh,:pseudotanh)
     @eval Grassmann.$fun(s::Section) = base(s) ↦ $fun(fiber(s))
 end
-for op ∈ (:+,:-,:*,:/,:^,:<,:>,:<<,:>>,:&,:∧,:∨)
-    let bop = op ∈ (:∧,:∨) ? :(Grassmann.$op) : :(Base.$op)
+for op ∈ (:+,:-,:*,:/,:^,:<,:>,:<<,:>>,:&,:∧,:∨,:⊘,:>>>,:⟑,:veedot)
+    let bop = op ∈ (:∧,:∨,:⊘,:⟑,:veedot) ? :(Grassmann.$op) : :(Base.$op)
         @eval begin
             $bop(a::Section{R},b::Section{R}) where R = base(a)==base(b) ? Section(base(a),$op(fiber(a),fiber(b))) : error("Section $(base(a)) ≠ $(base(b))")
             $bop(a::Number,b::Section) = base(b) ↦ $op(a,fiber(b))
@@ -344,8 +344,8 @@ function Grassmann.Chain(t::TensorField{B,T,<:Chain{V,G}} where {B,T}) where {V,
     Chain{V,G}((base(t) → getindex.(fiber(t),j) for j ∈ 1:binomial(mdims(V),G))...)
 end
 Base.:^(t::TensorField,n::Int) = domain(t) → codomain(t).^n
-for op ∈ (:*,:/,:+,:-,:^,:>,:<,:>>,:<<,:&,:∧,:∨,:⋅)
-    let bop = op ∈ (:∧,:∨,:⋅) ? :(Grassmann.$op) : :(Base.$op)
+for op ∈ (:*,:/,:+,:-,:^,:>,:<,:>>,:<<,:&,:∧,:∨,:⋅,:⊘,:>>>,:⟑,:veedot)
+    let bop = op ∈ (:∧,:∨,:⋅,:⊘,:⟑,:veedot) ? :(Grassmann.$op) : :(Base.$op)
         @eval begin
             $bop(a::TensorField,b::TensorField) = checkdomain(a,b) && (domain(a) → $op.(codomain(a),codomain(b)))
             $bop(a::TensorField,b::Number) = domain(a) → $op.(codomain(a),Ref(b))
@@ -353,10 +353,10 @@ for op ∈ (:*,:/,:+,:-,:^,:>,:<,:>>,:<<,:&,:∧,:∨,:⋅)
         end
     end
 end
-for fun ∈ (:-,:!,:~,:exp,:log,:sinh,:cosh,:abs,:sqrt,:real,:imag,:cos,:sin,:tan,:cot,:sec,:csc,:asec,:acsc,:sech,:csch,:asech,:tanh,:coth,:asinh,:acosh,:atanh,:acoth,:asin,:acos,:atan,:acot,:sinc,:cosc,:abs2,:conj)
+for fun ∈ (:-,:!,:~,:exp,:log,:sinh,:cosh,:abs,:sqrt,:cbrt,:real,:imag,:cos,:sin,:tan,:cot,:sec,:csc,:asec,:acsc,:sech,:csch,:asech,:tanh,:coth,:asinh,:acosh,:atanh,:acoth,:asin,:acos,:atan,:acot,:sinc,:cosc,:abs2,:conj,:deg2rad)
     @eval Base.$fun(t::TensorField) = domain(t) → $fun.(codomain(t))
 end
-for fun ∈ (:reverse,:involute,:clifford,:even,:odd,:scalar,:vector,:bivector,:volume,:value,:⋆,:angle,:radius)
+for fun ∈ (:reverse,:involute,:clifford,:even,:odd,:scalar,:vector,:bivector,:volume,:value,:⋆,:angle,:radius,:complementleft,:complementlefthodge,:pseudoabs,:pseudoabs2,:pseudoexp,:pseudolog,:pseudoinv,:pseudosqrt,:pseudocbrt,:pseudocos,:pseudosin,:pseudotan,:pseudocosh,:pseudosinh,:pseudotanh)
     @eval Grassmann.$fun(t::TensorField) = domain(t) → $fun.(codomain(t))
 end
 for fun ∈ (:sum,:prod)
