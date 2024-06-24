@@ -1,7 +1,7 @@
 
-#   This file is part of TensorFields.jl
+#   This file is part of Cartan.jl
 #   It is licensed under the GPL license
-#   TensorFields Copyright (C) 2023 Michael Reed
+#   Cartan Copyright (C) 2023 Michael Reed
 #       _           _                         _
 #      | |         | |                       | |
 #   ___| |__   __ _| | ___ __ __ ___   ____ _| | __ _
@@ -19,22 +19,22 @@ export integral, integrate, ∫
 
 # analysis
 
-boundabove(s::Section{B,T},lim=10) where {B,T<:Real} = fiber(s)≤lim ? s : (base(s)↦T(lim))
+boundabove(s::LocalTensor{B,T},lim=10) where {B,T<:Real} = fiber(s)≤lim ? s : LocalTensor(base(s),T(lim))
 boundabove(x::T,lim=10) where T<:Real = x≤lim ? x : T(lim)
-boundabove(t::TensorField,lim=10) = base(t) → boundabove.(codomain(t),lim)
-boundbelow(s::Section{B,T},lim=-10) where {B,T<:Real} = fiber(s)≥lim ? s : (base(s)↦T(lim))
+boundabove(t::TensorField,lim=10) = TensorField(base(t), boundabove.(codomain(t),lim))
+boundbelow(s::LocalTensor{B,T},lim=-10) where {B,T<:Real} = fiber(s)≥lim ? s : LocalTensor(base(s),T(lim))
 boundbelow(x::T,lim=-10) where T<:Real = x≥lim ? x : T(lim)
-boundbelow(t::TensorField,lim=-10) = base(t) → boundbelow.(codomain(t),lim)
-bound(s::Section{B,T},lim=10) where {B,T<:Real} = abs(fiber(s))≤lim ? s : (base(s)↦T(sign(fiber(s)*lim)))
-bound(s::Section{B,T},lim=10) where {B,T} = (x=abs(fiber(s)); x≤lim ? s : ((lim/x)*s))
+boundbelow(t::TensorField,lim=-10) = TensorField(base(t), boundbelow.(codomain(t),lim))
+bound(s::LocalTensor{B,T},lim=10) where {B,T<:Real} = abs(fiber(s))≤lim ? s : LocalTensor(base(s),T(sign(fiber(s)*lim)))
+bound(s::LocalTensor{B,T},lim=10) where {B,T} = (x=abs(fiber(s)); x≤lim ? s : ((lim/x)*s))
 bound(x::T,lim=10) where T<:Real = abs(x)≤lim ? x : T(sign(x)*lim)
 bound(z,lim=10) = (x=abs(z); x≤lim ? z : (lim/x)*z)
-bound(t::TensorField,lim=10) = base(t) → bound.(codomain(t),lim)
-boundlog(s::Section{B,T},lim=10) where {B,T<:Real} = (x=abs(fiber(s)); x≤lim ? s : (base(s)↦T(sign(fiber(s))*(lim+log(x+1-lim)))))
-boundlog(s::Section{B,T},lim=10) where {B,T} = (x=abs(fiber(s)); x≤lim ? s : (base(s)↦T(fiber(s)*((lim+log(x+1-lim))/x))))
+bound(t::TensorField,lim=10) = TensorField(base(t), bound.(codomain(t),lim))
+boundlog(s::LocalTensor{B,T},lim=10) where {B,T<:Real} = (x=abs(fiber(s)); x≤lim ? s : LocalTensor(base(s),T(sign(fiber(s))*(lim+log(x+1-lim)))))
+boundlog(s::LocalTensor{B,T},lim=10) where {B,T} = (x=abs(fiber(s)); x≤lim ? s : LocalTensor(base(s),T(fiber(s)*((lim+log(x+1-lim))/x))))
 boundlog(z::T,lim=10) where T<:Real = (x=abs(z); x≤lim ? z : T(sign(z)*(lim+log(x+1-lim))))
-boundlog(z,lim=10) = (x=abs(fiber(s)); x≤lim ? s : (base(s)↦T(fiber(s)*((lim+log(x+1-lim))/x))))
-boundlog(t::TensorField,lim=10) = base(t) → boundlog.(codomain(t),lim)
+boundlog(z,lim=10) = (x=abs(fiber(s)); x≤lim ? s : LocalTensor(base(s),T(fiber(s)*((lim+log(x+1-lim))/x))))
+boundlog(t::TensorField,lim=10) = TensorField(base(t), boundlog.(codomain(t),lim))
 
 isclosed(t::IntervalMap) = norm(codomain(t)[end]-codomain(t)[1]) ≈ 0
 
@@ -58,16 +58,16 @@ centraldiff(f::AbstractVector,args...) = centraldiff_slow(f,args...)
 centraldiff(f::AbstractArray,args...) = centraldiff_fast(f,args...)
 
 gradient(f::IntervalMap,args...) = gradient_slow(f,args...)
-gradient(f::TensorField{B,<:AbstractArray} where B,args...) = gradient_fast(f,args...)
+gradient(f::TensorField{B,F,N,<:AbstractArray} where {B,F,N},args...) = gradient_fast(f,args...)
 function gradient(f::MeshFunction)
-    domain(f) → interp(domain(f),gradient(domain(f),codomain(f)))
+    TensorField(domain(f), interp(domain(f),gradient(domain(f),codomain(f))))
 end
-function unitgradient(f::TensorField{B,<:AbstractArray} where B,d=centraldiff(domain(f)),t=centraldiff(codomain(f),d))
-    domain(f) → (t./abs.(t))
+function unitgradient(f::TensorField{B,F,N,<:AbstractArray} where {B,F,N},d=centraldiff(domain(f)),t=centraldiff(codomain(f),d))
+    TensorField(domain(f), (t./abs.(t)))
 end
 function unitgradient(f::MeshFunction)
     t = interp(domain(f),gradient(domain(f),codomain(f)))
-    domain(f) → (t./abs.(t))
+    TensorField(domain(f), (t./abs.(t)))
 end
 
 (::Derivation)(t::TensorField) = getnabla(t)
@@ -77,9 +77,39 @@ function getnabla(t::TensorField)
     Chain(Values{n,Any}(Λ(V).b[2:n+1]...))
 end
 
+export invd, cartan, firststructure, secondstructure
+
+cartan(ξ) = invd(ξ)⋅ξ
+firststructure(θ,ω) = d(θ)+ω∧θ
+secondstructure(ω) = d(ω)+ω∧ω
+
 Grassmann.curl(t::TensorField) = ⋆d(t)
 Grassmann.d(t::TensorField) = TensorField(fromany(∇(t)∧Chain(t)))
+Grassmann.d(t::GlobalSection) = gradient(t)
 Grassmann.∂(t::TensorField) = TensorField(fromany(Chain(t)⋅∇(t)))
+
+@generated function Grassmann.d(t::TensorField{B,<:Chain{V,G,<:Chain} where {V,G}} where B)
+    V = Manifold(fibertype(t)); N = mdims(V)
+    Expr(:.,:(Chain{$V,1}),Expr(:tuple,[:(d(getindex.(t,$i))) for i ∈ list(1,N)]...))
+end
+@generated function Grassmann.d(t::EndomorphismField)
+    fibertype(t) <: DiagonalOperator && (return :(DiagonalOperator.(dvec(value.(t)))))
+    V = Manifold(fibertype(t)); N = mdims(V)
+    syms = Symbol.(:x,list(1,N))
+    Expr(:block,:(V = $V),
+        :($(Expr(:tuple,syms...)) = $(Expr(:tuple,[:(getindex.(t,$i)) for i ∈ list(1,N)]...))),
+        Expr(:.,:TensorOperator,Expr(:tuple,Expr(:.,:(Chain{V,1}),Expr(:tuple,[Expr(:.,:(Chain{V,1}),Expr(:tuple,
+        [:(d(getindex.($(syms[j]),$i))) for i ∈ list(1,N)]...)) for j ∈ list(1,N)]...)))))
+end
+@generated function invd(t::EndomorphismField)
+    fibertype(t) <: DiagonalOperator && (return :(DiagonalOperator.(dvec(.-value.(t)))))
+    V = Manifold(fibertype(t)); N = mdims(V)
+    syms = Symbol.(:x,list(1,N))
+    Expr(:block,:(V = $V),
+        :($(Expr(:tuple,syms...)) = $(Expr(:tuple,[:(-getindex.(t,$i)) for i ∈ list(1,N)]...))),
+        Expr(:.,:TensorOperator,Expr(:tuple,Expr(:.,:(Chain{V,1}),Expr(:tuple,[Expr(:.,:(Chain{V,1}),Expr(:tuple,
+        [:(d(getindex.($(syms[i]),$j))) for i ∈ list(1,N)]...)) for j ∈ list(1,N)]...)))))
+end
 
 for op ∈ (:(Base.:*),:(Base.:/),:(Grassmann.:∧),:(Grassmann.:∨))
     @eval begin
@@ -94,48 +124,48 @@ function Base.:*(n::Submanifold,t::TensorField)
     if istangent(n)
         gradient(t,indices(n)[1])
     else
-        domain(t) → (Ref(n).*codomain(t))
+        TensorField(domain(t), (Ref(n).*codomain(t)))
     end
 end
 function Base.:*(t::TensorField,n::Submanifold)
     if istangent(n)
         gradient(t,indices(n)[1])
     else
-        domain(t) → (codomain(t).*Ref(n))
+        TensorField(domain(t), (codomain(t).*Ref(n)))
     end
 end
 function LinearAlgebra.dot(n::Submanifold,t::TensorField)
     if istangent(n)
         gradient(t,indices(n)[1])
     else
-        domain(t) → dot.(Ref(n),codomain(t))
+        TensorField(domain(t), dot.(Ref(n),codomain(t)))
     end
 end
 function LinearAlgebra.dot(t::TensorField,n::Submanifold)
     if istangent(n)
         gradient(t,indices(n)[1])
     else
-        domain(t) → dot.(codomain(t),Ref(n))
+        TensorField(domain(t), dot.(codomain(t),Ref(n)))
     end
 end
 
 for fun ∈ (:_slow,:_fast)
     cd,grad = Symbol(:centraldiff,fun),Symbol(:gradient,fun)
     @eval begin
-        function $grad(f::IntervalMap,d::AbstractVector=$cd(domain(f)))
-            domain(f) → $cd(codomain(f),d)
+        function $grad(f::IntervalMap,d::AbstractVector=$cd(basepoints(f)))
+            TensorField(domain(f), $cd(codomain(f),d))
         end
-        function $grad(f::TensorField{B,<:AbstractArray} where B,d::AbstractArray=$cd(domain(f)))
-            domain(f) → $cd(Grid(codomain(f)),d)
+        function $grad(f::TensorField{B,F,N,<:AbstractArray} where {B,F,N},d::AbstractArray=$cd(basepoints(f)))
+            TensorField(domain(f), $cd(Grid(codomain(f)),d))
         end
-        function $grad(f::IntervalMap,::Val{1},d::AbstractVector=$cd(domain(f)))
-            domain(f) → $cd(codomain(f),d)
+        function $grad(f::IntervalMap,::Val{1},d::AbstractVector=$cd(basepoints(f)))
+            TensorField(domain(f), $cd(codomain(f),d))
         end
-        function $grad(f::TensorField{B,<:RealRegion} where B,n::Val{N},d::AbstractArray=$cd(domain(f).v[N])) where N
-            domain(f) → $cd(Grid(codomain(f)),n,d)
+        function $grad(f::TensorField{B,F,Nf,<:RealRegion} where {B,F,Nf},n::Val{N},d::AbstractArray=$cd(basepoints(f).v[N])) where N
+            TensorField(domain(f), $cd(Grid(codomain(f)),n,d))
         end
-        function $grad(f::TensorField{B,<:AbstractArray} where B,n::Val,d::AbstractArray=$cd(domain(f),n))
-            domain(f) → $cd(Grid(codomain(f)),n,d)
+        function $grad(f::TensorField{B,F,N,<:AbstractArray} where {B,F,N},n::Val,d::AbstractArray=$cd(basepoints(f),n))
+            TensorField(domain(f), $cd(Grid(codomain(f)),n,d))
         end
         $grad(f::TensorField,n::Int,args...) = $grad(f,Val(n),args...)
         $cd(f::AbstractArray,args...) = $cd(Grid(f),args...)
@@ -334,28 +364,28 @@ end
 integrate(args...) = trapz(args...)
 
 arclength(f::Vector) = sum(value.(abs.(diff(f))))
-trapz(f::IntervalMap,d::AbstractVector=diff(domain(f))) = sum((d/2).*(f.cod[2:end]+f.cod[1:end-1]))
+trapz(f::IntervalMap,d::AbstractVector=diff(basepoints(f))) = sum((d/2).*(f.cod[2:end]+f.cod[1:end-1]))
 trapz1(f::Vector,h::Real) = h*((f[1]+f[end])/2+sum(f[2:end-1]))
-function trapz(f::IntervalMap{B,<:AbstractRange} where B<:AbstractReal)
-    trapz1(codomain(f),step(domain(f)))
+function trapz(f::IntervalMap{B,F,<:AbstractRange} where {B<:AbstractReal,F})
+    trapz1(codomain(f),step(basepoints(f)))
 end
-function trapz(f::RectangleMap{B,<:Rectangle{V,T,<:AbstractRange} where {V,T}} where B)
-    trapz1(codomain(f),step(domain(f).v[1]),step(domain(f).v[2]))
+function trapz(f::RectangleMap{B,F,<:Rectangle{V,T,<:AbstractRange} where {V,T}} where {B,F})
+    trapz1(codomain(f),step(basepoints(f).v[1]),step(basepoints(f).v[2]))
 end
-function trapz(f::HyperrectangleMap{B,<:Hyperrectangle{V,T,<:AbstractRange} where {V,T}} where B)
-    trapz1(codomain(f),step(domain(f).v[1]),step(domain(f).v[2]),step(domain(f).v[3]))
+function trapz(f::HyperrectangleMap{B,F,<:Hyperrectangle{V,T,<:AbstractRange} where {V,T}} where {B,F})
+    trapz1(codomain(f),step(basepoints(f).v[1]),step(basepoints(f).v[2]),step(basepoints(f).v[3]))
 end
-function trapz(f::ParametricMap{B,<:RealRegion{V,T,4,<:AbstractRange} where {V,T}} where B)
-    trapz1(codomain(f),step(domain(f).v[1]),step(domain(f).v[2]),step(domain(f).v[3]),step(domain(f).v[4]))
+function trapz(f::ParametricMap{B,F,4,<:RealRegion{V,T,4,<:AbstractRange} where {V,T}} where {B,F})
+    trapz1(codomain(f),step(basepoints(f).v[1]),step(basepoints(f).v[2]),step(basepoints(f).v[3]),step(basepoints(f).v[4]))
 end
-function trapz(f::ParametricMap{B,<:RealRegion{V,T,5,<:AbstractRange} where {V,T}} where B)
-    trapz1(codomain(f),step(domain(f).v[1]),step(domain(f).v[2]),step(domain(f).v[3]),step(domain(f).v[4]),step(domain(f).v[5]))
+function trapz(f::ParametricMap{B,F,5,<:RealRegion{V,T,5,<:AbstractRange} where {V,T}} where {B,F})
+    trapz1(codomain(f),step(basepoints(f).v[1]),step(basepoints(f).v[2]),step(basepoints(f).v[3]),step(basepoints(f).v[4]),step(basepoints(f).v[5]))
 end
 trapz(f::IntervalMap,j::Int) = trapz(f,Val(j))
 trapz(f::IntervalMap,j::Val{1}) = trapz(f)
 trapz(f::ParametricMap,j::Int) = trapz(f,Val(j))
-trapz(f::ParametricMap,j::Val{J}) where J = remove(domain(f),j) → trapz2(codomain(f),j,diff(domain(f).v[J]))
-trapz(f::ParametricMap{B,<:RealRegion{V,<:Real,N,<:AbstractRange} where {V,N}} where B,j::Val{J}) where J = remove(domain(f),j) → trapz1(codomain(f),j,step(domain(f).v[J]))
+trapz(f::ParametricMap,j::Val{J}) where J = remove(domain(f),j) → trapz2(codomain(f),j,diff(basepoints(f).v[J]))
+trapz(f::ParametricMap{B,F,N,<:RealRegion{V,<:Real,N,<:AbstractRange} where V} where {B,F,N},j::Val{J}) where J = remove(domain(f),j) → trapz1(codomain(f),j,step(basepoints(f).v[J]))
 gentrapz1(n,j,h=:h,f=:f) = :($h*(($(select(n,j,1))+$(select(n,j,:(size(f)[$j]))))/2+$(select(n,j,1,:(sum($(select(n,j,:(2:$(:end)-1),f)),dims=$j))))))
 selectaxes(n,j) = (i≠3 ? i : 0 for i ∈ 1:10)
 @generated function trapz1(f::Array{T,N} where T,::Val{J},h::Real,s::Tuple=size(f)) where {N,J}
@@ -376,7 +406,7 @@ function gentrapz2(n,j,f=:f,d=:(d[$j]))
     end
 end
 for N ∈ 2:5
-    @eval function trapz(m::ParametricMap{B,T,F,$N} where {B,T,F},D::AbstractVector=diff.(domain(m).v))
+    @eval function trapz(m::ParametricMap{B,F,$N,T} where {B,F,T},D::AbstractVector=diff.(basepoints(m).v))
         c = codomain(m)
         f,s,d = similar(c),size(c),D./2
         $(Expr(:block,vcat([gentrapz2(j,j,j≠N ? :f : :c).args for j ∈ N:-1:1]...)...))
@@ -392,42 +422,47 @@ end
 integral(args...) = cumtrapz(args...)
 const ∫ = integral
 
+refdiff(x::Global) = ref(x)
+refdiff(x) = x[2:end]
+
+isregular(f::IntervalMap) = prod(.!iszero.(fiber(speed(f))))
+
 arctime(f) = inv(arclength(f))
 function arclength(f::IntervalMap)
-    int = cumsum(abs.(diff(codomain(f))))
+    int = cumsum(abs.(diff(codomain(f)),refdiff(metrictensor(f))))
     pushfirst!(int,zero(eltype(int)))
-    domain(f) → int
+    TensorField(domain(f), int)
 end # cumtrapz(speed(f))
-function cumtrapz(f::IntervalMap,d::AbstractVector=diff(domain(f)))
+function cumtrapz(f::IntervalMap,d::AbstractVector=diff(basepoints(f)))
     i = (d/2).*cumsum(f.cod[2:end]+f.cod[1:end-1])
     pushfirst!(i,zero(eltype(i)))
-    domain(f) → i
+    TensorField(domain(f), i)
 end
 function cumtrapz1(f::Vector,h::Real)
     i = (h/2)*cumsum(f[2:end]+f[1:end-1])
     pushfirst!(i,zero(eltype(i)))
     return i
 end
-function cumtrapz(f::IntervalMap{B,<:AbstractRange} where B<:AbstractReal)
-    domain(f) → cumtrapz1(codomain(f),step(domain(f)))
+function cumtrapz(f::IntervalMap{B,F,<:AbstractRange} where {B<:AbstractReal,F})
+    TensorField(domain(f), cumtrapz1(codomain(f),step(basepoints(f))))
 end
-function cumtrapz(f::RectangleMap{B,<:Rectangle{V,T,<:AbstractRange} where {V,T}} where B)
-    domain(f) → cumtrapz1(codomain(f),step(domain(f).v[1]),step(domain(f).v[2]))
+function cumtrapz(f::RectangleMap{B,F,<:Rectangle{V,T,<:AbstractRange} where {V,T}} where {B,F})
+    TensorField(domain(f), cumtrapz1(codomain(f),step(basepoints(f).v[1]),step(basepoints(f).v[2])))
 end
-function cumtrapz(f::HyperrectangleMap{B,<:Hyperrectangle{V,T,<:AbstractRange} where {V,T}} where B)
-    domain(f) → cumtrapz1(codomain(f),step(domain(f).v[1]),step(domain(f).v[2]),step(domain(f).v[3]))
+function cumtrapz(f::HyperrectangleMap{B,F,<:Hyperrectangle{V,T,<:AbstractRange} where {V,T}} where {B,F})
+    TensorField(domain(f), cumtrapz1(codomain(f),step(basepoints(f).v[1]),step(basepoints(f).v[2]),step(basepoints(f).v[3])))
 end
-function cumtrapz(f::ParametricMap{B,<:RealRegion{V,T,<:AbstractRange,4} where {V,T}} where B)
-    domain(f) → cumtrapz1(codomain(f),step(domain(f).v[1]),step(domain(f).v[2]),step(domain(f).v[3]),step(domain(f).v[4]))
+function cumtrapz(f::ParametricMap{B,F,4,<:RealRegion{V,T,<:AbstractRange,4} where {V,T}} where {B,F})
+    TensorField(domain(f), cumtrapz1(codomain(f),step(basepoints(f).v[1]),step(basepoints(f).v[2]),step(basepoints(f).v[3]),step(basepoints(f).v[4])))
 end
-function cumtrapz(f::ParametricMap{B,<:RealRegion{V,T,<:AbstractRange,5} where {V,T}} where B)
-    domain(f) → cumtrapz1(codomain(f),step(domain(f).v[1]),step(domain(f).v[2]),step(domain(f).v[3]),step(domain(f).v[4]),step(domain(f).v[5]))
+function cumtrapz(f::ParametricMap{B,F,5,<:RealRegion{V,T,<:AbstractRange,5} where {V,T}} where {B,F})
+    TensorField(domain(f), cumtrapz1(codomain(f),step(basepoints(f).v[1]),step(basepoints(f).v[2]),step(basepoints(f).v[3]),step(basepoints(f).v[4]),step(basepoints(f).v[5])))
 end
 cumtrapz(f::IntervalMap,j::Int) = cumtrapz(f,Val(j))
 cumtrapz(f::IntervalMap,j::Val{1}) = cumtrapz(f)
 cumtrapz(f::ParametricMap,j::Int) = cumtrapz(f,Val(j))
-cumtrapz(f::ParametricMap,j::Val{J}) where J = domain(f) → cumtrapz2(codomain(f),j,diff(domain(f).v[J]))
-cumtrapz(f::ParametricMap{B,<:RealRegion{V,<:Real,N,<:AbstractRange} where {V,N}} where B,j::Val{J}) where J = domain(f) → cumtrapz1(codomain(f),j,step(domain(f).v[J]))
+cumtrapz(f::ParametricMap,j::Val{J}) where J = TensorField(domain(f), cumtrapz2(codomain(f),j,diff(basepoints(f).v[J])))
+cumtrapz(f::ParametricMap{B,F,N,<:RealRegion{V,<:Real,N,<:AbstractRange} where V} where {B,F,N},j::Val{J}) where J = TensorField(domain(f), cumtrapz1(codomain(f),j,step(basepoints(f).v[J])))
 selectzeros(n,j) = :(zeros($([i≠j ? :(s[$i]) : 1 for i ∈ 1:n]...)))
 selectzeros2(n,j) = :(zeros($([i≠j ? i<j ? :(s[$i]) : :(s[$i]-1) : 1 for i ∈ 1:n]...)))
 gencat(n,j=n,cat=n≠2 ? :cat : j≠2 ? :vcat : :hcat) = :($cat($(selectzeros2(n,j)),$(j≠1 ? gencat(n,j-1) : :i);$((cat≠:cat ? () : (Expr(:kw,:dims,j),))...)))
@@ -449,11 +484,11 @@ function gencumtrapz2(n,j,d=:(d[$j]),f=j≠1 ? :i : :f)
     end
 end
 for N ∈ 2:5
-    @eval function cumtrapz(m::ParametricMap{B,T,F,$N} where {B,T,F},D::AbstractVector=diff.(domain(m).v))
+    @eval function cumtrapz(m::ParametricMap{B,F,$N,T} where {B,F,T},D::AbstractVector=diff.(basepoints(m).v))
         f = codomain(m)
         s,d = size(f),D./2
         $(Expr(:block,vcat([gencumtrapz2(N,j,:(d[$j])).args for j ∈ 1:N]...)...))
-        domain(m) → $(gencat(N))
+        TensorField(domain(m), $(gencat(N)))
     end
     for J ∈ 1:N
         @eval function cumtrapz2(c::Array{T,$N} where T,::Val{$J})
@@ -464,7 +499,7 @@ for N ∈ 2:5
     end
 end
 function linecumtrapz(γ::IntervalMap,f::Function)
-    cumtrapz(domain(γ)→(f.(codomain(γ)).⋅codomain(gradient(γ))))
+    cumtrapz(TensorField(domain(γ),f.(codomain(γ)).⋅codomain(gradient(γ))))
 end
 
 # differential geometry
@@ -473,87 +508,114 @@ export arclength, arctime, trapz, cumtrapz, linecumtrapz, psum, pcumsum
 export centraldiff, tangent, tangent_fast, unittangent, speed, normal, unitnormal
 export curvenormal, unitcurvenormal
 
+# use graph for IntervalMap? or RealFunction!
 tangent(f::IntervalMap) = gradient(f)
 tangent(f::ScalarField) = det(gradient(graph(f)))
 normal(f::ScalarField) = ⋆tangent(f)
-unittangent(f::ScalarField,n=tangent(f)) = domain(f) → (codomain(n)./abs.(.⋆codomain(n)))
+unittangent(f::ScalarField,n=tangent(f)) = TensorField(domain(f), codomain(n)./abs.(.⋆codomain(n)))
 unittangent(f::IntervalMap) = unitgradient(f)
 unitnormal(f) = ⋆unittangent(f)
 
-function speed(f::IntervalMap,d=centraldiff(domain(f)),t=centraldiff(codomain(f),d))
-    domain(f) → abs.(t)
+function speed(f::IntervalMap,d=centraldiff(basepoints(f)),t=centraldiff(codomain(f),d))
+    TensorField(domain(f), abs.(t))
 end
-function curvenormal(f::IntervalMap,d=centraldiff(domain(f)),t=centraldiff(codomain(f),d))
-    domain(f) → centraldiff(t,d)
+function curvenormal(f::IntervalMap,d=centraldiff(basepoints(f)),t=centraldiff(codomain(f),d))
+    TensorField(domain(f), centraldiff(t,d))
 end
-function unitcurvenormal(f::IntervalMap,d=centraldiff(domain(f)),t=centraldiff(codomain(f),d),n=centraldiff(t,d))
-    domain(f) → (n./abs.(n))
+function unitcurvenormal(f::IntervalMap,d=centraldiff(basepoints(f)),t=centraldiff(codomain(f),d),n=centraldiff(t,d))
+    TensorField(domain(f), (n./abs.(n)))
 end
 
 export curvature, radius, osculatingplane, unitosculatingplane, binormal, unitbinormal, curvaturebivector, torsion, curvaturetrivector, trihedron, frenet, wronskian, bishoppolar, bishop, curvaturetorsion
 
-function curvature(f::SpaceCurve,d=centraldiff(f.dom),t=centraldiff(f.cod,d),a=abs.(t))
-    domain(f) → (abs.(centraldiff(t./a,d))./a)
+function curvature(f::SpaceCurve,d=centraldiff(basepoints(f)),t=centraldiff(codomain(f),d),a=abs.(t))
+    TensorField(domain(f), abs.(centraldiff(t./a,d))./a)
 end
-function radius(f::SpaceCurve,d=centraldiff(f.dom),t=centraldiff(f.cod,d),a=abs.(t))
-    domain(f) → (a./abs.(centraldiff(t./a,d)))
+function radius(f::SpaceCurve,d=centraldiff(basepoints(f)),t=centraldiff(codomain(f),d),a=abs.(t))
+    TensorField(domain(f), a./abs.(centraldiff(t./a,d)))
 end
-function osculatingplane(f::SpaceCurve,d=centraldiff(f.dom),t=centraldiff(f.cod,d),n=centraldiff(t,d))
-    domain(f) → (t.∧n)
+function osculatingplane(f::SpaceCurve,d=centraldiff(basepoints(f)),t=centraldiff(codomain(f),d),n=centraldiff(t,d))
+    TensorField(domain(f), t.∧n)
 end
-function unitosculatingplane(f::SpaceCurve,d=centraldiff(f.dom),t=centraldiff(f.cod,d),n=centraldiff(t,d))
-    domain(f) → ((t./abs.(t)).∧(n./abs.(n)))
+function unitosculatingplane(f::SpaceCurve,d=centraldiff(basepoints(f)),t=centraldiff(codomain(f),d),n=centraldiff(t,d))
+    TensorField(domain(f), (t./abs.(t)).∧(n./abs.(n)))
 end
-function binormal(f::SpaceCurve,d=centraldiff(f.dom),t=centraldiff(f.cod,d),n=centraldiff(t,d))
-    domain(f) → (.⋆(t.∧n))
+function binormal(f::SpaceCurve,d=centraldiff(basepoints(f)),t=centraldiff(codomain(f),d),n=centraldiff(t,d))
+    TensorField(domain(f), .⋆(t.∧n))
 end
-function unitbinormal(f::SpaceCurve,d=centraldiff(f.dom),t=centraldiff(f.cod,d))
+function unitbinormal(f::SpaceCurve,d=centraldiff(basepoints(f)),t=centraldiff(codomain(f),d))
     a = t./abs.(t)
     n = centraldiff(t./abs.(t),d)
-    domain(f) → (.⋆(a.∧(n./abs.(n))))
+    TensorField(domain(f), .⋆(a.∧(n./abs.(n))))
 end
-function curvaturebivector(f::SpaceCurve,d=centraldiff(f.dom),t=centraldiff(f.cod,d),n=centraldiff(t,d))
+function curvaturebivector(f::SpaceCurve,d=centraldiff(basepoints(f)),t=centraldiff(codomain(f),d),n=centraldiff(t,d))
     a=abs.(t); ut=t./a
-    domain(f) → (abs.(centraldiff(ut,d))./a.*(ut.∧(n./abs.(n))))
+    TensorField(domain(f), abs.(centraldiff(ut,d))./a.*(ut.∧(n./abs.(n))))
 end
-function torsion(f::SpaceCurve,d=centraldiff(f.dom),t=centraldiff(f.cod,d),n=centraldiff(t,d),b=t.∧n)
-    domain(f) → ((b.∧centraldiff(n,d))./abs.(.⋆b).^2)
+function torsion(f::SpaceCurve,d=centraldiff(basepoints(f)),t=centraldiff(codomain(f),d),n=centraldiff(t,d),b=t.∧n)
+    TensorField(domain(f), (b.∧centraldiff(n,d))./abs.(.⋆b).^2)
 end
-function curvaturetrivector(f::SpaceCurve,d=centraldiff(f.dom),t=centraldiff(f.cod,d),n=centraldiff(t,d),b=t.∧n)
+function curvaturetrivector(f::SpaceCurve,d=centraldiff(basepoints(f)),t=centraldiff(codomain(f),d),n=centraldiff(t,d),b=t.∧n)
     a=abs.(t); ut=t./a
-    domain(f) → ((abs.(centraldiff(ut,d)./a).^2).*(b.∧centraldiff(n,d))./abs.(.⋆b).^2)
+    TensorField(domain(f), (abs.(centraldiff(ut,d)./a).^2).*(b.∧centraldiff(n,d))./abs.(.⋆b).^2)
 end
-#torsion(f::TensorField,d=centraldiff(f.dom),t=centraldiff(f.cod,d),n=centraldiff(t,d),a=abs.(t)) = domain(f) → (abs.(centraldiff(.⋆((t./a).∧(n./abs.(n))),d))./a)
-function trihedron(f::SpaceCurve,d=centraldiff(f.dom),t=centraldiff(f.cod,d),n=centraldiff(t,d))
+#torsion(f::TensorField,d=centraldiff(f.dom),t=centraldiff(f.cod,d),n=centraldiff(t,d),a=abs.(t)) = TensorField(domain(f), abs.(centraldiff(.⋆((t./a).∧(n./abs.(n))),d))./a)
+function trihedron(f::SpaceCurve,d=centraldiff(basepoints(f)),t=centraldiff(codomain(f),d),n=centraldiff(t,d))
     (ut,un)=(t./abs.(t),n./abs.(n))
-    domain(f) → Chain.(ut,un,.⋆(ut.∧un))
+    TensorField(domain(f), Chain.(ut,un,.⋆(ut.∧un)))
 end
-function frenet(f::SpaceCurve,d=centraldiff(f.dom),t=centraldiff(f.cod,d),n=centraldiff(t,d))
+function frenet(f::SpaceCurve,d=centraldiff(basepoints(f)),t=centraldiff(codomain(f),d),n=centraldiff(t,d))
     (ut,un)=(t./abs.(t),n./abs.(n))
-    domain(f) → centraldiff(Chain.(ut,un,.⋆(ut.∧un)),d)
+    TensorField(domain(f), centraldiff(Chain.(ut,un,.⋆(ut.∧un)),d))
 end
-function wronskian(f::SpaceCurve,d=centraldiff(f.dom),t=centraldiff(f.cod,d),n=centraldiff(t,d))
-    domain(f) → (f.cod.∧t.∧n)
+function wronskian(f::SpaceCurve,d=centraldiff(basepoints(f)),t=centraldiff(codomain(f),d),n=centraldiff(t,d))
+    TensorField(domain(f), f.cod.∧t.∧n)
 end
 
-function curvaturetorsion(f::SpaceCurve,d=centraldiff(f.dom),t=centraldiff(f.cod,d),n=centraldiff(t,d),b=t.∧n)
+#???
+function compare(f::TensorField)#???
+    d = centraldiff(basepoints(f))
+    t = centraldiff(codomain(f),d)
+    n = centraldiff(t,d)
+    TensorField(domain(f), centraldiff(t./abs.(t)).-n./abs.(t))
+end #????
+
+function curvaturetorsion(f::SpaceCurve,d=centraldiff(basepoints(f)),t=centraldiff(codomain(f),d),n=centraldiff(t,d),b=t.∧n)
     a = abs.(t)
-    domain(f) → Chain.(value.(abs.(centraldiff(t./a,d))./a),getindex.((b.∧centraldiff(n,d))./abs.(.⋆b).^2,1))
+    TensorField(domain(f), Chain.(value.(abs.(centraldiff(t./a,d))./a),getindex.((b.∧centraldiff(n,d))./abs.(.⋆b).^2,1)))
 end
 
-function bishoppolar(f::SpaceCurve,κ=value.(curvature(f).cod))
-    d = diff(f.dom)
-    τs = getindex.((torsion(f).cod).*(speed(f).cod),1)
+function bishoppolar(f::SpaceCurve,κ=value.(codomain(curvature(f))))
+    d = diff(basepoints(f))
+    τs = getindex.(codomain(torsion(f)).*codomain(speed(f)),1)
     θ = (d/2).*cumsum(τs[2:end]+τs[1:end-1])
     pushfirst!(θ,zero(eltype(θ)))
-    domain(f) → Chain.(κ,θ)
+    TensorField(domain(f), Chain.(κ,θ))
 end
-function bishop(f::SpaceCurve,κ=value.(curvature(f).cod))
-    d = diff(f.dom)
-    τs = getindex.((torsion(f).cod).*(speed(f).cod),1)
+function bishop(f::SpaceCurve,κ=value.(codomain(curvature(f))))
+    d = diff(basepoints(f))
+    τs = getindex.(codomain(torsion(f)).*codomain(speed(f)),1)
     θ = (d/2).*cumsum(τs[2:end]+τs[1:end-1])
     pushfirst!(θ,zero(eltype(θ)))
-    domain(f) → Chain.(κ.*cos.(θ),κ.*sin.(θ))
+    TensorField(domain(f), Chain.(κ.*cos.(θ),κ.*sin.(θ)))
 end
-#bishoppolar(f::TensorField) = domain(f) → Chain.(value.(curvature(f).cod),getindex.(cumtrapz(torsion(f)).cod,1))
-#bishop(f::TensorField,κ=value.(curvature(f).cod),θ=getindex.(cumtrapz(torsion(f)).cod,1)) = domain(f) → Chain.(κ.*cos.(θ),κ.*sin.(θ))
+#bishoppolar(f::TensorField) = TensorField(domain(f), Chain.(value.(codomain(curvature(f))),getindex.(codomain(cumtrapz(torsion(f))),1)))
+#bishop(f::TensorField,κ=value.(codomain(curvature(f))),θ=getindex.(codomain(cumtrapz(torsion(f))),1)) = TensorField(domain(f), Chain.(κ.*cos.(θ),κ.*sin.(θ)))
+
+export terrainmetric, surfaceframe
+
+terrainmetric(dom,f::Function) = terrainmetric(TensorField(dom,f))
+function terrainmetric(t)
+    g = gradient(t); V = Submanifold(MetricTensor([1 1; 1 1]))
+    dfdx,dfdy = getindex.(g,1),getindex.(g,2)
+    g1 = (1+dfdx*dfdx)*Λ(V).v1+(dfdx*dfdy)*Λ(V).v2
+    g2 = (1+dfdy*dfdy)*Λ(V).v2+(dfdx*dfdy)*Λ(V).v1;
+    GridManifold(basepoints(t), Outermorphism.(Chain{V}.(fiber(g1),fiber(g2))))
+end
+
+function surfaceframe(t)
+    g = getindex.(metrictensor(t),1); V = Submanifold(MetricTensor([1 1; 1 1]))
+    E,F,G = getindex.(g,1,1),getindex.(g,1,2),getindex.(g,2,2)
+    F2 = F.*F; mag,sig = sqrt.((E.*E).+F2), sign.(F2.-(E.*G))
+    TensorOperator.(Chain.(Chain.(E,F)./mag,Chain.(F,.-E)./(sig.*mag)))
+end
