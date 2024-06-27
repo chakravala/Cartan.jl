@@ -40,9 +40,15 @@ isclosed(t::IntervalMap) = norm(codomain(t)[end]-codomain(t)[1]) ≈ 0
 
 export Grid
 
-struct Grid{N,T,A<:AbstractArray{T,N}}
+struct Grid{N,T,A<:AbstractArray{T,N}}#,G}
     v::A
+    #g::G
+    #Grid(v::A,g::G) where {N,T,A<:AbstractArray{T,N},G} = new{N,T,A,G}(v,g)
 end
+
+#Grid(v::A) where {N,T,A<:AbstractArray{T,N}} = Grid(v,Global{N}(InducedMetric()))
+#Grid(v::GridManifold{<:Real}) = Grid(points(v))
+#Grid(v::GridManifold) = Grid(points(v),fiber(metrictensor(v)))
 
 Base.size(m::Grid) = size(m.v)
 
@@ -87,6 +93,22 @@ Grassmann.curl(t::TensorField) = ⋆d(t)
 Grassmann.d(t::TensorField) = TensorField(fromany(∇(t)∧Chain(t)))
 Grassmann.d(t::GlobalSection) = gradient(t)
 Grassmann.∂(t::TensorField) = TensorField(fromany(Chain(t)⋅∇(t)))
+Grassmann.d(t::ScalarField) = gradient(t)
+#Grassmann.∂(t::ScalarField) = gradient(t)
+#Grassmann.∂(t::VectorField) = TensorField(domain(t), sum.(value.(codomain(t))))
+#=function Grassmann.∂(t::VectorField{G,B,<:Chain{V},N,T} where {B,N,T}) where {G,V}
+    n = mdims(V)
+    TensorField(domain(t), Real.(Chain{V,G}(ones(Values{binomial(n,G),Int})).⋅codomain(t)))
+end
+function Grassmann.∂(t::GradedField{G,B,<:Chain{V}} where B) where {G,V}
+    n = mdims(V)
+    TensorField(domain(t), (Chain{V,G}(ones(Values{binomial(n,G),Int})).⋅codomain(t)))
+end=#
+
+@generated function dvec(t::TensorField{B,<:Chain{V,G} where {V,G}} where B)
+    V = Manifold(fibertype(t)); N = mdims(V)
+    Expr(:.,:(Chain{$V,1}),Expr(:tuple,[:(gradient(getindex.(t,$i))) for i ∈ list(1,N)]...))
+end
 
 @generated function Grassmann.d(t::TensorField{B,<:Chain{V,G,<:Chain} where {V,G}} where B)
     V = Manifold(fibertype(t)); N = mdims(V)
@@ -122,28 +144,28 @@ LinearAlgebra.dot(t::TensorField,::Derivation) = TensorField(fromany(Grassmann.c
 
 function Base.:*(n::Submanifold,t::TensorField)
     if istangent(n)
-        gradient(t,indices(n)[1])
+        gradient(t,Val(indices(n)[1]))
     else
         TensorField(domain(t), (Ref(n).*codomain(t)))
     end
 end
 function Base.:*(t::TensorField,n::Submanifold)
     if istangent(n)
-        gradient(t,indices(n)[1])
+        gradient(t,Val(indices(n)[1]))
     else
         TensorField(domain(t), (codomain(t).*Ref(n)))
     end
 end
 function LinearAlgebra.dot(n::Submanifold,t::TensorField)
     if istangent(n)
-        gradient(t,indices(n)[1])
+        gradient(t,Val(indices(n)[1]))
     else
         TensorField(domain(t), dot.(Ref(n),codomain(t)))
     end
 end
 function LinearAlgebra.dot(t::TensorField,n::Submanifold)
     if istangent(n)
-        gradient(t,indices(n)[1])
+        gradient(t,Val(indices(n)[1]))
     else
         TensorField(domain(t), dot.(codomain(t),Ref(n)))
     end
@@ -155,14 +177,22 @@ for fun ∈ (:_slow,:_fast)
         function $grad(f::IntervalMap,d::AbstractVector=$cd(basepoints(f)))
             TensorField(domain(f), $cd(codomain(f),d))
         end
-        function $grad(f::TensorField{B,F,N,<:AbstractArray} where {B,F,N},d::AbstractArray=$cd(basepoints(f)))
+        function $grad(f::TensorField{B,F,N,<:AbstractArray} where {B,F,N},d::AbstractArray=$cd(base(f)))
             TensorField(domain(f), $cd(Grid(codomain(f)),d))
         end
         function $grad(f::IntervalMap,::Val{1},d::AbstractVector=$cd(basepoints(f)))
             TensorField(domain(f), $cd(codomain(f),d))
         end
-        function $grad(f::TensorField{B,F,Nf,<:RealRegion} where {B,F,Nf},n::Val{N},d::AbstractArray=$cd(basepoints(f).v[N])) where N
+        function $grad(f::TensorField{B,F,Nf,<:RealRegion,<:Global{Nf,<:InducedMetric}} where {B,F,Nf},n::Val{N},d::AbstractArray=$cd(basepoints(f).v[N])) where N
             TensorField(domain(f), $cd(Grid(codomain(f)),n,d))
+        end
+        function $grad(f::TensorField{B,F,Nf,<:RealRegion} where {B,F,Nf},n::Val{N},d::AbstractArray=$cd(basepoints(f).v[N])) where N
+            l = size(basepoints(f))
+            dg = sqrt.(getindex.(metrictensor(f),N+1,N+1))
+            @threads for i ∈ l[1]; for j ∈ l[2]
+                dg[i,j] *= d[isone(N) ? i : j]
+            end end
+            TensorField(domain(f), $cd(Grid(codomain(f)),n,dg))
         end
         function $grad(f::TensorField{B,F,N,<:AbstractArray} where {B,F,N},n::Val,d::AbstractArray=$cd(basepoints(f),n))
             TensorField(domain(f), $cd(Grid(codomain(f)),n,d))
@@ -232,6 +262,13 @@ for fun ∈ (:_slow,:_fast)
             end end
             return d
         end
+        function $cd(f::Grid{2},n::Val{N},dt::AbstractMatrix,l::Tuple=size(f.v)) where N
+            d = Array{eltype(f.v),2}(undef,l...)
+            @threads for i ∈ 1:l[1]; for j ∈ 1:l[2]
+                d[i,j] = $cd(f,l[N],n,i,j)/dt[i,j]
+            end end
+            return d
+        end
         function $cd(f::Grid{2},n::Val{N},l::Tuple=size(f.v)) where N
             d = Array{eltype(f.v),2}(undef,l...)
             @threads for i ∈ 1:l[1]; for j ∈ 1:l[2]
@@ -260,6 +297,13 @@ for fun ∈ (:_slow,:_fast)
             end end end
             return d
         end
+        function $cd(f::Grid{3},n::Val{N},dt::AbstractArray,l::Tuple=size(f.v)) where N
+            d = Array{eltype(f.v),3}(undef,l...)
+            @threads for i ∈ 1:l[1]; for j ∈ 1:l[2]; for k ∈ 1:l[3]
+                d[i,j,k] = $cd(f,l[N],n,i,j,k)/dt[i,j,k]
+            end end end
+            return d
+        end
         function $cd(f::Grid{3},n::Val{N},l::Tuple=size(f.v)) where N
             d = Array{eltype(f.v),3}(undef,l...)
             @threads for i ∈ 1:l[1]; for j ∈ 1:l[2]; for k ∈ 1:l[3]
@@ -269,9 +313,11 @@ for fun ∈ (:_slow,:_fast)
         end
         $cd(f::Grid{1},l::Tuple,i::Int) = $cd(f,l[1],Val(1),i)
         @generated function $cd(f::Grid{N},l::Tuple,i::Vararg{Int}) where N
-            :(Chain($([:($$cd(f,l[$n],Val($n),i...)) for n ∈ 1:N]...)))
+            :(Chain($([:($$cd(f,l[$n],Val($n),i...)) for n ∈ list(1,N)]...)))
         end
         $cd(f::RealRegion) = ProductSpace($cd.(f.v))
+        $cd(f::GridManifold{P,G,N,<:RealRegion,<:Global{N,<:InducedMetric}}) where {P,G,N} = ProductSpace($cd.(base(f).v))
+        $cd(f::GridManifold{P,G,N,<:RealRegion}) where {P,G,N} = applymetric.($cd(base(f)),fiber(f))
         function $cd(f::AbstractRange,l::Tuple=size(f))
             d = Vector{eltype(f)}(undef,l[1])
             @threads for i ∈ 1:l[1]
@@ -288,6 +334,8 @@ for fun ∈ (:_slow,:_fast)
         end
     end
 end
+
+applymetric(f::Chain{V,G},g::DiagonalOperator{V,<:Multivector}) where {V,G} = Chain{V,G}(value(f)./sqrt.(value(value(g)(Val(G)))))
 
 function centraldiff_slow(f::Grid,l::Int,n::Val{N},i::Vararg{Int}) where N #l=size(f)[N]
     if isone(i[N])

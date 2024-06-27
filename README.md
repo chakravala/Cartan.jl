@@ -63,7 +63,7 @@ Additional packages such as `Adapode` build on the `TensorField` concept by gene
 Many of these methods can automatically generalize to higher dimensional manifolds and are compatible with discrete differential geometry.
 
 ```
- _________                __                   ________
+ _________                __                  __________
  \_   ___ \_____ ________/  |______    ____   \\       /
  /    \  \/\__  \\_  __ \   __\__  \  /    \   \\     /
  \     \____/ __ \|  | \/|  |  / __ \|   |  \   \\   /

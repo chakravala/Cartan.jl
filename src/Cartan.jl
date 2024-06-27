@@ -12,7 +12,7 @@ module Cartan
 #
 #   https://github.com/chakravala
 #   https://crucialflow.com
-# _________                __                   ________
+# _________                __                  __________
 # \_   ___ \_____ ________/  |______    ____   \\       /
 # /    \  \/\__  \\_  __ \   __\__  \  /    \   \\     /
 # \     \____/ __ \|  | \/|  |  / __ \|   |  \   \\   /
@@ -338,12 +338,18 @@ struct TensorField{B,F,N,PA,GA} <: GlobalFiber{LocalTensor{B,F},N}
     dom::PA
     cod::Array{F,N}
     met::GA
-    TensorField(id::Int,dom::PA,cod::Array{F,N},met::GA=Global{N}(InducedMetric())) where {N,P,F,G,PA<:AbstractArray{P,N},GA<:AbstractArray{G,N}} = new{Coordinate{P,G},F,N,PA,GA}(id,dom,cod,met)
-    TensorField(id::Int,dom::PA,cod::Vector{F},met::GA=Global{N}(InducedMetric())) where {F,G,PA<:ChainBundle,GA<:AbstractVector{G}} = new{Coordinate{eltype(value(points(dom))),G},F,1,PA,GA}(id,dom,cod,met)
-    TensorField(dom::PA,cod::Array{F,N},met::GA=Global{N}(InducedMetric())) where {N,P,F,G,PA<:AbstractArray{P,N},GA<:AbstractArray{G,N}} = new{Coordinate{P,G},F,N,PA,GA}((global grid_id+=1),dom,cod,met)
-    TensorField(dom::MA,cod::Array{F,N}) where {F,N,P,G,PA<:AbstractArray{P,N},GA<:AbstractArray{G,N},MA<:GridManifold{P,G,N,PA,GA}} = new{Coordinate{P,G},F,N,PA,GA}(dom.id,dom.dom,cod,dom.cod)
-    TensorField(dom::PA,cod::Vector{F},met::GA=Global{N}(InducedMetric())) where {F,G,PA<:ChainBundle,GA<:AbstractVector{G}} = new{Coordinate{eltype(value(points(dom))),G},F,1,PA,GA}((global grid_id+=1),dom,cod,met)
+    function TensorField(id::Int,dom::PA,cod::Array{F,N},met::GA=Global{N}(InducedMetric())) where {N,P,F,G,PA<:AbstractArray{P,N},GA<:AbstractArray{G,N}}
+        new{Coordinate{P,G},F,N,PA,GA}(id,dom,cod,met)
+    end
+    function TensorField(id::Int,dom::PA,cod::Vector{F},met::GA=Global{N}(InducedMetric())) where {F,G,PA<:ChainBundle,GA<:AbstractVector{G}}
+        new{Coordinate{eltype(value(points(dom))),G},F,1,PA,GA}(id,dom,cod,met)
+    end
 end
+
+TensorField(id::Int,dom,cod::Array,met::GlobalFiber) = TensorField(id,dom,cod,fiber(met))
+TensorField(dom::GridManifold,cod::Array) = TensorField(dom.id,base(dom),cod,fiber(dom))
+TensorField(dom::AbstractArray{B,N} where B,cod::Array{F,N} where F,met::AbstractArray=Global{N}(InducedMetric())) where N = TensorField((global grid_id+=1),dom,cod,fiber(met))
+TensorField(dom::ChainBundle,cod::Vector,met::AbstractVector=Global{1}(InducedMetric())) = TensorField((global grid_id+=1),dom,cod,met)
 
 #const ParametricMesh{B,F,PA<:AbstractVector{<:Chain},GA} = TensorField{B,F,1,PA,GA}
 const MeshFunction{B,F<:AbstractReal,BA<:ChainBundle,GA} = TensorField{B,F,1,BA,GA}
@@ -591,7 +597,7 @@ end
 for fun ∈ (:-,:!,:~,:real,:imag,:conj,:deg2rad)
     @eval Base.$fun(t::TensorField) = TensorField(domain(t), $fun.(codomain(t)))
 end
-for fun ∈ (:exp,:log,:sinh,:cosh,:abs,:sqrt,:cbrt,:cos,:sin,:tan,:cot,:sec,:csc,:asec,:acsc,:sech,:csch,:asech,:tanh,:coth,:asinh,:acosh,:atanh,:acoth,:asin,:acos,:atan,:acot,:sinc,:cosc,:abs2)
+for fun ∈ (:exp,:log,:sinh,:cosh,:abs,:sqrt,:cbrt,:cos,:sin,:tan,:cot,:sec,:csc,:asec,:acsc,:sech,:csch,:asech,:tanh,:coth,:asinh,:acosh,:atanh,:acoth,:asin,:acos,:atan,:acot,:sinc,:cosc,:abs2)#:inv
     @eval Base.$fun(t::TensorField) = TensorField(domain(t), $fun.(codomain(t),ref(metrictensor(t))))
 end
 for fun ∈ (:reverse,:involute,:clifford,:even,:odd,:scalar,:vector,:bivector,:volume,:value,:complementleft)
