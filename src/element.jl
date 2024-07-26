@@ -232,6 +232,22 @@ function Grassmann.submesh!(m::PointCloud)
     length(submesh_cache) ≥ B && (submesh_cache[B] = Array{Any,2}(undef,0,0))
 end
 
+function Base.findfirst(P,M::SimplexFrameBundle)
+    p = points(M); t = immersion(M)
+    for i ∈ 1:length(t)
+        P ∈ Chain(p[t[i]]) && (return i)
+    end
+    return 0
+end
+function Base.findlast(P,M::SimplexFrameBundle)
+    p = points(M); t = immersion(M)
+    for i ∈ length(t):-1:1
+        P ∈ Chain(p[t[i]]) && (return i)
+    end
+    return 0
+end
+Base.findall(P,t::SimplexFrameBundle) = findall(P .∈ Chain.(points(t)[immersion(t)]))
+
 Grassmann.detsimplex(m::SimplexFrameBundle) = ∧(m)/factorial(mdims(Manifold(points(m)))-1)
 function Grassmann.:∧(m::SimplexFrameBundle)
     p = points(m); pm = p[m]; V = Manifold(p)
@@ -239,6 +255,13 @@ function Grassmann.:∧(m::SimplexFrameBundle)
         .∧(vectors.(pm))
     else
         Chain{↓(V),mdims(V)-1}.(value.(.∧(pm)))
+    end
+end
+for op ∈ (:mean,:barycenter,:curl)
+    ops = Symbol(op,:s)
+    @eval begin
+        export $op, $ops
+        Grassmann.$ops(m::SimplexFrameBundle) = Grassmann.$op.(points(m)[immersion(m)])
     end
 end
 
@@ -260,7 +283,10 @@ function gradienthat(t,m=volumes(t))
 end
 
 laplacian(t,u,m=volumes(t),g=gradienthat(t,m)) = value.(abs.(gradient(t,u,m,g)))
-gradient(t::SimplexFrameBundle,u::Vector,m=volumes(t),g=gradienthat(t,m)) = [u[value(t[k])]⋅value(g[k]) for k ∈ 1:length(t)]
+function gradient(t::SimplexFrameBundle,u::Vector,m=volumes(t),g=gradienthat(t,m))
+    i = immersion(t)
+    [u[value(i[k])]⋅value(g[k]) for k ∈ 1:length(t)]
+end
 gradient(t::Vector,u::Vector,m=volumes(t),g=gradienthat(t,m)) = [u[value(t[k])]⋅value(g[k]) for k ∈ 1:length(t)]
 
 for T ∈ (:Values,:Variables)

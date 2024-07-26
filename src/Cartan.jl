@@ -40,7 +40,7 @@ export ElementFunction, SurfaceGrid, VolumeGrid, ScalarGrid
 export RealFunction, ComplexMap, SpinorField, CliffordField
 export ScalarMap, GradedField, QuaternionField, PhasorField
 export GlobalFrame, DiagonalField, EndomorphismField, OutermorphismField
-export ParametricMap, RectangleMap, HyperrectangleMap
+export ParametricMap, RectangleMap, HyperrectangleMap, AbstractCurve
 export LocalSection, GlobalFiber, LocalFiber
 export base, fiber, domain, codomain, ↦, →, ←, ↤, basetype, fibertype, graph
 export ProductSpace, RealRegion, NumberLine, Rectangle, Hyperrectangle, ⧺, ⊕
@@ -576,6 +576,7 @@ const ParametricMap{B,F,N,P<:RealSpace} = TensorField{B,F,N,P}
 const RealFunction{B,F<:AbstractReal,P<:Interval} = TensorField{B,F,1,P}
 const PlaneCurve{B,F<:Chain{V,G,Q,2} where {V,G,Q},P<:Interval} = TensorField{B,F,1,P}
 const SpaceCurve{B,F<:Chain{V,G,Q,3} where {V,G,Q},P<:Interval} = TensorField{B,F,1,P}
+const AbstractCurve{B,F<:Chain,P<:Interval} = TensorField{B,F,1,P}
 const SurfaceGrid{B,F<:AbstractReal,P<:RealSpace{2}} = TensorField{B,F,2,P}
 const VolumeGrid{B,F<:AbstractReal,P<:RealSpace{3}} = TensorField{B,F,3,P}
 const ScalarGrid{B,F<:AbstractReal,N,P<:RealSpace{N}} = TensorField{B,F,N,P}
@@ -662,10 +663,8 @@ Base.getindex(m::SimplexFrameBundle,i::Chain{V,1}) where V = Chain{Manifold(V),1
 Base.getindex(m::SimplexFrameBundle,i::Values{N,Int}) where N = points(m)[value(i)]
 getindex(m::AbstractVector,i::ImmersedTopology) = getindex.(Ref(m),topology(i))
 getindex(m::AbstractVector,i::SimplexFrameBundle) = m[immersion(i)]
-getindex(m::SimplexFrameBundle,i::ImmersedTopology) = m[topology(i)]
-getindex(m::SimplexFrameBundle,i::SimplexFrameBundle) = m[immersion(i)]
-getindex(m::SimplexFrameBundle,i::T) where {N,T<:AbstractVector{<:Values{N,Int}}} = getindex.(Ref(points(m)),i)
-getindex(m::SimplexFrameBundle,i::T) where T<:AbstractVector{<:Chain} = getindex.(Ref(points(m)),i)
+getindex(m::SimplexFrameBundle,i::ImmersedTopology) = points(m)[i]
+getindex(m::SimplexFrameBundle,i::SimplexFrameBundle) = points(m)[immersion(i)]
 
 getimage(m,i) = iscover(m) ? i : getindex(vertices(m),i)
 
@@ -796,8 +795,8 @@ function parametric(t,m,d=diff(codomain(m))./diff(domain(m)))
 end
 
 function (m::TensorField{B,F,N,<:SimplexFrameBundle} where {B,F,N})(t)
-    i = domain(m)[findfirst(t,domain(m))]
-    (codomain(m)[i])⋅(points(domain(m))[i]/t)
+    i = immersion(m)[findfirst(t,domain(m))]
+    Chain(codomain(m)[i])⋅(Chain(points(domain(m))[i])/t)
 end
 
 (m::TensorField{B,F,N,<:RealSpace{2}} where {B,F,N})(x,y) = m(Chain(x,y))
