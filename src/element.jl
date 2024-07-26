@@ -1,7 +1,7 @@
 
-#   This file is part of TensorFields.jl
+#   This file is part of Cartan.jl
 #   It is licensed under the AGPL license
-#   TensorFields Copyright (C) 2019 Michael Reed
+#   Cartan Copyright (C) 2019 Michael Reed
 #       _           _                         _
 #      | |         | |                       | |
 #   ___| |__   __ _| | ___ __ __ ___   ____ _| | __ _
@@ -20,7 +20,7 @@ export solvepoisson, solveSD, solvetransport, solvedirichlet, adaptpoisson
 export gradienthat, gradientCR, gradient, interp, nedelec, nedelecmean, jumps
 export submesh, detsimplex, iterable, callable, value, edgelengths, laplacian
 export boundary, interior, trilength, trinormals, incidence, degrees
-import Grassmann: norm, column, columns, points, pointset, edges
+import Grassmann: norm, column, columns, points, pointset
 using Base.Threads
 
 @inline iterpts(t,f) = iterable(points(t),f)
@@ -30,6 +30,217 @@ using Base.Threads
 @inline iterable(p,f::F) where F<:AbstractVector = f
 @inline callable(c::F) where F<:Function = c
 @inline callable(c) = x->c
+
+#=initedges(p::ChainBundle) = Chain{p,1}.(1:length(p)-1,2:length(p))
+initedges(r::R) where R<:AbstractVector = initedges(ChainBundle(initpoints(r)))
+function initmesh(r::R) where R<:AbstractVector
+    t = initedges(r); p = points(t)
+    p,ChainBundle(Chain{↓(p),1}.([1,length(p)])),t
+end=#
+
+initpoints(P::T) where T<:AbstractVector = Chain{ℝ2,1}.(1.0,P)
+initpoints(P::T) where T<:AbstractRange = Chain{ℝ2,1}.(1.0,P)
+@generated function initpoints(P,::Val{n}=Val(size(P,1))) where n
+    Expr(:.,:(Chain{$(Submanifold(n+1)),1}),
+         Expr(:tuple,1.0,[:(P[$k,:]) for k ∈ 1:n]...))
+end
+
+function initpointsdata(P,E,N::Val{n}=Val(size(P,1))) where n
+    p = PointCloud(initpoints(P,N)); l = list(1,n)
+    p,SimplexManifold([Int.(E[l,k]) for k ∈ 1:size(E,2)],length(p))
+end
+
+function initmeshdata(P,E,T,N::Val{n}=Val(size(P,1))) where n
+    p,e = initpointsdata(P,E,N); l = list(1,n+1)
+    t = SimplexManifold([Int.(T[l,k]) for k ∈ 1:size(T,2)],length(p))
+    return p,e,t
+end
+
+select(η,ϵ=sqrt(norm(η)^2/length(η))) = sort!(findall(x->x>ϵ,η))
+refinemesh(g::R,args...) where R<:AbstractRange = (g,initmesh(g,args...)...)
+function refinemesh!(::R,p::ChainBundle{W},e,t,η,_=nothing) where {W,R<:AbstractRange}
+    p = points(t)
+    x,T,V = value(p),value(t),Manifold(p)
+    for i ∈ η
+        push!(x,Chain{V,1}(Values(1,(x[i+1][2]+x[i][2])/2)))
+    end
+    sort!(x,by=x->x[2]); submesh!(p)
+    e[end] = Chain{p(2),1}(Values(length(x)))
+    for i ∈ length(t)+2:length(x)
+        push!(T,Chain{p,1}(Values{2,Int}(i-1,i)))
+    end
+end
+
+Grassmann.columns(t::ImmersedTopology{N},i=1) where N = columns(topology(t))
+Grassmann.columns(t::AbstractVector{<:Values{N}},i=1) where N = column.(Ref(t),list(i,N))
+
+pointset(m::SimplexManifold) = vertices(m)
+pointset(m::AbstractFrameBundle) = vertices(m)
+pointset(e::Vector{Values{N,Int}}) where N = vertices(e)
+vertices(e::Vector{Values{1,Int}}) = column(e)
+function vertices(e::Vector{Values{N,Int}}) where N
+    out = Int[]
+    mx = 0
+    for i ∈ e
+        for k ∈ i
+            if k ∉ out
+                k > mx && (mx = k)
+                push!(out,k)
+            end
+        end
+    end
+    n = length(out)
+    mx≠n ? out : Base.OneTo(n)
+end
+
+antiadjacency(t::AbstractFrameBundle,cols=columns(topology(t))) = (A = sparse(t,cols); A-transpose(A))
+adjacency(t,cols=columns(immersion(t))) = (A = sparse(t,cols); A+transpose(A))
+function SparseArrays.sparse(t::AbstractFrameBundle,cols=columns(topology(t)))
+    np,N = length(points(t)),mdims(Manifold(t))
+    A = spzeros(Int,np,np)
+    for c ∈ Grassmann.combo(N,2)
+        A += @inbounds sparse(cols[c[1]],cols[c[2]],1,np,np)
+    end
+    return A
+end
+
+edges(t,cols::Values) = edges(t,adjacency(t,cols))
+function edges(t,adj=adjacency(t))
+    mdims(t) == 2 && (return t)
+    N = mdims(Manifold(t))
+    f = findall(x->!iszero(x),LinearAlgebra.triu(adj))
+    SimplexManifold([Values{2,Int}(@inbounds f[n].I) for n ∈ 1:length(f)],length(points(t)))
+end
+
+#=function facetsinterior(t::Vector{<:Chain{V}}) where V
+    N = mdims(Manifold(t))-1
+    W = V(list(2,N+1))
+    N == 0 && (return [Chain{W,1}(list(2,1))],Int[])
+    out = Chain{W,1,Int,N}[]
+    bnd = Int[]
+    for i ∈ t
+        for w ∈ Values{N,Int}.(Leibniz.combinations(sort(value(i)),N))
+            j = findfirst(isequal(w),out)
+            isnothing(j) ? push!(out,w) : push!(bnd,j)
+        end
+    end
+    return out,bnd
+end
+facets(t) = faces(t,Val(mdims(Manifold(t))-1))
+facets(t,h) = faces(t,h,Val(mdims(Manifold(t))-1))
+faces(t,v::Val) = faces(value(t),v)
+faces(t,h,v,g=identity) = faces(value(t),h,v,g)
+faces(t::Tuple,v,g=identity) = faces(t[1],t[2],v,g)
+function faces(t::Vector{<:Chain{V}},::Val{N}) where {V,N}
+    N == mdims(V) && (return t)
+    N == 2 && (return edges(t))
+    W = V(list(2,N+1))
+    N == 1 && (return Chain{W,1}.(pointset(t)))
+    N == 0 && (return Chain{W,1}(list(2,1)))
+    out = Chain{W,1,Int,N}[]
+    for i ∈ value(t)
+        for w ∈ Chain{W,1}.(DirectSum.combinations(sort(value(i)),N))
+            w ∉ out && push!(out,w)
+        end
+    end
+    return out
+end
+function faces(t::Vector{<:Chain{V}},h,::Val{N},g=identity) where {V,N}
+    W = V(list(1,N))
+    N == 0 && (return [Chain{W,1}(list(1,N))],Int[sum(h)])
+    out = Chain{W,1,Int,N}[]
+    bnd = Int[]
+    vec = zeros(Variables{mdims(V),Int})
+    val = N+1==mdims(V) ? ∂(Manifold(points(t))(list(1,N+1))(I)) : ones(Values{binomial(mdims(V),N)})
+    for i ∈ 1:length(t)
+        vec[:] = @inbounds value(t[i])
+        par = DirectSum.indexparity!(vec)
+        w = Chain{W,1}.(DirectSum.combinations(par[2],N))
+        for k ∈ 1:binomial(mdims(V),N)
+            j = findfirst(isequal(w[k]),out)
+            v = h[i]*(par[1] ? -val[k] : val[k])
+            if isnothing(j)
+                push!(out,w[k])
+                push!(bnd,g(v))
+            else
+                bnd[j] += g(v)
+            end
+        end
+    end
+    return out,bnd
+end
+
+∂(t::ChainBundle) = ∂(value(t))
+∂(t::Values{N,<:Tuple}) where N = ∂.(t)
+∂(t::Values{N,<:Vector}) where N = ∂.(t)
+∂(t::Tuple{Vector{<:Chain},Vector{Int}}) = ∂(t[1],t[2])
+∂(t::Vector{<:Chain},u::Vector{Int}) = (f=facets(t,u); f[1][findall(x->!iszero(x),f[2])])
+∂(t::Vector{<:Chain}) = mdims(t)≠3 ? (f=facetsinterior(t); f[1][setdiff(1:length(f[1]),f[2])]) : edges(t,adjacency(t).%2)
+#∂(t::Vector{<:Chain}) = (f=facets(t,ones(Int,length(t))); f[1][findall(x->!iszero(x),f[2])])
+
+skeleton(t::ChainBundle,v) = skeleton(value(t),v)
+@inline (::Leibniz.Derivation)(x::Vector{<:Chain},v=Val{true}()) = skeleton(x,v)
+@generated skeleton(t::Vector{<:Chain{V}},v) where V = :(faces.(Ref(t),Ref(ones(Int,length(t))),$(Val.(list(1,mdims(V)))),abs))
+#@generated skeleton(t::Vector{<:Chain{V}},v) where V = :(faces.(Ref(t),$(Val.(list(1,mdims(V))))))
+=#
+
+const array_cache = (Array{T,2} where T)[]
+const array_top_cache = (Array{T,2} where T)[]
+array(m::Vector{<:Chain}) = [m[i][j] for i∈1:length(m),j∈1:mdims(Manifold(m))]
+array(m::Vector{<:Values{N}}) where N = [m[i][j] for i∈1:length(m),j∈1:N]
+array(m::SimplexFrameBundle) = array(PointCloud(m))
+array!(m::SimplexFrameBundle) = array!(PointCloud(m))
+function array(m::SimplexManifold)
+    B = bundle(m)
+    for k ∈ length(array_top_cache):B
+        push!(array_top_cache,Array{Any,2}(undef,0,0))
+    end
+    isempty(array_top_cache[B]) && (array_top_cache[B] = array(topology(m)))
+    return array_top_cache[B]
+end
+function array!(m::SimplexManifold)
+    B = bundle(m)
+    length(array_top_cache) ≥ B && (array_top_cache[B] = Array{Any,2}(undef,0,0))
+end
+function array(m::PointCloud)
+    B = bundle(m)
+    for k ∈ length(array_cache):B
+        push!(array_cache,Array{Any,2}(undef,0,0))
+    end
+    isempty(array_cache[B]) && (array_cache[B] = array(points(m)))
+    return array_cache[B]
+end
+function array!(m::PointCloud)
+    B = bundle(m)
+    length(array_cache) ≥ B && (array_cache[B] = Array{Any,2}(undef,0,0))
+end
+
+const submesh_cache = (Array{T,2} where T)[]
+#submesh(m) = [m[i][j] for i∈1:length(m),j∈2:mdims(Manifold(m))]
+Grassmann.submesh(m::SimplexFrameBundle) = submesh(PointCloud(m))
+Grassmann.submesh!(m::SimplexFrameBundle) = submesh!(PointCloud(m))
+function Grassmann.submesh(m::PointCloud)
+    B = bundle(m)
+    for k ∈ length(submesh_cache):B
+        push!(submesh_cache,Array{Any,2}(undef,0,0))
+    end
+    isempty(submesh_cache[B]) && (submesh_cache[B] = submesh(points(m)))
+    return submesh_cache[B]
+end
+function Grassmann.submesh!(m::PointCloud)
+    B = bundle(m)
+    length(submesh_cache) ≥ B && (submesh_cache[B] = Array{Any,2}(undef,0,0))
+end
+
+Grassmann.detsimplex(m::SimplexFrameBundle) = ∧(m)/factorial(mdims(Manifold(points(m)))-1)
+function Grassmann.:∧(m::SimplexFrameBundle)
+    p = points(m); pm = p[m]; V = Manifold(p)
+    if mdims(p)>mdims(V)
+        .∧(vectors.(pm))
+    else
+        Chain{↓(V),mdims(V)-1}.(value.(.∧(pm)))
+    end
+end
 
 revrot(hk::Chain{V,1},f=identity) where V = Chain{V,1}(-f(hk[2]),f(hk[1]))
 
@@ -49,7 +260,7 @@ function gradienthat(t,m=volumes(t))
 end
 
 laplacian(t,u,m=volumes(t),g=gradienthat(t,m)) = value.(abs.(gradient(t,u,m,g)))
-gradient(t::ChainBundle,u::Vector,m=volumes(t),g=gradienthat(t,m)) = [u[value(t[k])]⋅value(g[k]) for k ∈ 1:length(t)]
+gradient(t::SimplexFrameBundle,u::Vector,m=volumes(t),g=gradienthat(t,m)) = [u[value(t[k])]⋅value(g[k]) for k ∈ 1:length(t)]
 gradient(t::Vector,u::Vector,m=volumes(t),g=gradienthat(t,m)) = [u[value(t[k])]⋅value(g[k]) for k ∈ 1:length(t)]
 
 for T ∈ (:Values,:Variables)
