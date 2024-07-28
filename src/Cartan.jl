@@ -228,6 +228,9 @@ point(c::Coordinate) = base(c)
 metrictensor(c) = InducedMetric()
 metrictensor(c::Coordinate) = fiber(c)
 
+Base.getindex(s::Coordinate,i::Int...) = getindex(s.v.first,i...)
+Base.getindex(s::Coordinate,i::Integer...) = getindex(s.v.first,i...)
+
 graph(s::LocalFiber{<:AbstractReal,<:AbstractReal}) = Chain(Real(base(s)),Real(fiber(s)))
 graph(s::LocalFiber{<:Chain,<:AbstractReal}) = Chain(value(base(s))...,Real(fiber(s)))
 graph(s::LocalFiber{<:Coordinate{<:AbstractReal},<:AbstractReal}) = Chain(Real(basepoint(s)),Real(fiber(s)))
@@ -434,6 +437,8 @@ const IntervalRange{P<:Real,G,PA<:AbstractRange,GA} = GridFrameBundle{P,G,1,PA,G
 const AlignedRegion{N,P<:Chain,G<:InducedMetric,PA<:RealRegion{V,<:Real,N,<:AbstractRange} where V,GA<:Global} = GridFrameBundle{P,G,N,PA,GA}
 const AlignedSpace{N,P<:Chain,G<:InducedMetric,PA<:RealRegion{V,<:Real,N,<:AbstractRange} where V,GA} = GridFrameBundle{P,G,N,PA,GA}
 
+GridFrameBundle(id::Int,p::PA) where {N,P,PA<:AbstractArray{P,N}} = GridFrameBundle(id,p,Global{N}(InducedMetric()))
+GridFrameBundle(p::PA) where {N,P,PA<:AbstractArray{P,N}} = GridFrameBundle(p,Global{N}(InducedMetric()))
 GridFrameBundle(dom::GridFrameBundle,fun) = GridFrameBundle(base(dom), fun)
 GridFrameBundle(dom::GridFrameBundle,fun::Array) = GridFrameBundle(base(dom), fun)
 GridFrameBundle(dom::GridFrameBundle,fun::Function) = GridFrameBundle(base(dom), fun)
@@ -733,10 +738,15 @@ Base.BroadcastStyle(::Type{<:GridFrameBundle{P,G,N,PA,GA}}) where {P,G,N,PA,GA} 
 Base.BroadcastStyle(::Type{<:TensorField{B,F,N,P}}) where {B,F,N,P} = Broadcast.ArrayStyle{TensorField{B,F,N,P}}()
 Base.BroadcastStyle(::Type{<:GlobalSection{B,F,N,BA,FA}}) where {B,F,N,BA,FA} = Broadcast.ArrayStyle{TensorField{B,F,N,BA,FA}}()
 
-function Base.similar(bc::Broadcast.Broadcasted{Broadcast.ArrayStyle{GridFrameBundle{P,G,N,PA,GA}}}, ::Type{ElType}) where {P,G,N,PA,GA,ElType}
+function Base.similar(bc::Broadcast.Broadcasted{Broadcast.ArrayStyle{GridFrameBundle{P,G,N,PA,GA}}}, ::Type{ElType}) where {P,G,N,PA,GA,ElType<:Coordinate}
     ax = axes(bc)
     # Use the data type to create the output
     GridFrameBundle(similar(Array{pointtype(ElType),N}, ax), similar(Array{metrictype(ElType),N}, ax))
+end
+function Base.similar(bc::Broadcast.Broadcasted{Broadcast.ArrayStyle{GridFrameBundle{P,G,N,PA,GA}}}, ::Type{ElType}) where {P,G,N,PA,GA,ElType}
+    t = find_gf(bc)
+    # Use the data type to create the output
+    GridFrameBundle(similar(Array{ElType,N}, axes(bc)), metrictensor(t))
 end
 function Base.similar(bc::Broadcast.Broadcasted{Broadcast.ArrayStyle{TensorField{B,F,N,P}}}, ::Type{ElType}) where {B,F,N,P,ElType}
     # Scan the inputs for the TensorField:
@@ -750,6 +760,15 @@ function Base.similar(bc::Broadcast.Broadcasted{Broadcast.ArrayStyle{GlobalSecti
     # Use the domain field of t to create the output
     GlobalSection(domain(t), similar(Array{fibertype(ElType),N}, axes(bc)))
 end
+
+"`A = find_gf(As)` returns the first GridFrameBundle among the arguments."
+find_gf(bc::Base.Broadcast.Broadcasted) = find_gf(bc.args)
+find_gf(bc::Base.Broadcast.Extruded) = find_gf(bc.x)
+find_gf(args::Tuple) = find_gf(find_gf(args[1]), Base.tail(args))
+find_gf(x) = x
+find_gf(::Tuple{}) = nothing
+find_gf(a::GridFrameBundle, rest) = a
+find_gf(::Any, rest) = find_gf(rest)
 
 "`A = find_tf(As)` returns the first TensorField among the arguments."
 find_tf(bc::Base.Broadcast.Broadcasted) = find_tf(bc.args)
@@ -985,9 +1004,9 @@ function __init__()
         end
         for fun ∈ (:arrows,:arrows!)
             @eval begin
-                Makie.$fun(t::ScalarField{<:Coordinate{<:Chain},F,2,<:RealSpace{2}} where F;args...) = Makie.$fun(Makie.Point.(fiber(graph(Real(int))))[:],Makie.Point.(fiber(normal(Real(int))))[:];args...)
-                Makie.$fun(t::VectorField{<:Coordinate{<:Chain},F,2,<:RealSpace{2}} where F;args...) = Makie.$fun(domain(t).v...,getindex.(codomain(t),1),getindex.(codomain(t),2);args...)
-                Makie.$fun(t::VectorField{<:Coordinate{<:Chain},F,3,<:RealSpace{3}} where F;args...) = Makie.$fun(Makie.Point.(domain(t))[:],Makie.Point.(codomain(t))[:];args...)
+                Makie.$fun(t::ScalarField{<:Coordinate{<:Chain},F,2,<:RealSpace{2}} where F;args...) = Makie.$fun(Makie.Point.(fiber(graph(Real(t))))[:],Makie.Point.(fiber(normal(Real(t))))[:];args...)
+                Makie.$fun(t::VectorField{<:Coordinate{<:Chain},<:Chain{V,G,T,2} where {V,G,T},2,<:AlignedRegion{2}};args...) = Makie.$fun(domain(t).v...,getindex.(codomain(t),1),getindex.(codomain(t),2);args...)
+                Makie.$fun(t::VectorField{<:Coordinate{<:Chain},F,N,<:GridFrameBundle} where {F,N};args...) = Makie.$fun(Makie.Point.(domain(t))[:],Makie.Point.(codomain(t))[:];args...)
                 Makie.$fun(t::Rectangle,f::Function;args...) = Makie.$fun(t.v...,f;args...)
                 Makie.$fun(t::Hyperrectangle,f::Function;args...) = Makie.$fun(t.v...,f;args...)
                 Makie.$fun(t::ScalarMap;args...) = Makie.$fun(points(points(t)),Real.(codomain(t));args...)
@@ -1019,6 +1038,10 @@ function __init__()
         Makie.wireframe!(t::SimplexFrameBundle;args...) = Makie.linesegments!(t(edges(t));args...)
         Makie.mesh(M::SimplexFrameBundle;args...) = Makie.mesh(points(M),ImmersedTopology(M);args...)
         Makie.mesh!(M::SimplexFrameBundle;args...) = Makie.mesh!(points(M),ImmersedTopology(M);args...)
+        Makie.mesh(M::GridFrameBundle;args...) = Makie.mesh(GeometryBasics.Mesh(M);args...)
+        Makie.mesh!(M::GridFrameBundle;args...) = Makie.mesh!(GeometryBasics.Mesh(M);args...)
+        Makie.mesh(M::TensorField{B,F,2,<:GridFrameBundle} where {B,F};args...) = Makie.mesh(GeometryBasics.Mesh(base(M));color=fiber(M)[:],args...)
+        Makie.mesh!(M::TensorField{B,F,2,<:GridFrameBundle} where {B,F};args...) = Makie.mesh!(GeometryBasics.Mesh(base(M));color=fiber(M)[:],args...)
         function Makie.mesh(M::SimplexFrameBundle;args...)
             if mdims(points(M)) == 2
                 sm = submesh(M)[:,1]
@@ -1060,6 +1083,12 @@ function __init__()
     @require GeometryBasics = "5c1252a2-5f33-56bf-86c9-59e7332b4326" begin
         Base.convert(::Type{GeometryBasics.Point},t::T) where T<:LocalFiber = GeometryBasics.Point(base(t))
         #GeometryBasics.Point(t::T) where T<:TensorAlgebra = convert(GeometryBasics.Point,t)
+        function GeometryBasics.Mesh(m::GridFrameBundle)
+            nm = size(points(m))
+            faces = GeometryBasics.Tesselation(GeometryBasics.Rect(0, 0, 1, 1), nm)
+            uv = Chain(0.0,0.0):map(inv,Chain((nm.-1)...)):Chain(1.0,1.0)
+            GeometryBasics.Mesh(GeometryBasics.meta(GeometryBasics.Point.(points(m)[:]); uv=GeometryBasics.Vec{2}.(value.(uv[:]))), GeometryBasics.decompose(GeometryBasics.QuadFace{GeometryBasics.GLIndex}, faces))
+        end
         function initmesh(m::GeometryBasics.Mesh)
             c,f = GeometryBasics.coordinates(m),GeometryBasics.faces(m)
             s = size(eltype(c))[1]+1; V = Submanifold(ℝ^s) # s
@@ -1069,8 +1098,6 @@ function __init__()
             t = SimplexManifold([Values{n,Int}(k) for k ∈ f])
             return (p,∂(t),t)
         end
-    end
-    @require Makie="ee78f7c6-11fb-53f2-987a-cfe4a2b5a57a" begin
     end
     @require MATLAB="10e44e05-a98a-55b3-a45b-ba969058deb6" begin
         const matlab_cache = (Array{T,2} where T)[]

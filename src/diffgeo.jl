@@ -650,14 +650,24 @@ end
 #bishoppolar(f::TensorField) = TensorField(domain(f), Chain.(value.(codomain(curvature(f))),getindex.(codomain(cumtrapz(torsion(f))),1)))
 #bishop(f::TensorField,κ=value.(codomain(curvature(f))),θ=getindex.(codomain(cumtrapz(torsion(f))),1)) = TensorField(domain(f), Chain.(κ.*cos.(θ),κ.*sin.(θ)))
 
-export terrainmetric, surfaceframe
+export surfacemetric, surfaceframe
 
-terrainmetric(dom,f::Function) = terrainmetric(TensorField(dom,f))
-function terrainmetric(t)
+surfacemetric(dom::ScalarField,f::Function) = surfacemetric(TensorField(dom,f))
+function surfacemetric(t::ScalarField)
     g = gradient(t); V = Submanifold(MetricTensor([1 1; 1 1]))
     dfdx,dfdy = getindex.(g,1),getindex.(g,2)
     g1 = (1+dfdx*dfdx)*Λ(V).v1+(dfdx*dfdy)*Λ(V).v2
     g2 = (1+dfdy*dfdy)*Λ(V).v2+(dfdx*dfdy)*Λ(V).v1;
+    GridFrameBundle(points(t), Outermorphism.(Chain{V}.(fiber(g1),fiber(g2))))
+end
+
+surfacemetric(dom,f::Function) = surfacemetric(TensorField(dom,f))
+function surfacemetric(t) # TensorField(M, torus.(points(M)))
+    g = gradient(t); V = Submanifold(MetricTensor([1 1; 1 1]))
+    dfdx,dfdy = getindex.(g,1),getindex.(g,2)
+    E,F,G = Real(dfdx⋅dfdx),Real(dfdx⋅dfdy),Real(dfdy⋅dfdy)
+    g1 = E*Λ(V).v1+F*Λ(V).v2
+    g2 = G*Λ(V).v2+F*Λ(V).v1;
     GridFrameBundle(points(t), Outermorphism.(Chain{V}.(fiber(g1),fiber(g2))))
 end
 
