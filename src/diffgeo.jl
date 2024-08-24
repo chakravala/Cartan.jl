@@ -65,9 +65,6 @@ centraldiff(f::AbstractArray,args...) = centraldiff_fast(f,args...)
 
 gradient(f::IntervalMap,args...) = gradient_slow(f,args...)
 gradient(f::TensorField{B,F,N,<:AbstractArray} where {B,F,N},args...) = gradient_fast(f,args...)
-function gradient(f::ScalarMap)
-    TensorField(domain(f), interp(domain(f),gradient(domain(f),codomain(f))))
-end
 function unitgradient(f::TensorField{B,F,N,<:AbstractArray} where {B,F,N},d=centraldiff(domain(f)),t=centraldiff(codomain(f),d))
     TensorField(domain(f), (t./abs.(t)))
 end

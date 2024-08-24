@@ -31,12 +31,16 @@ using Base.Threads
 @inline callable(c::F) where F<:Function = c
 @inline callable(c) = x->c
 
-#=initedges(p::ChainBundle) = Chain{p,1}.(1:length(p)-1,2:length(p))
-initedges(r::R) where R<:AbstractVector = initedges(ChainBundle(initpoints(r)))
+edgelength(v) = value(abs(base(v[2])-base(v[1])))
+Grassmann.volumes(t::SimplexFrameBundle) = mdims(immersion(t))≠2 ? Grassmann.volumes(t,Grassmann.detsimplex(t)) : edgelength.(PointCloud(t)[immersion(t)])
+
+initedges(n::Int) = SimplexManifold(Values{2,Int}.(1:n-1,2:n),Base.OneTo(n))
+initedges(r::R) where R<:AbstractVector = SimplexFrameBundle(PointCloud(initpoints(r)),initedges(length(r)))
 function initmesh(r::R) where R<:AbstractVector
-    t = initedges(r); p = points(t)
-    p,ChainBundle(Chain{↓(p),1}.([1,length(p)])),t
-end=#
+    t = initedges(r); p = PointCloud(t); n = length(p)
+    bound = Values{1,Int}.([1,n])
+    p,SimplexManifold(bound,vertices(bound),n),ImmersedTopology(t)
+end
 
 initpoints(P::T) where T<:AbstractVector = Chain{ℝ2,1}.(1.0,P)
 initpoints(P::T) where T<:AbstractRange = Chain{ℝ2,1}.(1.0,P)
@@ -248,11 +252,11 @@ function Base.findlast(P,M::SimplexFrameBundle)
 end
 Base.findall(P,t::SimplexFrameBundle) = findall(P .∈ Chain.(points(t)[immersion(t)]))
 
-Grassmann.detsimplex(m::SimplexFrameBundle) = ∧(m)/factorial(mdims(Manifold(points(m)))-1)
+Grassmann.detsimplex(m::SimplexFrameBundle) = ∧(m)/factorial(mdims(immersion(m))-1)
 function Grassmann.:∧(m::SimplexFrameBundle)
     p = points(m); pm = p[m]; V = Manifold(p)
-    if mdims(p)>mdims(V)
-        .∧(vectors.(pm))
+    if mdims(p)>mdims(immersion(m))
+        .∧(Grassmann.vectors.(pm))
     else
         Chain{↓(V),mdims(V)-1}.(value.(.∧(pm)))
     end
@@ -282,12 +286,15 @@ function gradienthat(t,m=volumes(t))
     end
 end
 
-laplacian(t,u,m=volumes(t),g=gradienthat(t,m)) = value.(abs.(gradient(t,u,m,g)))
-function gradient(t::SimplexFrameBundle,u::Vector,m=volumes(t),g=gradienthat(t,m))
+laplacian_2(t,u,m=volumes(t),g=gradienthat(t,m)) = Real(abs(gradient_2(t,u,m,g)))
+laplacian(t,m=volumes(t),g=gradienthat(t,m)) = Real(abs(gradient2(t,m,g)))
+function gradient(f::ScalarMap,m=volumes(domain(f)),g=gradienthat(domain(f),m))
+    TensorField(domain(f), interp(domain(f),gradient_2(domain(f),codomain(f),m,g)))
+end
+function gradient_2(t,u,m=volumes(t),g=gradienthat(t,m)) # SimplexFrameBundle, Vector
     i = immersion(t)
     [u[value(i[k])]⋅value(g[k]) for k ∈ 1:length(t)]
 end
-gradient(t::Vector,u::Vector,m=volumes(t),g=gradienthat(t,m)) = [u[value(t[k])]⋅value(g[k]) for k ∈ 1:length(t)]
 
 for T ∈ (:Values,:Variables)
     @eval function assemblelocal!(M,mat,m,tk::$T{N}) where N
@@ -302,7 +309,7 @@ weights(t,B::SparseMatrixCSC) = inv.(degrees(t,f))
 degrees(t,B::SparseMatrixCSC) = B*ones(Int,length(t)) # A = incidence(t)
 function degrees(t,f=nothing)
     b = zeros(Int,length(points(t)))
-    for tk ∈ value(t)
+    for tk ∈ immersion(t)
         b[value(tk)] .+= 1
     end
     return b
@@ -312,6 +319,14 @@ assembleincidence(t,f,B::SparseMatrixCSC) = Diagonal(iterpts(t,f))*B
 assembleincidence(t,f,m=volumes(t)) = assembleincidence(t,iterpts(t,f),iterable(t,m))
 function assembleincidence(t,f::F,m::V,::Val{T}=Val{false}()) where {F<:AbstractVector,V<:AbstractVector,T}
     b = zeros(eltype(T ? m : f),length(points(t)))
+    for k ∈ 1:length(t)
+        tk = value(t[k])
+        b[tk] .+= f[tk].*m[k]
+    end
+    return b
+end
+function assembleincidence(X::SimplexFrameBundle,f::F,m::V,::Val{T}=Val{false}()) where {F<:AbstractVector,V<:AbstractVector,T}
+    b,t = zeros(eltype(T ? m : f),length(points(X))),immersion(X)
     for k ∈ 1:length(t)
         tk = value(t[k])
         b[tk] .+= f[tk].*m[k]

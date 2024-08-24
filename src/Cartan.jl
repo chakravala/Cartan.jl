@@ -127,6 +127,7 @@ Base.length(m::SimplexManifold) = length(topology(m))
 Base.axes(m::SimplexManifold) = axes(topology(m))
 Base.getindex(m::SimplexManifold,i::Int) = getindex(topology(m),i)
 @pure Base.eltype(::Type{ImmersedTopology{N}}) where N = Values{N,Int}
+Grassmann.mdims(m::SimplexManifold{N}) where N = N
 
 _axes(t::SimplexManifold{N}) where N = (Base.OneTo(length(t)),Base.OneTo(N))
 
@@ -215,7 +216,7 @@ end
 
 # Coordinate
 
-export Coordinate
+export Coordinate, point
 
 struct Coordinate{P,G} <: LocalFiber{P,G}
     v::Pair{P,G}
@@ -225,6 +226,7 @@ end
 
 point(c) = c
 point(c::Coordinate) = base(c)
+point(c::LocalFiber) = point(base(c))
 metrictensor(c) = InducedMetric()
 metrictensor(c::Coordinate) = fiber(c)
 
@@ -485,6 +487,7 @@ basetype(::SimplexFrameBundle{P}) where P = pointtype(P)
 basetype(::Type{<:SimplexFrameBundle{P}}) where P = pointtype(P)
 fibertype(::SimplexFrameBundle{P}) where P = metrictype(P)
 fibertype(::Type{<:SimplexFrameBundle{P}}) where P = metrictype(P)
+Base.size(m::SimplexFrameBundle) = size(vertices(m))
 
 Base.broadcast(f,t::SimplexFrameBundle) = SimplexFrameBundle(f.(PointCloud(t)),ImmersedTopology(t))
 
@@ -544,11 +547,10 @@ Base.length(m::SimplexFrameBundle) = length(vertices(m))
 
 # GlobalSection
 
-struct GlobalSection{B,F,N,BA,FA<:AbstractArray{F,N}} <: GlobalFiber{LocalSection{B,F},N}
+struct GlobalSection{B,F,N,BA<:AbstractFrameBundle{B,N},FA<:AbstractFrameBundle{F,N}} <: GlobalFiber{LocalSection{B,F},N}
     dom::BA
     cod::FA
-    GlobalSection{B}(dom::BA,cod::FA) where {B,F,N,BA,FA<:AbstractArray{F,N}} = new{B,F,N,BA,FA}(dom,cod)
-    GlobalSection(dom::BA,cod::FA) where {N,B,F,BA<:AbstractFrameBundle{B,N},FA<:AbstractArray{F,N}} = new{B,F,N,BA,FA}(dom,cod)
+    GlobalSection(dom::BA,cod::FA) where {B,F,N,BA<:AbstractFrameBundle{B,N},FA<:AbstractFrameBundle{F,N}} = new{B,F,N,BA,FA}(dom,cod)
 end
 
 # TensorField
@@ -568,6 +570,7 @@ function TensorField(id::Int,dom::P,cod::Vector{F},met::G=Global{N}(InducedMetri
     TensorField(SimplexFrameBundle(id,dom,met),cod)
 end
 TensorField(id::Int,dom,cod::Array,met::GlobalFiber) = TensorField(id,dom,cod,fiber(met))
+TensorField(dom::AbstractFrameBundle,cod::AbstractFrameBundle) = TensorField(dom,points(cod))
 TensorField(dom::AbstractArray{B,N} where B,cod::Array{F,N} where F,met::AbstractArray=Global{N}(InducedMetric())) where N = TensorField((global grid_id+=1),dom,cod,fiber(met))
 TensorField(dom::ChainBundle,cod::Vector,met::AbstractVector=Global{1}(InducedMetric())) = TensorField((global grid_id+=1),dom,cod,met)
 
@@ -930,6 +933,7 @@ function __init__()
         funsym(sym) = String(sym)[end] == '!' ? sym : Symbol(sym,:!)
         for lines ∈ (:lines,:lines!,:linesegments,:linesegments!)
             @eval begin
+                Makie.$lines(t::ScalarMap;args...) = Makie.$lines(getindex.(domain(t),2),codomain(t);args...)
                 Makie.$lines(t::SpaceCurve;args...) = Makie.$lines(codomain(t);color=Real.(codomain(speed(t))),args...)
                 Makie.$lines(t::PlaneCurve;args...) = Makie.$lines(codomain(t);color=Real.(codomain(speed(t))),args...)
                 Makie.$lines(t::RealFunction;args...) = Makie.$lines(Real.(points(t)),Real.(codomain(t));color=Real.(codomain(speed(t))),args...)
@@ -1038,8 +1042,9 @@ function __init__()
         Makie.wireframe!(t::SimplexFrameBundle;args...) = Makie.linesegments!(t(edges(t));args...)
         Makie.mesh(M::SimplexFrameBundle;args...) = Makie.mesh(points(M),ImmersedTopology(M);args...)
         Makie.mesh!(M::SimplexFrameBundle;args...) = Makie.mesh!(points(M),ImmersedTopology(M);args...)
-        Makie.mesh(M::GridFrameBundle;args...) = Makie.mesh(GeometryBasics.Mesh(M);args...)
-        Makie.mesh!(M::GridFrameBundle;args...) = Makie.mesh!(GeometryBasics.Mesh(M);args...)
+        for fun ∈ (:mesh,:mesh!,:wireframe,:wireframe!)
+            @eval Makie.$fun(M::GridFrameBundle;args...) = Makie.$fun(GeometryBasics.Mesh(M);args...)
+        end
         Makie.mesh(M::TensorField{B,F,2,<:GridFrameBundle} where {B,F};args...) = Makie.mesh(GeometryBasics.Mesh(base(M));color=fiber(M)[:],args...)
         Makie.mesh!(M::TensorField{B,F,2,<:GridFrameBundle} where {B,F};args...) = Makie.mesh!(GeometryBasics.Mesh(base(M));color=fiber(M)[:],args...)
         function Makie.mesh(M::SimplexFrameBundle;args...)
@@ -1062,6 +1067,7 @@ function __init__()
         end
     end
     @require UnicodePlots="b8865327-cd53-5732-bb35-84acbb429228" begin
+        UnicodePlots.lineplot(t::ScalarMap;args...) = UnicodePlots.lineplot(getindex.(domain(t),2),codomain(t);args...)
         UnicodePlots.lineplot(t::PlaneCurve;args...) = UnicodePlots.lineplot(getindex.(codomain(t),1),getindex.(codomain(t),2);args...)
         UnicodePlots.lineplot(t::RealFunction;args...) = UnicodePlots.lineplot(Real.(domain(t)),Real.(codomain(t));args...)
         UnicodePlots.lineplot(t::ComplexMap{B,F,1};args...) where {B<:AbstractReal,F} = UnicodePlots.lineplot(real.(Complex.(codomain(t))),imag.(Complex.(codomain(t)));args...)
