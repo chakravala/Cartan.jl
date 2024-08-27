@@ -16,7 +16,7 @@ export assemble, assembleglobal, assemblestiffness, assembleconvection, assemble
 export assemblemass, assemblefunction, assemblemassfunction, assembledivergence
 export assemblemassincidence, asssemblemassnodes, assemblenodes
 export assembleload, assemblemassload, assemblerobin, edges, edgesindices, neighbors
-export solvepoisson, solveSD, solvetransport, solvedirichlet, adaptpoisson
+export solvepoisson, solvetransportdiffusion, solvetransport, solvedirichlet, adaptpoisson
 export gradienthat, gradientCR, gradient, interp, nedelec, nedelecmean, jumps
 export submesh, detsimplex, iterable, callable, value, edgelengths, laplacian
 export boundary, interior, trilength, trinormals, incidence, degrees
@@ -287,14 +287,18 @@ function gradienthat(t,m=volumes(t))
 end
 
 laplacian_2(t,u,m=volumes(t),g=gradienthat(t,m)) = Real(abs(gradient_2(t,u,m,g)))
-laplacian(t,m=volumes(t),g=gradienthat(t,m)) = Real(abs(gradient2(t,m,g)))
+laplacian(t,m=volumes(domain(t)),g=gradienthat(domain(t),m)) = Real(abs(gradient(t,m,g)))
 function gradient(f::ScalarMap,m=volumes(domain(f)),g=gradienthat(domain(f),m))
     TensorField(domain(f), interp(domain(f),gradient_2(domain(f),codomain(f),m,g)))
 end
-function gradient_2(t,u,m=volumes(t),g=gradienthat(t,m)) # SimplexFrameBundle, Vector
+function gradient_2(t,u,m=volumes(t),g=gradienthat(t,m))
+    T = immersion(t)
+    [u[value(T[k])]⋅value(g[k]) for k ∈ 1:length(T)]
+end
+#=function gradient(t::SimplexFrameBundle,u::Vector,m=volumes(t),g=gradienthat(t,m))
     i = immersion(t)
     [u[value(i[k])]⋅value(g[k]) for k ∈ 1:length(t)]
-end
+end=#
 
 for T ∈ (:Values,:Variables)
     @eval function assemblelocal!(M,mat,m,tk::$T{N}) where N

@@ -157,6 +157,7 @@ end
 #Base.size(m::Global) = m.n
 Base.getindex(m::Global,i::Vararg{Int}) = m.v
 Base.getindex(t::Global,i::CartesianIndex) = m.v
+Base.resize!(t::Global,i) = t
 @pure Base.eltype(::Type{<:Global{T}}) where T = T
 
 Base.IndexStyle(::Global) = IndexCartesian()
@@ -630,6 +631,7 @@ for bundle ∈ (:TensorField,:GlobalSection)
         $bundle(dom::AbstractArray,fun::AbstractRange) = $bundle(dom, collect(fun))
         $bundle(dom::AbstractArray,fun::RealRegion) = $bundle(dom, collect(fun))
         $bundle(dom::AbstractArray,fun::Function) = $bundle(dom, fun.(dom))
+        $bundle(dom::AbstractArray) = $bundle(dom, dom)
         $bundle(dom::ChainBundle,fun::Function) = $bundle(dom, fun.(value(points(dom))))
         basetype(::$bundle{B}) where B = B
         basetype(::Type{<:$bundle{B}}) where B = B
@@ -655,6 +657,8 @@ fibertype(::GlobalSection{B,F} where B) where F = F
 fibertype(::Type{<:GlobalSection{B,F} where B}) where F = F
 fibertype(::TensorField{B,F} where B) where F = F
 fibertype(::Type{<:TensorField{B,F} where B}) where F = F
+PointCloud(t::TensorField) = PointCloud(base(t))
+Grassmann.grade(::GradedField{G}) where G = G
 
 @pure Base.eltype(::Type{<:GridFrameBundle{P,G}}) where {P,G} = Coordinate{P,G}
 Base.getindex(m::GridFrameBundle,i::Vararg{Int}) = Coordinate(getindex(points(m),i...), getindex(metrictensor(m),i...))
@@ -720,6 +724,10 @@ end
 Base.getindex(m::TensorField,i::Vararg{Int}) = LocalTensor(getindex(domain(m),i...), getindex(codomain(m),i...))
 #Base.setindex!(m::TensorField{B,F,1,<:Interval},s::LocalTensor,i::Vararg{Int}) where {B,F} = setindex!(codomain(m),fiber(s),i...)
 Base.setindex!(m::TensorField{B,Fm} where Fm,s::F,i::Vararg{Int}) where {B,F} = setindex!(codomain(m),s,i...)
+function Base.setindex!(m::TensorField{B,F,N,<:IntervalRange} where {B,F,N},s::LocalTensor,i::Vararg{Int})
+    setindex!(codomain(m),fiber(s),i...)
+    return s
+end
 function Base.setindex!(m::TensorField,s::LocalTensor,i::Vararg{Int})
     setindex!(domain(m),base(s),i...)
     setindex!(codomain(m),fiber(s),i...)
@@ -791,6 +799,8 @@ find_gs(::Tuple{}) = nothing
 find_gs(a::GlobalSection, rest) = a
 find_gs(::Any, rest) = find_gs(rest)
 
+(m::TensorField{B,F,N,<:SimplexFrameBundle} where {B,F,N})(i::ImmersedTopology) = TensorField(PointCloud(m)(i),fiber(m)[vertices(i)])
+
 linterp(x,x1,x2,f1,f2) = f1 + (f2-f1)*(x-x1)/(x2-x1)
 function bilinterp(x,y,x1,x2,y1,y2,f11,f21,f12,f22)
     f1 = linterp(x,x1,x2,f11,f21)
@@ -804,21 +814,26 @@ function trilinterp(x,y,z,x1,x2,y1,y2,z1,z2,f111,f211,f121,f221,f112,f212,f122,f
 end
 
 (m::IntervalMap)(s::LocalTensor) = LocalTensor(base(s), m(fiber(s)))
-function (m::IntervalMap)(t)
-    i = searchsortedfirst(domain(m),t[1])-1
-    linterp(t[1],m.dom[i],m.dom[i+1],m.cod[i],m.cod[i+1])
+function (m::IntervalMap)(t); p = points(m)
+    i = searchsortedfirst(p,t[1])-1
+    linterp(t[1],p[i],p[i+1],m.cod[i],m.cod[i+1])
 end
 function (m::IntervalMap)(t::Vector,d=diff(m.cod)./diff(m.dom))
     [parametric(i,m,d) for i ∈ t]
 end
 function parametric(t,m,d=diff(codomain(m))./diff(domain(m)))
-    i = searchsortedfirst(domain(m),t)-1
-    codomain(m)[i]+(t-domain(m)[i])*d[i]
+    p = points(m)
+    i = searchsortedfirst(p,t)-1
+    codomain(m)[i]+(t-p[i])*d[i]
 end
 
-function (m::TensorField{B,F,N,<:SimplexFrameBundle} where {B,F,N})(t)
-    i = immersion(m)[findfirst(t,domain(m))]
-    Chain(codomain(m)[i])⋅(Chain(points(domain(m))[i])/t)
+(m::TensorField)(t::TensorField) = TensorField(base(t),m.(fiber(t)))
+(m::GridFrameBundle)(t::TensorField) = GridFrameBundle(base(t),TensorField(base(m),fiber(m)).(fiber(t)))
+
+function (m::TensorField{B,F,N,<:SimplexFrameBundle} where {B,N})(t) where F
+    j = findfirst(t,domain(m)); iszero(j) && (return zero(F))
+    i = immersion(m)[j]
+    Chain(codomain(m)[i])⋅(Chain(points(domain(m))[i])\t)
 end
 
 (m::TensorField{B,F,N,<:RealSpace{2}} where {B,F,N})(x,y) = m(Chain(x,y))
@@ -967,7 +982,7 @@ function __init__()
                     x,y = points(t),value.(codomain(t))
                     yi = Real.(getindex.(y,1))
                     display(Makie.$fun(x.v...,yi;color=Real.(abs.(codomain(gradient_fast(x→yi)))),args...))
-                    for i ∈ 2:binomial(mdims(eltype(codomain(t))),G)
+                    for i ∈ 2:binomial(mdims(eltype(codomain(t))),grade(t))
                         yi = Real.(getindex.(y,i))
                         Makie.$(funsym(fun))(x.v...,yi;color=Real.(abs.(codomain(gradient_fast(x→yi)))),args...)
                     end
@@ -1040,8 +1055,6 @@ function __init__()
         Makie.linesegments!(e::SimplexFrameBundle;args...) = (p=points(e); Makie.linesegments!(Grassmann.pointpair.(e[ImmersedTopology(e)],↓(Manifold(p)));args...))
         Makie.wireframe(t::SimplexFrameBundle;args...) = Makie.linesegments(t(edges(t));args...)
         Makie.wireframe!(t::SimplexFrameBundle;args...) = Makie.linesegments!(t(edges(t));args...)
-        Makie.mesh(M::SimplexFrameBundle;args...) = Makie.mesh(points(M),ImmersedTopology(M);args...)
-        Makie.mesh!(M::SimplexFrameBundle;args...) = Makie.mesh!(points(M),ImmersedTopology(M);args...)
         for fun ∈ (:mesh,:mesh!,:wireframe,:wireframe!)
             @eval Makie.$fun(M::GridFrameBundle;args...) = Makie.$fun(GeometryBasics.Mesh(M);args...)
         end
@@ -1056,7 +1069,7 @@ function __init__()
                 Makie.mesh(submesh(M),array(ImmersedTopology(M));args...)
             end
         end
-        function Makie.mesh!(M::SimplexFrameBundle,t;args...)
+        function Makie.mesh!(M::SimplexFrameBundle;args...)
             if mdims(points(M)) == 2
                 sm = submesh(M)[:,1]
                 Makie.lines!(sm,args[:color])
