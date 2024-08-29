@@ -19,7 +19,7 @@ export assembleload, assemblemassload, assemblerobin, edges, edgesindices, neigh
 export solvepoisson, solvetransportdiffusion, solvetransport, solvedirichlet, adaptpoisson
 export gradienthat, gradientCR, gradient, interp, nedelec, nedelecmean, jumps
 export submesh, detsimplex, iterable, callable, value, edgelengths, laplacian
-export boundary, interior, trilength, trinormals, incidence, degrees
+export boundary, interior, trilength, trinormals, incidence, degrees, edges
 import Grassmann: norm, column, columns, points, pointset
 using Base.Threads
 
@@ -337,10 +337,10 @@ function assembleincidence(X::SimplexFrameBundle,f::F,m::V,::Val{T}=Val{false}()
     end
     return b
 end
-function incidence(t,cols=columns(t))
-    np,nt = length(points(t)),length(t)
+function incidence(t,cols=columns(topology(t)))
+    np,nt = length(points(t)),length(immersion(t))
     A = spzeros(Int,np,nt)
-    for i ∈ Grassmann.list(1,mdims(Manifold(t)))
+    for i ∈ Grassmann.list(1,mdims(immersion(t)))
         A += sparse(cols[i],1:nt,1,np,nt)
     end
     return A
@@ -348,9 +348,9 @@ end # node-element incidence, A[i,j]=1 -> i∈t[j]
 
 assembleload(t,m=volumes(t),d=degrees(t,m)) = assembleincidence(t,inv.(d),m,Val(true))
 
-interp(t) = assembleload(t,incidence(t))
+interp(t,B::SparseMatrixCSC=incidence(t)) = Diagonal(inv.(degrees(t,B)))*B
 interp(t,b,d=degrees(t,b)) = assembleload(t,b,d)
-pretni(t,B::SparseMatrixCSC=incidence(t)) = assembleload(t,sparse(B'))
+pretni(t,B::SparseMatrixCSC=incidence(t)) = interp(t,sparse(B'))
 pretni(t,ut,B=pretni(t)) = B*ut #interp(t,ut,B::SparseMatrixCSC) = B*ut
 
 interior(e) = interior(length(points(e)),pointset(e))

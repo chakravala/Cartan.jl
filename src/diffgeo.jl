@@ -65,12 +65,9 @@ centraldiff(f::AbstractArray,args...) = centraldiff_fast(f,args...)
 
 gradient(f::IntervalMap,args...) = gradient_slow(f,args...)
 gradient(f::TensorField{B,F,N,<:AbstractArray} where {B,F,N},args...) = gradient_fast(f,args...)
-function unitgradient(f::TensorField{B,F,N,<:AbstractArray} where {B,F,N},d=centraldiff(domain(f)),t=centraldiff(codomain(f),d))
-    TensorField(domain(f), (t./abs.(t)))
-end
-function unitgradient(f::ScalarMap)
-    t = interp(domain(f),gradient(domain(f),codomain(f)))
-    TensorField(domain(f), (t./abs.(t)))
+function unitgradient(f::TensorField,args...)
+    t = gradient(f,args...)
+    return t/abs(t)
 end
 
 (::Derivation)(t::TensorField) = getnabla(t)
