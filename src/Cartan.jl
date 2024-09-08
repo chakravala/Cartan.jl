@@ -971,6 +971,42 @@ function __init__()
                 Makie.lines!(x,Real.(getindex.(y,i));args...)
             end
         end
+        function Makie.lines(t::IntervalMap{B,<:Endomorphism};args...) where B<:Coordinate{<:AbstractReal}
+            display(Makie.lines(getindex.(t,1);args...))
+            for i ∈ 2:mdims(eltype(codomain(t)))
+                Makie.lines!(getindex.(t,i);args...)
+            end
+        end
+        function Makie.lines!(t::IntervalMap{B,<:Endomorphism};args...) where B<:Coordinate{<:AbstractReal}
+            display(Makie.lines!(getindex.(t,1);args...))
+            for i ∈ 2:mdims(eltype(codomain(t)))
+                Makie.lines!(getindex.(t,i);args...)
+            end
+        end
+        function Makie.arrows(t::TensorField{<:Coordinate{<:Chain},<:Endomorphism,N,<:GridFrameBundle};args...) where N
+            display(Makie.arrows(getindex.(t,1);args...))
+            for i ∈ 2:mdims(eltype(codomain(t)))
+                Makie.arrows!(getindex.(t,i);args...)
+            end
+        end
+        function Makie.arrows!(t::TensorField{<:Coordinate{<:Chain},<:Endomorphism,N,<:GridFrameBundle};args...) where N
+            display(Makie.arrows!(getindex.(t,1);args...))
+            for i ∈ 2:mdims(eltype(codomain(t)))
+                Makie.arrows!(getindex.(t,i);args...)
+            end
+        end
+        function Makie.arrows(t::VectorField{<:Coordinate{<:Chain},<:Endomorphism,2,<:RealSpace{2}};args...)
+            display(Makie.arrows(getindex.(t,1);args...))
+            for i ∈ 2:mdims(eltype(codomain(t)))
+                Makie.arrows!(getindex.(t,i);args...)
+            end
+        end
+        function Makie.arrows!(t::VectorField{<:Coordinate{<:Chain},<:Endomorphism,2,<:RealSpace{2}};args...)
+            display(Makie.arrows!(getindex.(t,1);args...))
+            for i ∈ 2:mdims(eltype(codomain(t)))
+                Makie.arrows!(getindex.(t,i);args...)
+            end
+        end
         Makie.volume(t::VolumeGrid;args...) = Makie.volume(domain(t).v...,Real.(codomain(t));args...)
         Makie.volume!(t::VolumeGrid;args...) = Makie.volume!(domain(t).v...,Real.(codomain(t));args...)
         Makie.volumeslices(t::VolumeGrid;args...) = Makie.volumeslices(domain(t).v...,Real.(codomain(t));args...)
@@ -1025,7 +1061,8 @@ function __init__()
             @eval begin
                 Makie.$fun(t::ScalarField{<:Coordinate{<:Chain},F,2,<:RealSpace{2}} where F;args...) = Makie.$fun(Makie.Point.(fiber(graph(Real(t))))[:],Makie.Point.(fiber(normal(Real(t))))[:];args...)
                 Makie.$fun(t::VectorField{<:Coordinate{<:Chain},<:Chain{V,G,T,2} where {V,G,T},2,<:AlignedRegion{2}};args...) = Makie.$fun(domain(t).v...,getindex.(codomain(t),1),getindex.(codomain(t),2);args...)
-                Makie.$fun(t::VectorField{<:Coordinate{<:Chain},F,N,<:GridFrameBundle} where {F,N};args...) = Makie.$fun(Makie.Point.(domain(t))[:],Makie.Point.(codomain(t))[:];args...)
+                Makie.$fun(t::VectorField{<:Coordinate{<:Chain},F,2,<:RealSpace{2}} where F;args...) = Makie.$fun(Makie.Point.(points(t))[:],Makie.Point.(codomain(t))[:];args...)
+                Makie.$fun(t::VectorField{<:Coordinate{<:Chain},F,N,<:GridFrameBundle} where {F,N};args...) = Makie.$fun(Makie.Point.(points(t))[:],Makie.Point.(codomain(t))[:];args...)
                 Makie.$fun(t::Rectangle,f::Function;args...) = Makie.$fun(t.v...,f;args...)
                 Makie.$fun(t::Hyperrectangle,f::Function;args...) = Makie.$fun(t.v...,f;args...)
                 Makie.$fun(t::ScalarMap;args...) = Makie.$fun(points(points(t)),Real.(codomain(t));args...)
@@ -1116,6 +1153,14 @@ function __init__()
             M = s ≠ n ? p(list(s-n+1,s)) : p
             t = SimplexManifold([Values{n,Int}(k) for k ∈ f])
             return (p,∂(t),t)
+        end
+    end
+    @require MiniQhull="978d7f02-9e05-4691-894f-ae31a51d76ca" begin
+        MiniQhull.delaunay(p::Vector{<:Chain},n=1:length(p)) = MiniQhull.delaunay(PointCloud(p),n)
+        function MiniQhull.delaunay(p::PointCloud,n=1:length(p))
+            l = list(1,mdims(p))
+            T = MiniQhull.delaunay(Matrix(submesh(length(n)==length(p) ? p : p[n])'))
+            SimplexManifold([Values{4,Int}(getindex.(Ref(n),Int.(T[l,k]))) for k ∈ 1:size(T,2)],length(p))
         end
     end
     @require MATLAB="10e44e05-a98a-55b3-a45b-ba969058deb6" begin
