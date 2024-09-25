@@ -42,10 +42,10 @@ function initmesh(r::R) where R<:AbstractVector
     p,SimplexManifold(bound,vertices(bound),n),ImmersedTopology(t)
 end
 
-initpoints(P::T) where T<:AbstractVector = Chain{ℝ2,1}.(1.0,P)
-initpoints(P::T) where T<:AbstractRange = Chain{ℝ2,1}.(1.0,P)
+initpoints(P::T) where T<:AbstractVector = Chain{varmanifold(2),1}.(1.0,P)
+initpoints(P::T) where T<:AbstractRange = Chain{varmanifold(2),1}.(1.0,P)
 @generated function initpoints(P,::Val{n}=Val(size(P,1))) where n
-    Expr(:.,:(Chain{$(Submanifold(n+1)),1}),
+    Expr(:.,:(Chain{$(varmanifold(n+1)),1}),
          Expr(:tuple,1.0,[:(P[$k,:]) for k ∈ 1:n]...))
 end
 
@@ -236,21 +236,21 @@ function Grassmann.submesh!(m::PointCloud)
     length(submesh_cache) ≥ B && (submesh_cache[B] = Array{Any,2}(undef,0,0))
 end
 
-function Base.findfirst(P,M::SimplexFrameBundle)
+function Base.findfirst(P::GradedVector{V},M::SimplexFrameBundle) where V
     p = points(M); t = immersion(M)
     for i ∈ 1:length(t)
-        P ∈ Chain(p[t[i]]) && (return i)
+        P ∈ Chain{V}(p[t[i]]) && (return i)
     end
     return 0
 end
-function Base.findlast(P,M::SimplexFrameBundle)
+function Base.findlast(P::GradedVector{V},M::SimplexFrameBundle) where V
     p = points(M); t = immersion(M)
     for i ∈ length(t):-1:1
-        P ∈ Chain(p[t[i]]) && (return i)
+        P ∈ Chain{V}(p[t[i]]) && (return i)
     end
     return 0
 end
-Base.findall(P,t::SimplexFrameBundle) = findall(P .∈ Chain.(points(t)[immersion(t)]))
+Base.findall(P::GradedVector{V},t::SimplexFrameBundle) where V = findall(P .∈ Chain{V}.(points(t)[immersion(t)]))
 
 Grassmann.detsimplex(m::SimplexFrameBundle) = ∧(m)/factorial(mdims(immersion(m))-1)
 function Grassmann.:∧(m::SimplexFrameBundle)

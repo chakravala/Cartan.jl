@@ -310,8 +310,8 @@ for fun ∈ (:_slow,:_fast)
             :(Chain($([:($$cd(f,l[$n],Val($n),i...)) for n ∈ list(1,N)]...)))
         end
         $cd(f::RealRegion) = ProductSpace($cd.(f.v))
-        $cd(f::GridFrameBundle{P,G,N,<:RealRegion,<:Global{N,<:InducedMetric}}) where {P,G,N} = ProductSpace($cd.(base(f).v))
-        $cd(f::GridFrameBundle{P,G,N,<:RealRegion}) where {P,G,N} = applymetric.($cd(base(f)),fiber(f))
+        $cd(f::GridFrameBundle{Coordinate{P,G},N,<:PointArray{P,G,N,<:RealRegion,<:Global{N,<:InducedMetric}}}) where {P,G,N} = ProductSpace($cd.(base(f).v))
+        $cd(f::GridFrameBundle{Coordinate{P,G},N,<:PointArray{P,G,N,<:RealRegion}}) where {P,G,N} = applymetric.($cd(base(f)),fiber(f))
         function $cd(f::AbstractRange,l::Tuple=size(f))
             d = Vector{eltype(f)}(undef,l[1])
             @threads for i ∈ 1:l[1]

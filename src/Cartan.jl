@@ -34,517 +34,16 @@ import Base: @pure, OneTo, getindex
 export Values, Derivation
 export initmesh, pdegrad, det
 
+include("topology.jl")
+
 export IntervalMap, RectangleMap, HyperrectangleMap, PlaneCurve, SpaceCurve
 export TensorField, ScalarField, VectorField, BivectorField, TrivectorField
-export ElementFunction, SurfaceGrid, VolumeGrid, ScalarGrid
+export ElementFunction, SurfaceGrid, VolumeGrid, ScalarGrid, Variation
 export RealFunction, ComplexMap, SpinorField, CliffordField
 export ScalarMap, GradedField, QuaternionField, PhasorField
 export GlobalFrame, DiagonalField, EndomorphismField, OutermorphismField
 export ParametricMap, RectangleMap, HyperrectangleMap, AbstractCurve
-export LocalSection, GlobalFiber, LocalFiber
-export base, fiber, domain, codomain, ↦, →, ←, ↤, basetype, fibertype, graph
-export ProductSpace, RealRegion, NumberLine, Rectangle, Hyperrectangle, ⧺, ⊕
-
-# ProductSpace
-
-struct ProductSpace{V,T,N,M,S} <: AbstractArray{Chain{V,1,T,N},N}
-    v::Values{M,S} # how to deal with T???
-    ProductSpace{V,T,N}(v::Values{M,S}) where {V,T,N,M,S} = new{V,T,N,M,S}(v)
-    ProductSpace{V,T}(v::Values{M,S}) where {V,T,M,S} = new{V,T,mdims(V),M,S}(v)
-end
-
-const RealRegion{V,T<:Real,N,S<:AbstractVector{T}} = ProductSpace{V,T,N,N,S}
-const NumberLine{V,T,S} = RealRegion{V,T,1,S}
-const Rectangle{V,T,S} = RealRegion{V,T,2,S}
-const Hyperrectangle{V,T,S} = RealRegion{V,T,3,S}
-
-RealRegion{V}(v::Values{N,S}) where {V,T<:Real,N,S<:AbstractVector{T}} = ProductSpace{V,T,N}(v)
-RealRegion(v::Values{N,S}) where {T<:Real,N,S<:AbstractVector{T}} = ProductSpace{Submanifold(N),T,N}(v)
-ProductSpace{V}(v::Values{N,S}) where {V,T<:Real,N,S<:AbstractVector{T}} = ProductSpace{V,T,N}(v)
-ProductSpace(v::Values{N,S}) where {T<:Real,N,S<:AbstractVector{T}} = ProductSpace{Submanifold(N),T,N}(v)
-
-Base.show(io::IO,t::RealRegion{V,T,N,<:AbstractRange} where {V,T,N}) = print(io,'(',Chain(getindex.(t.v,1)),"):(",Chain(Number.(getproperty.(t.v,:step))),"):(",Chain(getindex.(t.v,length.(t.v))),')')
-
-(::Base.Colon)(min::Chain{V,1,T},step::Chain{V,1,T},max::Chain{V,1,T}) where {V,T} = ProductSpace{V,T}(Colon().(value(min),value(step),value(max)))
-
-Base.iterate(t::RealRegion) = (getindex(t,1),1)
-Base.iterate(t::RealRegion,state) = (s=state+1; s≤length(t) ? (getindex(t,s),s) : nothing)
-
-@generated Base.size(m::RealRegion{V}) where V = :(($([:(size(m.v[$i])...) for i ∈ 1:mdims(V)]...),))
-@generated Base.getindex(m::RealRegion{V,T,N},i::Vararg{Int}) where {V,T,N} = :(Chain{V,1,T}($([:(m.v[$j][i[$j]]) for j ∈ 1:N]...)))
-@pure Base.getindex(t::RealRegion,i::CartesianIndex) = getindex(t,i.I...)
-@pure Base.eltype(::Type{ProductSpace{V,T,N}}) where {V,T,N} = Chain{V,1,T,N}
-
-Base.IndexStyle(::RealRegion) = IndexCartesian()
-function Base.getindex(A::RealRegion, I::Int)
-    Base.@_inline_meta
-    @inbounds getindex(A, Base._to_subscript_indices(A, I)...)
-end
-function Base._to_subscript_indices(A::RealRegion, i::Int)
-    Base.@_inline_meta
-    Base._unsafe_ind2sub(A, i)
-end
-function Base._ind2sub(A::RealRegion, ind)
-    Base.@_inline_meta
-    Base._ind2sub(axes(A), ind)
-end
-
-⊕(a::AbstractVector{A},b::AbstractVector{B}) where {A<:Real,B<:Real} = RealRegion(Values(a,b))
-
-@generated ⧺(a::Real...) = :(Chain($([:(a[$i]) for i ∈ 1:length(a)]...)))
-@generated ⧺(a::Complex...) = :(Chain($([:(a[$i]) for i ∈ 1:length(a)]...)))
-⧺(a::Chain{A,G},b::Chain{B,G}) where {A,B,G} = Chain{A∪B,G}(vcat(a.v,b.v))
-
-remove(t::ProductSpace{V,T,2} where {V,T},::Val{1}) = t.v[2]
-remove(t::ProductSpace{V,T,2} where {V,T},::Val{2}) = t.v[1]
-@generated remove(t::ProductSpace{V,T,N} where {V,T},::Val{J}) where {N,J} = :(ProductSpace(domain(t).v[$(Values([i for i ∈ 1:N if i≠J]...))]))
-
-# ImmersedTopology
-
-export ImmersedTopology, SimplexManifold, topology, immersion, vertices, iscover
-
-abstract type ImmersedTopology{N,P} <: AbstractVector{Values{N,Int}} end
-const immersion = ImmersedTopology
-
-top_id = 0
-
-struct SimplexManifold{N,P<:AbstractVector{Int}} <: ImmersedTopology{N,P}
-    id::Int
-    t::Vector{Values{N,Int}}
-    i::P
-    p::Int
-    SimplexManifold(t::Vector{Values{N,Int}},i::P=vertices(t),p::Int=length(i)) where {N,P} = new{N,P}((global top_id+=1),t,i,p)
-end
-
-SimplexManifold(t::Vector{Values{N,Int}},p::Int) where N = SimplexManifold(t,vertices(t),p)
-
-bundle(m::SimplexManifold) = m.id
-topology(m::SimplexManifold) = m.t
-vertices(m::SimplexManifold) = m.i
-
-Base.size(m::SimplexManifold) = size(topology(m))
-Base.length(m::SimplexManifold) = length(topology(m))
-Base.axes(m::SimplexManifold) = axes(topology(m))
-Base.getindex(m::SimplexManifold,i::Int) = getindex(topology(m),i)
-@pure Base.eltype(::Type{ImmersedTopology{N}}) where N = Values{N,Int}
-Grassmann.mdims(m::SimplexManifold{N}) where N = N
-
-_axes(t::SimplexManifold{N}) where N = (Base.OneTo(length(t)),Base.OneTo(N))
-
-# anything array-like gets summarized e.g. 10-element Array{Int64,1}
-Base.summary(io::IO, a::SimplexManifold) = Base.array_summary(io, a, _axes(a))
-
-iscover(x::ImmersedTopology) = length(vertices(x)) == x.p
-subsym(x) = iscover(x) ? "⊆" : "⊂"
-
-function Base.array_summary(io::IO, a::SimplexManifold, inds::Tuple{Vararg{OneTo}})
-    print(io, Base.dims2string(length.(inds)))
-    print(io, subsym(a), length(vertices(a)), " ")
-    Base.showarg(io, a, true)
-end
-
-# Global
-
-export Global
-
-struct Global{N,T} <: AbstractArray{T,N}
-    v::T
-    #n::NTuple{N,Int}
-    #Global{N}(v::T,n=(1,)) where {T,N} = new{N,T}(v,n)
-    Global{N}(v::T) where {T,N} = new{N,T}(v)
-end
-
-#Base.size(m::Global) = m.n
-Base.getindex(m::Global,i::Vararg{Int}) = m.v
-Base.getindex(t::Global,i::CartesianIndex) = m.v
-Base.resize!(t::Global,i) = t
-@pure Base.eltype(::Type{<:Global{T}}) where T = T
-
-Base.IndexStyle(::Global) = IndexCartesian()
-function Base.getindex(A::Global, I::Int)
-    Base.@_inline_meta
-    A.v
-end
-
-Base.show(io::IO,t::Global{N}) where N = print(io,"Global{$N}($(t.v))")
-Base.show(io::IO, ::MIME"text/plain", t::Global) = show(io,t)
-
-#metrictensor(c::AbstractArray{T,N} where T) where N = Global{N}(InducedMetric(),size(c))
-ref(itr::InducedMetric) = Ref(itr)
-ref(itr::Global) = Ref(itr.v)
-ref(itr) = itr
-
-# LocalFiber
-
-abstract type LocalFiber{B,F} <: Number end
-Base.@pure isfiber(::LocalFiber) = true
-Base.@pure isfiber(::Any) = false
-
-fiber(s) = s
-fibertype(s) = typeof(s)
-fibertype(::Type{T}) where T = T
-base(s::LocalFiber) = s.v.first
-fiber(s::LocalFiber) = s.v.second
-basepoint(s::LocalFiber) = point(base(s))
-basetype(::LocalFiber{B}) where B = B
-basepointtype(::LocalFiber{B}) where B = pointtype(B)
-fibertype(::LocalFiber{B,F} where B) where F = F
-basetype(::Type{<:LocalFiber{B}}) where B = B
-fibertype(::Type{<:LocalFiber{B,F} where B}) where F = F
-
-Base.getindex(s::LocalFiber) = s.v.first
-Base.getindex(s::LocalFiber,i::Int...) = getindex(s.v.second,i...)
-Base.getindex(s::LocalFiber,i::Integer...) = getindex(s.v.second,i...)
-
-function Base.show(io::IO, s::LocalFiber)
-    fibertype(s) <: InducedMetric && (return show(io, base(s)))
-    p = s.v
-    Base.isdelimited(io, p) && return show_pairtyped(io, s)
-    typeinfos = Base.gettypeinfos(io, p)
-    for i = (1, 2)
-        io_i = IOContext(io, :typeinfo => typeinfos[i])
-        Base.isdelimited(io_i, p[i]) || print(io, "(")
-        show(io_i, p[i])
-        Base.isdelimited(io_i, p[i]) || print(io, ")")
-        i == 1 && print(io, get(io, :compact, false)::Bool ? "↦" : " ↦ ")
-    end
-end
-
-function show_pairtyped(io::IO, s::LocalFiber{B,F}) where {B,F}
-    show(io, typeof(s))
-    show(io, (base(s), fiber(s)))
-end
-
-# Coordinate
-
-export Coordinate, point
-
-struct Coordinate{P,G} <: LocalFiber{P,G}
-    v::Pair{P,G}
-    Coordinate(v::Pair{P,G}) where {P,G} = new{P,G}(v)
-    Coordinate(p::P,g::G) where {P,G} = new{P,G}(p=>g)
-end
-
-point(c) = c
-point(c::Coordinate) = base(c)
-point(c::LocalFiber) = point(base(c))
-metrictensor(c) = InducedMetric()
-metrictensor(c::Coordinate) = fiber(c)
-
-Base.getindex(s::Coordinate,i::Int...) = getindex(s.v.first,i...)
-Base.getindex(s::Coordinate,i::Integer...) = getindex(s.v.first,i...)
-
-graph(s::LocalFiber{<:AbstractReal,<:AbstractReal}) = Chain(Real(base(s)),Real(fiber(s)))
-graph(s::LocalFiber{<:Chain,<:AbstractReal}) = Chain(value(base(s))...,Real(fiber(s)))
-graph(s::LocalFiber{<:Coordinate{<:AbstractReal},<:AbstractReal}) = Chain(Real(basepoint(s)),Real(fiber(s)))
-graph(s::LocalFiber{<:Coordinate{<:Chain},<:AbstractReal}) = Chain(value(basepoint(s))...,Real(fiber(s)))
-
-export Positions, Interval, RealSpace, ComplexSpace
-const Positions{P<:Chain,G} = AbstractVector{<:Coordinate{P,G}}
-const Interval{P<:AbstractReal,G} = AbstractVector{<:Coordinate{P,G}}
-#const RectanglePatch{P,G} = AbstractMatrix{<:Coordinate{P,G}}
-#const HyperrectanglePatch{P,G} = AbstractArray{<:Coordinate{P,G},3}
-const RealSpace{N,P<:Chain{V,1,<:Real} where V,G} = AbstractArray{<:Coordinate{P,G},N}
-const ComplexSpace{N,P<:Chain{V,1,<:Complex} where V,G} = AbstractArray{<:Coordinate{P,G},N}
-#const RectanglePatch{P,G} = RealSpace{2,P,G}
-#const HyperrectanglePatch{P,G} = RealSpace{3,P,G}
-
-# LocalSection
-
-struct LocalSection{B,F} <: LocalFiber{B,F}
-    v::Pair{B,F}
-    LocalSection(v::Pair{B,F}) where {B,F} = new{B,F}(v)
-    LocalSection(b::B,f::F) where {B,F} = new{B,F}(b=>f)
-    LocalSection(b::B,f::LocalSection{R,F} where R) where {B,F} = new{B,F}(b=>f.v.second)
-    LocalSection(b::LocalSection{B,R} where R,f::F) where {B,F} = new{B,F}(base(b)=>f)
-end
-
-# LocalTensor
-
-struct LocalTensor{B,F} <: LocalFiber{B,F}
-    v::Pair{B,F}
-    LocalTensor(v::Pair{B,F}) where {B,F} = new{B,F}(v)
-    LocalTensor(b::B,f::F) where {B,F} = new{B,F}(b=>f)
-    LocalTensor(b::B,f::LocalTensor{R,F} where R) where {B,F} = new{B,F}(b=>f.v.second)
-    LocalTensor(b::LocalTensor{B,R} where R,f::F) where {B,F} = new{B,F}(base(b)=>f)
-end
-
-export Section
-const Section = LocalTensor
-const ↦, domain, codomain = LocalTensor, base, fiber
-↤(F,B) = B ↦ F
-
-@inline Base.:<<(a::LocalFiber,b::LocalFiber) = contraction(b,~a)
-@inline Base.:>>(a::LocalFiber,b::LocalFiber) = contraction(~a,b)
-@inline Base.:<(a::LocalFiber,b::LocalFiber) = contraction(b,a)
-for type ∈ (:Coordinate,:LocalSection,:LocalTensor)
-    for tensor ∈ (:Single,:Couple,:PseudoCouple,:Chain,:Spinor,:AntiSpinor,:Multivector,:DiagonalOperator,:TensorOperator,:Outermorphism)
-        @eval (T::Type{<:$tensor})(s::$type) = $type(base(s), T(fiber(s)))
-    end
-    for fun ∈ (:-,:!,:~,:real,:imag,:conj,:deg2rad)
-        @eval Base.$fun(s::$type) = $type(base(s), $fun(fiber(s)))
-    end
-    for fun ∈ (:inv,:exp,:log,:sinh,:cosh,:abs,:sqrt,:cbrt,:cos,:sin,:tan,:cot,:sec,:csc,:asec,:acsc,:sech,:csch,:asech,:tanh,:coth,:asinh,:acosh,:atanh,:acoth,:asin,:acos,:atan,:acot,:sinc,:cosc,:abs2)
-        @eval Base.$fun(s::$type) = $type(base(s), $fun(fiber(s),metrictensor(base(s))))
-    end
-    for fun ∈ (:reverse,:involute,:clifford,:even,:odd,:scalar,:vector,:bivector,:volume,:value,:curl,:∂,:d,:complementleft,:realvalue,:imagvalue,:outermorphism)
-        @eval Grassmann.$fun(s::$type) = $type(base(s), $fun(fiber(s)))
-    end
-    for fun ∈ (:⋆,:angle,:radius,:complementlefthodge,:pseudoabs,:pseudoabs2,:pseudoexp,:pseudolog,:pseudoinv,:pseudosqrt,:pseudocbrt,:pseudocos,:pseudosin,:pseudotan,:pseudocosh,:pseudosinh,:pseudotanh,:metric)
-        @eval Grassmann.$fun(s::$type) = $type(base(s), $fun(fiber(s),metrictensor(base(s))))
-    end
-    for op ∈ (:+,:-,:&,:∧,:∨)
-        let bop = op ∈ (:∧,:∨) ? :(Grassmann.$op) : :(Base.$op)
-        @eval begin
-            $bop(a::$type{R},b::$type{R}) where R = $type(base(a),$op(fiber(a),fiber(b)))
-            $bop(a::Number,b::$type) = $type(base(b), $op(a,fiber(b)))
-            $bop(a::$type,b::Number) = $type(base(a), $op(fiber(a),b))
-        end end
-    end
-    for (op,mop) ∈ ((:*,:wedgedot_metric),(:wedgedot,:wedgedot_metric),(:veedot,:veedot_metric),(:⋅,:contraction_metric),(:>,:contraction_metric),(:⊘,:⊘),(:>>>,:>>>),(:/,:/),(:^,:^))
-        let bop = op ∈ (:*,:>,:>>>,:/,:^) ? :(Base.$op) : :(Grassmann.$op)
-        @eval begin
-            $bop(a::$type{R},b::$type{R}) where R = $type(base(a),Grassmann.$mop(fiber(a),fiber(b),metrictensor(base(a))))
-            $bop(a::Number,b::$type) = $type(base(b), Grassmann.$op(a,fiber(b)))
-            $bop(a::$type,b::Number) = $type(base(a), Grassmann.$op(fiber(a),b,$((op≠:^ ? () : (:(metrictensor(base(a))),))...)))
-        end end
-    end
-    @eval begin
-        $type(b,f::Function) = $type(b,f(b))
-        Grassmann.contraction(a::$type{R},b::$type{R}) where R = $type(base(a),Grassmann.contraction(fiber(a),fiber(b)))
-        LinearAlgebra.norm(s::$type) = $type(base(s), norm(fiber(s)))
-        LinearAlgebra.det(s::$type) = $type(base(s), det(fiber(s)))
-        (V::Submanifold)(s::$type) = $type(base(a), V(fiber(s)))
-        (::Type{T})(s::$type) where T<:Real = $type(base(s), T(fiber(s)))
-        (::Type{Complex})(s::$type) = $type(base(s), Complex(fiber(s)))
-        (::Type{Complex{T}})(s::$type) where T = $type(base(s), Complex{T}(fiber(s)))
-        Grassmann.Phasor(s::$type) = $type(base(s), Phasor(fiber(s)))
-        Grassmann.Couple(s::$type) = $type(base(s), Couple(fiber(s)))
-        (::Type{T})(s::$type...) where T<:Chain = @inbounds $type(base(s[1]), Chain(fiber.(s)...))
-    end
-end
-
-# PointCloud
-
-export PointCloud
-
-point_id = 0
-
-struct PointCloud{P,G,PA<:AbstractVector{P},GA<:AbstractVector{G}} <: AbstractVector{Coordinate{P,G}}
-    id::Int
-    dom::PA
-    cod::GA
-    PointCloud(id::Int,p::PA,g::GA) where {P,G,PA<:AbstractVector{P},GA<:AbstractVector{G}} = new{P,G,PA,GA}(id,p,g)
-end
-
-PointCloud(id::Int,dom) = PointCloud(id,dom,Global{1}(InducedMetric()))
-PointCloud(dom) = PointCloud(dom,Global{1}(InducedMetric()))
-
-points(m::PointCloud) = m.dom
-metrictensor(m::PointCloud) = m.cod
-pointtype(m::PointCloud{P}) where P = P
-pointtype(m::Type{<:PointCloud{P}}) where P = P
-metrictype(::PointCloud{P,G} where P) where G = G
-metrictype(::Type{<:PointCloud{P,G} where P}) where G = G
-
-Base.size(m::PointCloud) = size(m.dom)
-Base.resize!(m::PointCloud,i) = (resize!(points(m),i),resize!(metrictensor(m),i))
-Base.broadcast(f,t::PointCloud) = PointCloud(f.(points(t)),f.(metrictensor(t)))
-
-@pure Grassmann.Manifold(m::PointCloud) = Manifold(points(m))
-@pure LinearAlgebra.rank(m::PointCloud) = rank(points(m))
-@pure Grassmann.grade(m::PointCloud) = grade(points(m))
-@pure Grassmann.antigrade(m::PointCloud) = antigrade(points(m))
-@pure Grassmann.mdims(m::PointCloud) = mdims(points(m))
-
-const point_cache = (Vector{Chain{V,G,T,X}} where {V,G,T,X})[]
-const point_metric_cache = (AbstractVector{T} where T)[]
-
-PointCloud(m::Int) = PointCloud(m,point_cache[m],point_metric_cache[m])
-function PointCloud(p::P,g::G) where {P<:AbstractVector,G<:AbstractVector}
-    push!(point_cache,p)
-    push!(point_metric_cache,g)
-    PointCloud(length(point_cache),p,g)
-end
-function clearpointcache!()
-    for P ∈ 1:length(point_cache)
-        deletebundle!(P)
-    end
-end
-bundle(m::PointCloud) = m.id
-deletebundle!(m::PointCloud) = deletepointcloud!(bundle(m))
-function deletepointcloud!(P::Int)
-    point_cache[P] = [Chain{ℝ^0,0,Int}(Values(0))]
-    point_metric_cache[P] = [Chain{ℝ^0,0,Int}(Values(0))]
-    nothing
-end
-
-Base.firstindex(m::PointCloud) = 1
-Base.lastindex(m::PointCloud) = length(points(m))
-Base.length(m::PointCloud) = length(points(m))
-Base.resize!(m::PointCloud,n::Int) = (resize!(points(m),n),resize!(metrictensor(m),n))
-
-# GlobalFiber
-
-abstract type GlobalFiber{E,N} <: AbstractArray{E,N} end
-Base.@pure isfiberbundle(::GlobalFiber) = true
-Base.@pure isfiberbundle(::Any) = false
-
-base(t::GlobalFiber) = t.dom
-fiber(t::GlobalFiber) = t.cod
-base(t::Array) = ProductSpace(Values(axes(t)))
-fiber(t::Array) = t
-basetype(::Array{T}) where T = T
-fibertype(::Array{T}) where T = T
-
-topology(m::GlobalFiber) = topology(immersion(m))
-vertices(m::GlobalFiber) = vertices(immersion(m))
-iscover(m::GlobalFiber) = iscover(immersion(m))
-imagepoints(m::GlobalFiber) = iscover(m) ? points(m) : points(m)[vertices(m)]
-
-unitdomain(t::GlobalFiber) = base(t)*inv(base(t)[end])
-arcdomain(t::GlobalFiber) = unitdomain(t)*arclength(codomain(t))
-graph(t::GlobalFiber) = graph.(t)
-
-Base.size(m::GlobalFiber) = size(m.cod)
-Base.resize!(m::GlobalFiber,i) = (resize!(domain(m),i),resize!(codomain(m),i))
-
-# AbstractFrameBundle
-
-export AbstractFrameBundle, GridFrameBundle, SimplexFrameBundle, FacetFrameBundle
-export IntervalRange, AlignedRegion, AlignedSpace
-
-abstract type AbstractFrameBundle{M,N} <: GlobalFiber{M,N} end
-
-Base.size(m::AbstractFrameBundle) = size(points(m))
-
-@pure Grassmann.Manifold(m::AbstractFrameBundle) = Manifold(points(m))
-@pure LinearAlgebra.rank(m::AbstractFrameBundle) = rank(points(m))
-@pure Grassmann.grade(m::AbstractFrameBundle) = grade(points(m))
-@pure Grassmann.antigrade(m::AbstractFrameBundle) = antigrade(points(m))
-@pure Grassmann.mdims(m::AbstractFrameBundle) = mdims(points(m))
-
-# GridFrameBundle
-
-grid_id = 0
-
-struct GridFrameBundle{P,G,N,PA<:AbstractArray{P,N},GA<:AbstractArray{G,N}} <: AbstractFrameBundle{Coordinate{P,G},N}
-    id::Int
-    dom::PA
-    cod::GA
-    GridFrameBundle(id::Int,p::PA,g::GA) where {P,G,N,PA<:AbstractArray{P,N},GA<:AbstractArray{G,N}} = new{P,G,N,PA,GA}(id,p,g)
-    GridFrameBundle(p::PA,g::GA) where {P,G,N,PA<:AbstractArray{P,N},GA<:AbstractArray{G,N}} = new{P,G,N,PA,GA}((global grid_id+=1),p,g)
-end
-
-const IntervalRange{P<:Real,G,PA<:AbstractRange,GA} = GridFrameBundle{P,G,1,PA,GA}
-const AlignedRegion{N,P<:Chain,G<:InducedMetric,PA<:RealRegion{V,<:Real,N,<:AbstractRange} where V,GA<:Global} = GridFrameBundle{P,G,N,PA,GA}
-const AlignedSpace{N,P<:Chain,G<:InducedMetric,PA<:RealRegion{V,<:Real,N,<:AbstractRange} where V,GA} = GridFrameBundle{P,G,N,PA,GA}
-
-GridFrameBundle(id::Int,p::PA) where {N,P,PA<:AbstractArray{P,N}} = GridFrameBundle(id,p,Global{N}(InducedMetric()))
-GridFrameBundle(p::PA) where {N,P,PA<:AbstractArray{P,N}} = GridFrameBundle(p,Global{N}(InducedMetric()))
-GridFrameBundle(dom::GridFrameBundle,fun) = GridFrameBundle(base(dom), fun)
-GridFrameBundle(dom::GridFrameBundle,fun::Array) = GridFrameBundle(base(dom), fun)
-GridFrameBundle(dom::GridFrameBundle,fun::Function) = GridFrameBundle(base(dom), fun)
-GridFrameBundle(dom::AbstractArray,fun::Function) = GridFrameBundle(dom, fun.(dom))
-
-points(m::GridFrameBundle) = m.dom
-metrictensor(m::GridFrameBundle) = m.cod
-coordinates(t::GridFrameBundle) = t
-pointtype(m::GridFrameBundle) = basetype(m)
-pointtype(m::Type{<:GridFrameBundle}) = basetype(m)
-metrictype(m::GridFrameBundle) = fibertype(m)
-metrictype(m::Type{<:GridFrameBundle}) = fibertype(m)
-basetype(::GridFrameBundle{B}) where B = B
-basetype(::Type{<:GridFrameBundle{B}}) where B = B
-fibertype(::GridFrameBundle{B,F} where B) where F = F
-fibertype(::Type{<:GridFrameBundle{B,F} where B}) where F = F
-
-Base.resize!(m::GridFrameBundle,i) = (resize!(points(m),i),resize!(metrictensor(m),i))
-Base.broadcast(f,t::GridFrameBundle) = GridFrameBundle(f.(points(t)),f.(metrictensor(t)))
-
-# SimplexFrameBundle
-
-struct SimplexFrameBundle{P,G,PA<:AbstractVector{P},GA<:AbstractVector{G},TA<:ImmersedTopology} <: AbstractFrameBundle{Coordinate{P,G},1}
-    p::PointCloud{P,G,PA,GA}
-    t::TA
-    SimplexFrameBundle(p::PointCloud{P,G,PA,GA},t::T) where {P,G,PA,GA,T} = new{P,G,PA,GA,T}(p,t)
-end
-
-SimplexFrameBundle(id::Int,p,t,g) = SimplexFrameBundle(PointCloud(id,p,g),t)
-SimplexFrameBundle(id::Int,p,t) = SimplexFrameBundle(PointCloud(id,p),t)
-#SimplexFrameBundle(p::AbstractVector,t) = SimplexFrameBundle(PointCloud(p),t)
-
-(p::PointCloud)(t::ImmersedTopology) = length(p)≠length(t) ? SimplexFrameBundle(p,t) : FacetFrameBundle(p,t)
-PointCloud(m::SimplexFrameBundle) = m.p
-ImmersedTopology(m::SimplexFrameBundle) = m.t
-coordinates(t::SimplexFrameBundle) = t
-points(m::SimplexFrameBundle) = points(PointCloud(m))
-metrictensor(m::SimplexFrameBundle) = metrictensor(PointCloud(m))
-pointtype(m::SimplexFrameBundle) = basetype(m)
-pointtype(m::Type{<:SimplexFrameBundle}) = basetype(m)
-metrictype(m::SimplexFrameBundle) = fibertype(m)
-metrictype(m::Type{<:SimplexFrameBundle}) = fibertype(m)
-basetype(::SimplexFrameBundle{P}) where P = pointtype(P)
-basetype(::Type{<:SimplexFrameBundle{P}}) where P = pointtype(P)
-fibertype(::SimplexFrameBundle{P}) where P = metrictype(P)
-fibertype(::Type{<:SimplexFrameBundle{P}}) where P = metrictype(P)
-Base.size(m::SimplexFrameBundle) = size(vertices(m))
-
-Base.broadcast(f,t::SimplexFrameBundle) = SimplexFrameBundle(f.(PointCloud(t)),ImmersedTopology(t))
-
-struct FacetFrameBundle{P,G,PA,GA,TA<:ImmersedTopology} <: AbstractFrameBundle{Coordinate{P,G},1}
-    id::Int
-    p::PointCloud{P,G,PA,GA}
-    t::TA
-    FacetFrameBundle(id::Int,p::PointCloud{P,G,PA,GA},t::T) where {P,G,PA,GA,T} = new{P,G,PA,GA,T}(id,p,t)
-end
-
-#FacetFrameBundle(id::Int,p,t,g) = FacetFrameBundle(PointCloud(id,p,g),t)
-#FacetFrameBundle(id::Int,p,t) = FacetFrameBundle(PointCloud(id,p),t)
-#FacetFrameBundle(p::AbstractVector,t) = FacetFrameBundle(PointCloud(p),t)
-
-PointCloud(m::FacetFrameBundle) = m.p
-ImmersedTopology(m::FacetFrameBundle) = m.t
-coordinates(t::FacetFrameBundle) = t
-points(m::FacetFrameBundle) = points(PointCloud(m))
-metrictensor(m::FacetFrameBundle) = metrictensor(PointCloud(m))
-pointtype(m::FacetFrameBundle) = basetype(m)
-pointtype(m::Type{<:FacetFrameBundle}) = basetype(m)
-metrictype(m::FacetFrameBundle) = fibertype(m)
-metrictype(m::Type{<:FacetFrameBundle}) = fibertype(m)
-basetype(::FacetFrameBundle{P}) where P = pointtype(P)
-basetype(::Type{<:FacetFrameBundle{P}}) where P = pointtype(P)
-fibertype(::FacetFrameBundle{P}) where P = metrictype(P)
-fibertype(::Type{<:FacetFrameBundle{P}}) where P = metrictype(P)
-
-Base.broadcast(f,t::FacetFrameBundle) = FacetFrameBundle(0,f.(PointCloud(t)),ImmersedTopology(t))
-
-function SimplexFrameBundle(p::P,t,g::G) where {P<:AbstractVector,G<:AbstractVector}
-    SimplexFrameBundle(PointCloud(p,g),t)
-end
-function SimplexFrameBundle(m::FacetFrameBundle)
-    SimplexFrameBundle(PointCloud(m.id,point_cache[m.id],point_metric_cache[m.id]),ImmersedTopology(m))
-end
-function FacetFrameBundle(m::SimplexFrameBundle)
-    et = topology(ImmersedTopology(m))
-    FacetFrameBundle(m.id,PointCloud(0,barycenter.(m[et]),barycenter.(getindex.(Ref(metrictensor(m)),et))),ImmersedTopology(m))
-end
-
-bundle(m::SimplexFrameBundle) = m.id
-bundle(m::FacetFrameBundle) = m.id
-deletebundle!(m::SimplexFrameBundle) = deletepointcloud!(bundle(m))
-deletebundle!(m::FacetFrameBundle) = deletepointcloud!(bundle(m))
-@pure isbundle(::AbstractFrameBundle) = true
-@pure isbundle(t) = false
-#@pure ispoints(t::Submanifold{V}) where V = isbundle(V) && rank(V) == 1 && !isbundle(Manifold(V))
-#@pure ispoints(t) = isbundle(t) && rank(t) == 1 && !isbundle(Manifold(t))
-#@pure islocal(t) = isbundle(t) && rank(t)==1 && valuetype(t)==Int && ispoints(Manifold(t))
-#@pure iscell(t) = isbundle(t) && islocal(Manifold(t))
-
-Base.firstindex(m::SimplexFrameBundle) = 1
-Base.lastindex(m::SimplexFrameBundle) = length(vertices(m))
-Base.length(m::SimplexFrameBundle) = length(vertices(m))
-#Base.resize!(m::SimplexFrameBundle,n::Int) = resize!(value(m),n)
+export alteration, variation
 
 # GlobalSection
 
@@ -582,6 +81,7 @@ const IntervalMap{B,F,P<:Interval} = TensorField{B,F,1,P}
 const RectangleMap{B,F,P<:RealSpace{2}} = TensorField{B,F,2,P}
 const HyperrectangleMap{B,F,P<:RealSpace{3}} = TensorField{B,F,3,P}
 const ParametricMap{B,F,N,P<:RealSpace} = TensorField{B,F,N,P}
+const Variation{B,F<:TensorField,N,P} = TensorField{B,F,N,P}
 const RealFunction{B,F<:AbstractReal,P<:Interval} = TensorField{B,F,1,P}
 const PlaneCurve{B,F<:Chain{V,G,Q,2} where {V,G,Q},P<:Interval} = TensorField{B,F,1,P}
 const SpaceCurve{B,F<:Chain{V,G,Q,3} where {V,G,Q},P<:Interval} = TensorField{B,F,1,P}
@@ -660,66 +160,6 @@ fibertype(::Type{<:TensorField{B,F} where B}) where F = F
 PointCloud(t::TensorField) = PointCloud(base(t))
 Grassmann.grade(::GradedField{G}) where G = G
 
-@pure Base.eltype(::Type{<:GridFrameBundle{P,G}}) where {P,G} = Coordinate{P,G}
-Base.getindex(m::GridFrameBundle,i::Vararg{Int}) = Coordinate(getindex(points(m),i...), getindex(metrictensor(m),i...))
-Base.setindex!(m::GridFrameBundle{P},s::P,i::Vararg{Int}) where P = setindex!(points(m),s,i...)
-Base.setindex!(m::GridFrameBundle{P,G} where P,s::G,i::Vararg{Int}) where G = setindex!(metrictensor(m),s,i...)
-function Base.setindex!(m::GridFrameBundle,s::Coordinate,i::Vararg{Int})
-    setindex!(points(m),point(s),i...)
-    setindex!(metrictensor(m),metrictensor(s),i...)
-    return s
-end
-
-(m::SimplexFrameBundle)(i::ImmersedTopology) = SimplexFrameBundle(bundle(m),points(m),i,metrictensor(m))
-Base.getindex(m::SimplexFrameBundle,i::Chain{V,1}) where V = Chain{Manifold(V),1}(points(m)[value(i)])
-Base.getindex(m::SimplexFrameBundle,i::Values{N,Int}) where N = points(m)[value(i)]
-getindex(m::AbstractVector,i::ImmersedTopology) = getindex.(Ref(m),topology(i))
-getindex(m::AbstractVector,i::SimplexFrameBundle) = m[immersion(i)]
-getindex(m::SimplexFrameBundle,i::ImmersedTopology) = points(m)[i]
-getindex(m::SimplexFrameBundle,i::SimplexFrameBundle) = points(m)[immersion(i)]
-
-getimage(m,i) = iscover(m) ? i : getindex(vertices(m),i)
-
-@pure Base.eltype(::Type{<:PointCloud{P,G}}) where {P,G} = Coordinate{P,G}
-function Base.getindex(m::PointCloud,i::Int)
-    Coordinate(getindex(points(m),i), getindex(metrictensor(m),i))
-end
-Base.setindex!(m::PointCloud{P},s::P,i::Int) where P = setindex!(points(m),s,i)
-Base.setindex!(m::PointCloud{P,G} where P,s::G,i::Int) where G = setindex!(metrictensor(m),s,i)
-function Base.setindex!(m::PointCloud,s::Coordinate,i::Int)
-    setindex!(points(m),point(s),i)
-    setindex!(metrictensor(m),metrictensor(s),i)
-    return s
-end
-
-@pure Base.eltype(::Type{<:SimplexFrameBundle{P,G}}) where {P,G} = Coordinate{P,G}
-function Base.getindex(m::SimplexFrameBundle,i::Int)
-    ind = getimage(m,i)
-    Coordinate(getindex(points(m),ind), getindex(metrictensor(m),ind))
-end
-Base.setindex!(m::SimplexFrameBundle{P},s::P,i::Int) where P = setindex!(points(m),s,getimage(m,i))
-Base.setindex!(m::SimplexFrameBundle{P,G} where P,s::G,i::Int) where G = setindex!(metrictensor(m),s,getimage(m,i))
-function Base.setindex!(m::SimplexFrameBundle,s::Coordinate,i::Int)
-    ind = getimage(m,i)
-    setindex!(points(m),point(s),ind)
-    setindex!(metrictensor(m),metrictensor(s),ind)
-    return s
-end
-
-@pure Base.eltype(::Type{<:FacetFrameBundle{P,G}}) where {P,G} = Coordinate{P,G}
-function Base.getindex(m::FacetFrameBundle,i::Int)
-    ind = getimage(m,i)
-    Coordinate(getindex(points(m),ind), getindex(metrictensor(m),ind))
-end
-Base.setindex!(m::FacetFrameBundle{P},s::P,i::Int) where P = setindex!(points(m),s,getimage(m,i))
-Base.setindex!(m::FacetFrameBundle{P,G} where P,s::G,i::Int) where G = setindex!(metrictensor(m),s,getimage(m,i))
-function Base.setindex!(m::FacetFrameBundle,s::Coordinate,i::Int)
-    ind = getimage(m,i)
-    setindex!(points(m),point(s),ind)
-    setindex!(metrictensor(m),metrictensor(s),ind)
-    return s
-end
-
 @pure Base.eltype(::Type{<:TensorField{B,F}}) where {B,F} = LocalTensor{B,F}
 Base.getindex(m::TensorField,i::Vararg{Int}) = LocalTensor(getindex(domain(m),i...), getindex(codomain(m),i...))
 #Base.setindex!(m::TensorField{B,F,1,<:Interval},s::LocalTensor,i::Vararg{Int}) where {B,F} = setindex!(codomain(m),fiber(s),i...)
@@ -745,20 +185,9 @@ function Base.setindex!(m::GlobalSection,s::LocalSection,i::Vararg{Int})
     return s
 end
 
-Base.BroadcastStyle(::Type{<:GridFrameBundle{P,G,N,PA,GA}}) where {P,G,N,PA,GA} = Broadcast.ArrayStyle{GridFrameBundle{P,G,N,PA,GA}}()
 Base.BroadcastStyle(::Type{<:TensorField{B,F,N,P}}) where {B,F,N,P} = Broadcast.ArrayStyle{TensorField{B,F,N,P}}()
 Base.BroadcastStyle(::Type{<:GlobalSection{B,F,N,BA,FA}}) where {B,F,N,BA,FA} = Broadcast.ArrayStyle{TensorField{B,F,N,BA,FA}}()
 
-function Base.similar(bc::Broadcast.Broadcasted{Broadcast.ArrayStyle{GridFrameBundle{P,G,N,PA,GA}}}, ::Type{ElType}) where {P,G,N,PA,GA,ElType<:Coordinate}
-    ax = axes(bc)
-    # Use the data type to create the output
-    GridFrameBundle(similar(Array{pointtype(ElType),N}, ax), similar(Array{metrictype(ElType),N}, ax))
-end
-function Base.similar(bc::Broadcast.Broadcasted{Broadcast.ArrayStyle{GridFrameBundle{P,G,N,PA,GA}}}, ::Type{ElType}) where {P,G,N,PA,GA,ElType}
-    t = find_gf(bc)
-    # Use the data type to create the output
-    GridFrameBundle(similar(Array{ElType,N}, axes(bc)), metrictensor(t))
-end
 function Base.similar(bc::Broadcast.Broadcasted{Broadcast.ArrayStyle{TensorField{B,F,N,P}}}, ::Type{ElType}) where {B,F,N,P,ElType}
     # Scan the inputs for the TensorField:
     t = find_tf(bc)
@@ -771,15 +200,6 @@ function Base.similar(bc::Broadcast.Broadcasted{Broadcast.ArrayStyle{GlobalSecti
     # Use the domain field of t to create the output
     GlobalSection(domain(t), similar(Array{fibertype(ElType),N}, axes(bc)))
 end
-
-"`A = find_gf(As)` returns the first GridFrameBundle among the arguments."
-find_gf(bc::Base.Broadcast.Broadcasted) = find_gf(bc.args)
-find_gf(bc::Base.Broadcast.Extruded) = find_gf(bc.x)
-find_gf(args::Tuple) = find_gf(find_gf(args[1]), Base.tail(args))
-find_gf(x) = x
-find_gf(::Tuple{}) = nothing
-find_gf(a::GridFrameBundle, rest) = a
-find_gf(::Any, rest) = find_gf(rest)
 
 "`A = find_tf(As)` returns the first TensorField among the arguments."
 find_tf(bc::Base.Broadcast.Broadcasted) = find_tf(bc.args)
@@ -826,6 +246,21 @@ function parametric(t,m,d=diff(codomain(m))./diff(domain(m)))
     i = searchsortedfirst(p,t)-1
     codomain(m)[i]+(t-p[i])*d[i]
 end
+
+(m::RectangleMap)(i::Int,j::Int=1) = TensorField(points(m).v[j],isone(j) ? m.cod[:,i] : m.cod[i,:])
+function (m::RectangleMap)(t::AbstractFloat,j::Int=1)
+    k = isone(j) ? 2 : 1; p = points(m).v[k]
+    i = searchsortedfirst(p,t)-1
+    TensorField(points(m).v[j],linterp(t,p[i],p[i+1],isone(j) ? m.cod[:,i] : m.cod[i,:],isone(j) ? m.cod[:,i+1] : m.cod[i+1,:]))
+end
+
+(m::TensorField{B,F,2,<:FiberProductBundle} where {B,F})(i::Int) = TensorField(base(base(m)),fiber(m)[:,i])
+function (m::TensorField{B,F,2,<:FiberProductBundle} where {B,F})(t::AbstractFloat)
+    k = 2; p = base(m).cod.v[1]
+    i = searchsortedfirst(p,t)-1
+    TensorField(base(base(m)),linterp(t,p[i],p[i+1],m.cod[:,i],m.cod[:,i+1]))
+end
+
 
 (m::TensorField)(t::TensorField) = TensorField(base(t),m.(fiber(t)))
 (m::GridFrameBundle)(t::TensorField) = GridFrameBundle(base(t),TensorField(base(m),fiber(m)).(fiber(t)))
@@ -938,9 +373,81 @@ Grassmann.Couple(s::TensorField) = TensorField(domain(s), Couple(codomain(s)))
 
 checkdomain(a::GlobalFiber,b::GlobalFiber) = domain(a)≠domain(b) ? error("GlobalFiber base not equal") : true
 
+Variation(dom,cod::TensorField) = TensorField(dom,cod.(dom))
+function Variation(cod::TensorField); p = points(cod).v[end]
+    TensorField(p,cod.(1:length(p)))
+end
+function Variation(cod::TensorField{B,F,2,<:FiberProductBundle} where {B,F})
+    p = base(cod).cdo.v[1]
+    TensorField(p,cod.(1:length(p)))
+end
+
+alteration(dom,cod::TensorField) = TensorField(dom,cod.(dom))
+function alteration(cod::TensorField); p = points(cod).v[1]
+    TensorField(p,cod.(1:length(p),2))
+end
+
 include("diffgeo.jl")
 include("constants.jl")
 include("element.jl")
+
+variation(v::TensorField,fun::Function,args...) = variation(v,0.0,fun,args...)
+variation(v::TensorField,fun::Function,fun!::Function,args...) = variation(v,0.0,fun,fun!,args...)
+function variation(v::Variation,t,fun::Function,args...)
+    for i ∈ 1:length(v)
+        display(fun(v.cod[i],args...))
+        sleep(t)
+    end
+end
+function variation(v::Variation,t,fun::Function,fun!::Function,args...)
+    display(fun(v.cod[1],args...))
+    for i ∈ 2:length(v)
+        fun!(v.cod[i],args...)
+        sleep(t)
+    end
+end
+function variation(v::TensorField,t,fun::Function,args...)
+    for i ∈ 1:length(points(v).v[2])
+        display(fun(v(i),args...))
+        sleep(t)
+    end
+end
+function variation(v::TensorField,t,fun::Function,fun!::Function,args...)
+    display(fun(v(1),args...))
+    for i ∈ 2:length(points(v).v[2])
+        fun!(v(i),args...)
+        sleep(t)
+    end
+end
+function variation(v::TensorField{B,F,2,<:FiberProductBundle} where {B,F},t,fun::Function,args...)
+    for i ∈ 1:length(base(v).cod.v[1])
+        display(fun(v(i),args...))
+        sleep(t)
+    end
+end
+function variation(v::TensorField{B,F,2,<:FiberProductBundle} where {B,F},t,fun::Function,fun!::Function,args...)
+    display(fun(v(1),args...))
+    for i ∈ 2:length(base(v).cod.v[1])
+        fun!(v(i),args...)
+        sleep(t)
+    end
+end
+
+alteration(v::TensorField,fun::Function,args...) = alteration(v,0.0,fun,args...)
+alteration(v::TensorField,fun::Function,fun!::Function,args...) = alteration(v,0.0,fun,fun!,args...)
+function alteration(v::TensorField,t,fun::Function,args...)
+    for i ∈ 1:length(points(v).v[1])
+        display(fun(v(i,2),args...))
+        sleep(t)
+    end
+end
+function alteration(v::TensorField,t,fun::Function,fun!::Function,args...)
+    display(fun(v(1,2),args...))
+    for i ∈ 2:length(points(v).v[1])
+        fun!(v(i,2),args...)
+        sleep(t)
+    end
+end
 
 function __init__()
     @require Makie="ee78f7c6-11fb-53f2-987a-cfe4a2b5a57a" begin
@@ -1095,8 +602,16 @@ function __init__()
         for fun ∈ (:mesh,:mesh!,:wireframe,:wireframe!)
             @eval Makie.$fun(M::GridFrameBundle;args...) = Makie.$fun(GeometryBasics.Mesh(M);args...)
         end
-        Makie.mesh(M::TensorField{B,F,2,<:GridFrameBundle} where {B,F};args...) = Makie.mesh(GeometryBasics.Mesh(base(M));color=fiber(M)[:],args...)
-        Makie.mesh!(M::TensorField{B,F,2,<:GridFrameBundle} where {B,F};args...) = Makie.mesh!(GeometryBasics.Mesh(base(M));color=fiber(M)[:],args...)
+        function Makie.mesh(M::TensorField{B,F,2,<:GridFrameBundle} where {B,F};args...)
+            variation(M,Makie.lines,Makie.lines!)
+            alteration(M,Makie.lines!,Makie.lines!)
+            #Makie.mesh(GeometryBasics.Mesh(base(M));color=fiber(M)[:],args...)
+        end
+        function Makie.mesh!(M::TensorField{B,F,2,<:GridFrameBundle} where {B,F};args...)
+            variation(M,Makie.lines!,Makie.lines!)
+            alteration(M,Makie.lines!,Makie.lines!)
+            #Makie.mesh!(GeometryBasics.Mesh(base(M));color=fiber(M)[:],args...)
+        end
         function Makie.mesh(M::SimplexFrameBundle;args...)
             if mdims(points(M)) == 2
                 sm = submesh(M)[:,1]
@@ -1147,7 +662,7 @@ function __init__()
         end
         function initmesh(m::GeometryBasics.Mesh)
             c,f = GeometryBasics.coordinates(m),GeometryBasics.faces(m)
-            s = size(eltype(c))[1]+1; V = Submanifold(ℝ^s) # s
+            s = size(eltype(c))[1]+1; V = varmanifold(s) # s
             n = size(eltype(f))[1]
             p = [Chain{V,1}(Values{s,Float64}(1.0,k...)) for k ∈ c]
             M = s ≠ n ? p(list(s-n+1,s)) : p
