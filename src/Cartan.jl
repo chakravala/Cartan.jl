@@ -73,6 +73,7 @@ TensorField(id::Int,dom,cod::Array,met::GlobalFiber) = TensorField(id,dom,cod,fi
 TensorField(dom::AbstractFrameBundle,cod::AbstractFrameBundle) = TensorField(dom,points(cod))
 TensorField(dom::AbstractArray{B,N} where B,cod::Array{F,N} where F,met::AbstractArray=Global{N}(InducedMetric())) where N = TensorField((global grid_id+=1),dom,cod,fiber(met))
 TensorField(dom::ChainBundle,cod::Vector,met::AbstractVector=Global{1}(InducedMetric())) = TensorField((global grid_id+=1),dom,cod,met)
+TensorField(a::TensorField,b::TensorField) = TensorField(fiber(a),fiber(b))
 
 #const ParametricMesh{B,F,P<:AbstractVector{<:Chain}} = TensorField{B,F,1,P}
 const ScalarMap{B,F<:AbstractReal,P<:SimplexFrameBundle} = TensorField{B,F,1,P}
@@ -465,16 +466,16 @@ function __init__()
         #Makie.lines(t::TensorField{B,F,1};args...) where {B<:Coordinate{<:AbstractReal},F<:AbstractReal} = linegraph(t;args...)
         #Makie.lines!(t::TensorField{B,F,1};args...) where {B<:Coordinate{<:AbstractReal},F<:AbstractReal} = linegraph(t;args...)
         function linegraph(t::GradedField{G,B,F,1} where G;args...) where {B<:Coordinate{<:AbstractReal},F}
-            x,y = Real.(domain(t)),value.(codomain(t))
+            x,y = Real.(points(t)),value.(codomain(t))
             display(Makie.lines(x,Real.(getindex.(y,1));args...))
-            for i ∈ 2:binomial(mdims(codomain(t)),G)
+            for i ∈ 2:binomial(mdims(codomain(t)),grade(t))
                 Makie.lines!(x,Real.(getindex.(y,i));args...)
             end
         end
         function linegraph!(t::GradedField{G,B,F,1} where G;args...) where {B<:Coordinate{<:AbstractReal},F}
-            x,y = Real.(domain(t)),value.(codomain(t))
+            x,y = Real.(points(t)),value.(codomain(t))
             display(Makie.lines!(x,Real.(getindex.(y,1));args...))
-            for i ∈ 2:binomial(mdims(codomain(t)),G)
+            for i ∈ 2:binomial(mdims(codomain(t)),grade(t))
                 Makie.lines!(x,Real.(getindex.(y,i));args...)
             end
         end
@@ -489,6 +490,12 @@ function __init__()
             for i ∈ 2:mdims(eltype(codomain(t)))
                 Makie.lines!(getindex.(t,i);args...)
             end
+        end
+        function Makie.arrows(M::VectorField,t::TensorField{B,<:Endomorphism,N,<:GridFrameBundle} where B;args...) where N
+            Makie.arrows(TensorField(fiber(M),fiber(t));args...)
+        end
+        function Makie.arrows!(M::VectorField,t::TensorField{B,<:Endomorphism,N,<:GridFrameBundle} where B;args...) where N
+            Makie.arrows!(TensorField(fiber(M),fiber(t)))
         end
         function Makie.arrows(t::TensorField{<:Coordinate{<:Chain},<:Endomorphism,N,<:GridFrameBundle};args...) where N
             display(Makie.arrows(getindex.(t,1);args...))
@@ -514,9 +521,9 @@ function __init__()
                 Makie.arrows!(getindex.(t,i);args...)
             end
         end
-        Makie.volume(t::VolumeGrid;args...) = Makie.volume(domain(t).v...,Real.(codomain(t));args...)
-        Makie.volume!(t::VolumeGrid;args...) = Makie.volume!(domain(t).v...,Real.(codomain(t));args...)
-        Makie.volumeslices(t::VolumeGrid;args...) = Makie.volumeslices(domain(t).v...,Real.(codomain(t));args...)
+        Makie.volume(t::VolumeGrid;args...) = Makie.volume(points(t).v...,Real.(codomain(t));args...)
+        Makie.volume!(t::VolumeGrid;args...) = Makie.volume!(points(t).v...,Real.(codomain(t));args...)
+        Makie.volumeslices(t::VolumeGrid;args...) = Makie.volumeslices(points(t).v...,Real.(codomain(t));args...)
         for fun ∈ (:surface,:surface!)
             @eval begin
                 Makie.$fun(t::SurfaceGrid;args...) = Makie.$fun(points(t).v...,Real.(codomain(t));color=Real.(abs.(codomain(gradient_fast(Real(t))))),args...)
@@ -534,15 +541,15 @@ function __init__()
         end
         for fun ∈ (:contour,:contour!,:contourf,:contourf!,:contour3d,:contour3d!,:wireframe,:wireframe!)
             @eval begin
-                Makie.$fun(t::ComplexMap{B,F,2,<:RealSpace{2}} where {B,F};args...) = Makie.$fun(domain(t).v...,Real.(radius.(codomain(t)));args...)
+                Makie.$fun(t::ComplexMap{B,F,2,<:RealSpace{2}} where {B,F};args...) = Makie.$fun(points(t).v...,Real.(radius.(codomain(t)));args...)
             end
         end
         for fun ∈ (:heatmap,:heatmap!)
             @eval begin
-                Makie.$fun(t::ComplexMap{B,F,2,<:RealSpace{2}} where {B,F};args...) = Makie.$fun(domain(t).v...,Real.(angle.(codomain(t)));colormap=:twilight,args...)
+                Makie.$fun(t::ComplexMap{B,F,2,<:RealSpace{2}} where {B,F};args...) = Makie.$fun(points(t).v...,Real.(angle.(codomain(t)));colormap=:twilight,args...)
             end
         end
-        for fun ∈ (:contour,:contour!,:contourf,:contourf!,:contour3d,:contour3d!,:heatmap,:heatmap!,:wireframe,:wireframe!)
+        for fun ∈ (:contour,:contour!,:contourf,:contourf!,:contour3d,:contour3d!,:heatmap,:heatmap!)
             @eval begin
                 Makie.$fun(t::SurfaceGrid;args...) = Makie.$fun(points(t).v...,Real.(codomain(t));args...)
                 function Makie.$fun(t::GradedField{G,B,F,2,<:RealSpace{2}} where G;args...) where {B,F}
@@ -554,6 +561,8 @@ function __init__()
                 end
             end
         end
+        Makie.wireframe(t::SurfaceGrid;args...) = Makie.wireframe(graph(t);args...)
+        Makie.wireframe!(t::SurfaceGrid;args...) = Makie.wireframe!(graph(t);args...)
         for fun ∈ (:streamplot,:streamplot!)
             @eval begin
                 Makie.$fun(f::Function,t::Rectangle;args...) = Makie.$fun(f,t.v...;args...)
@@ -567,9 +576,10 @@ function __init__()
         for fun ∈ (:arrows,:arrows!)
             @eval begin
                 Makie.$fun(t::ScalarField{<:Coordinate{<:Chain},F,2,<:RealSpace{2}} where F;args...) = Makie.$fun(Makie.Point.(fiber(graph(Real(t))))[:],Makie.Point.(fiber(normal(Real(t))))[:];args...)
-                Makie.$fun(t::VectorField{<:Coordinate{<:Chain},<:Chain{V,G,T,2} where {V,G,T},2,<:AlignedRegion{2}};args...) = Makie.$fun(domain(t).v...,getindex.(codomain(t),1),getindex.(codomain(t),2);args...)
+                Makie.$fun(t::VectorField{<:Coordinate{<:Chain{W,L,F,2} where {W,L,F}},<:Chain{V,G,T,2} where {V,G,T},2,<:AlignedRegion{2}};args...) = Makie.$fun(domain(t).v...,getindex.(codomain(t),1),getindex.(codomain(t),2);args...)
                 Makie.$fun(t::VectorField{<:Coordinate{<:Chain},F,2,<:RealSpace{2}} where F;args...) = Makie.$fun(Makie.Point.(points(t))[:],Makie.Point.(codomain(t))[:];args...)
                 Makie.$fun(t::VectorField{<:Coordinate{<:Chain},F,N,<:GridFrameBundle} where {F,N};args...) = Makie.$fun(Makie.Point.(points(t))[:],Makie.Point.(codomain(t))[:];args...)
+                Makie.$fun(t::VectorField,f::VectorField;args...) = Makie.$fun(Makie.Point.(fiber(t))[:],Makie.Point.(fiber(t))[:];args...)
                 Makie.$fun(t::Rectangle,f::Function;args...) = Makie.$fun(t.v...,f;args...)
                 Makie.$fun(t::Hyperrectangle,f::Function;args...) = Makie.$fun(t.v...,f;args...)
                 Makie.$fun(t::ScalarMap;args...) = Makie.$fun(points(points(t)),Real.(codomain(t));args...)
@@ -602,16 +612,34 @@ function __init__()
         for fun ∈ (:mesh,:mesh!,:wireframe,:wireframe!)
             @eval Makie.$fun(M::GridFrameBundle;args...) = Makie.$fun(GeometryBasics.Mesh(M);args...)
         end
-        function Makie.mesh(M::TensorField{B,F,2,<:GridFrameBundle} where {B,F};args...)
+        function linegraph(M::TensorField{B,<:Chain,2,<:GridFrameBundle} where B;args...)
             variation(M,Makie.lines,Makie.lines!)
             alteration(M,Makie.lines!,Makie.lines!)
-            #Makie.mesh(GeometryBasics.Mesh(base(M));color=fiber(M)[:],args...)
         end
-        function Makie.mesh!(M::TensorField{B,F,2,<:GridFrameBundle} where {B,F};args...)
+        function linegraph!(M::TensorField{B,<:Chain,2,<:GridFrameBundle} where B;args...)
             variation(M,Makie.lines!,Makie.lines!)
             alteration(M,Makie.lines!,Makie.lines!)
-            #Makie.mesh!(GeometryBasics.Mesh(base(M));color=fiber(M)[:],args...)
         end
+        function Makie.mesh(M::TensorField{B,<:Chain,2,<:GridFrameBundle} where B;args...)
+            Makie.mesh(GridFrameBundle(fiber(M));args...)
+        end
+        function Makie.mesh!(M::TensorField{B,<:Chain,2,<:GridFrameBundle} where B;args...)
+            Makie.mesh!(GridFrameBundle(fiber(M));args...)
+        end
+        function Makie.mesh(M::TensorField{B,<:AbstractReal,2,<:GridFrameBundle} where B;args...)
+            Makie.mesh(GeometryBasics.Mesh(base(M));color=fiber(M)[:],args...)
+        end
+        function Makie.mesh!(M::TensorField{B,<:AbstractReal,2,<:GridFrameBundle} where B;args...)
+            Makie.mesh!(GeometryBasics.Mesh(base(M));color=fiber(M)[:],args...)
+        end
+        function Makie.mesh(M::TensorField{B,<:Chain,2,<:GridFrameBundle} where B,f::TensorField;args...)
+            Makie.mesh(GridFrameBundle(fiber(M));color=fiber(f)[:],args...)
+        end
+        function Makie.mesh!(M::TensorField{B,<:Chain,2,<:GridFrameBundle} where B,f::TensorField;args...)
+            Makie.mesh!(GridFrameBundle(fiber(M));color=fiber(f)[:],args...)
+        end
+        Makie.wireframe(M::TensorField{B,<:Chain,2,<:GridFrameBundle} where B;args...) = Makie.wireframe(GridFrameBundle(fiber(M));args...)
+        Makie.wireframe!(M::TensorField{B,<:Chain,2,<:GridFrameBundle} where B;args...) = Makie.wireframe!(GridFrameBundle(fiber(M));args...)
         function Makie.mesh(M::SimplexFrameBundle;args...)
             if mdims(points(M)) == 2
                 sm = submesh(M)[:,1]
@@ -634,21 +662,21 @@ function __init__()
     @require UnicodePlots="b8865327-cd53-5732-bb35-84acbb429228" begin
         UnicodePlots.lineplot(t::ScalarMap;args...) = UnicodePlots.lineplot(getindex.(domain(t),2),codomain(t);args...)
         UnicodePlots.lineplot(t::PlaneCurve;args...) = UnicodePlots.lineplot(getindex.(codomain(t),1),getindex.(codomain(t),2);args...)
-        UnicodePlots.lineplot(t::RealFunction;args...) = UnicodePlots.lineplot(Real.(domain(t)),Real.(codomain(t));args...)
-        UnicodePlots.lineplot(t::ComplexMap{B,F,1};args...) where {B<:AbstractReal,F} = UnicodePlots.lineplot(real.(Complex.(codomain(t))),imag.(Complex.(codomain(t)));args...)
-        UnicodePlots.lineplot(t::GradedField{G,B,F,1};args...) where {G,B<:Coordinate{<:AbstractReal},F} = UnicodePlots.lineplot(Real.(domain(t)),Grassmann.array(codomain(t));args...)
-        UnicodePlots.contourplot(t::ComplexMap{B,F,2,<:RealSpace{2}} where {B,F};args...) = UnicodePlots.contourplot(t.dom.v[1][2:end-1],t.dom.v[2][2:end-1],(x,y)->radius(t(Chain(x,y)));args...)
-        UnicodePlots.contourplot(t::SurfaceGrid;args...) = UnicodePlots.contourplot(t.dom.v[1][2:end-1],t.dom.v[2][2:end-1],(x,y)->t(Chain(x,y));args...)
-        UnicodePlots.surfaceplot(t::SurfaceGrid;args...) = UnicodePlots.surfaceplot(t.dom.v[1][2:end-1],t.dom.v[2][2:end-1],(x,y)->t(Chain(x,y));args...)
-        UnicodePlots.surfaceplot(t::ComplexMap{B,F,2,<:RealSpace{2}} where {B,F};args...) = UnicodePlots.surfaceplot(t.dom.v[1][2:end-1],t.dom.v[2][2:end-1],(x,y)->radius(t(Chain(x,y)));colormap=:twilight,args...)
+        UnicodePlots.lineplot(t::RealFunction;args...) = UnicodePlots.lineplot(Real.(points(t)),Real.(codomain(t));args...)
+        UnicodePlots.lineplot(t::ComplexMap{B,F,1};args...) where {B<:Coordinate{<:AbstractReal},F} = UnicodePlots.lineplot(real.(Complex.(codomain(t))),imag.(Complex.(codomain(t)));args...)
+        UnicodePlots.lineplot(t::GradedField{G,B,F,1} where {G,F};args...) where B<:Coordinate{<:AbstractReal} = UnicodePlots.lineplot(Real.(points(t)),Grassmann.array(codomain(t));args...)
+        UnicodePlots.contourplot(t::ComplexMap{B,F,2,<:RealSpace{2}} where {B,F};args...) = UnicodePlots.contourplot(points(t).v[1][2:end-1],points(t).v[2][2:end-1],(x,y)->radius(t(Chain(x,y)));args...)
+        UnicodePlots.contourplot(t::SurfaceGrid;args...) = UnicodePlots.contourplot(points(t).v[1][2:end-1],points(t).v[2][2:end-1],(x,y)->t(Chain(x,y));args...)
+        UnicodePlots.surfaceplot(t::SurfaceGrid;args...) = UnicodePlots.surfaceplot(points(t).v[1][2:end-1],points(t).v[2][2:end-1],(x,y)->t(Chain(x,y));args...)
+        UnicodePlots.surfaceplot(t::ComplexMap{B,F,2,<:RealSpace{2}} where {B,F};args...) = UnicodePlots.surfaceplot(points(t).v[1][2:end-1],points(t).v[2][2:end-1],(x,y)->radius(t(Chain(x,y)));colormap=:twilight,args...)
         UnicodePlots.spy(t::SurfaceGrid;args...) = UnicodePlots.spy(Real.(codomain(t));args...)
-        UnicodePlots.heatmap(t::SurfaceGrid;args...) = UnicodePlots.heatmap(Real.(codomain(t));xfact=step(t.dom.v[1]),yfact=step(t.dom.v[2]),xoffset=t.dom.v[1][1],yoffset=t.dom.v[2][1],args...)
-        UnicodePlots.heatmap(t::ComplexMap{B,F,2,<:RealSpace{2}} where {B,F};args...) = UnicodePlots.heatmap(Real.(angle.(codomain(t)));xfact=step(t.dom.v[1]),yfact=step(t.dom.v[2]),xoffset=t.dom.v[1][1],yoffset=t.dom.v[2][1],colormap=:twilight,args...)
+        UnicodePlots.heatmap(t::SurfaceGrid;args...) = UnicodePlots.heatmap(Real.(codomain(t));xfact=step(points(t).v[1]),yfact=step(points(t).v[2]),xoffset=points(t).v[1][1],yoffset=points(t).v[2][1],args...)
+        UnicodePlots.heatmap(t::ComplexMap{B,F,2,<:RealSpace{2}} where {B,F};args...) = UnicodePlots.heatmap(Real.(angle.(codomain(t)));xfact=step(points(t).v[1]),yfact=step(points(t).v[2]),xoffset=points(t).v[1][1],yoffset=points(t).v[2][1],colormap=:twilight,args...)
         Base.display(t::PlaneCurve) = (display(typeof(t)); display(UnicodePlots.lineplot(t)))
         Base.display(t::RealFunction) = (display(typeof(t)); display(UnicodePlots.lineplot(t)))
-        Base.display(t::ComplexMap{B,F,1,<:Interval}) where {B,F} = (display(typeof(t)); display(UnicodePlots.lineplot(t)))
-        Base.display(t::ComplexMap{B,F,2,<:RealSpace{2}} where {B,F}) = (display(typeof(t)); display(UnicodePlots.heatmap(t)))
-        Base.display(t::GradedField{G,B,F,1,<:Interval}) where {G,B,F} = (display(typeof(t)); display(UnicodePlots.lineplot(t)))
+        Base.display(t::ComplexMap{B,<:AbstractComplex,1,<:Interval}) where B = (display(typeof(t)); display(UnicodePlots.lineplot(t)))
+        Base.display(t::ComplexMap{B,<:AbstractComplex,2,<:RealSpace{2}} where B) = (display(typeof(t)); display(UnicodePlots.heatmap(t)))
+        Base.display(t::GradedField{G,B,<:TensorGraded,1,<:Interval} where {G,B}) = (display(typeof(t)); display(UnicodePlots.lineplot(t)))
         Base.display(t::SurfaceGrid) = (display(typeof(t)); display(UnicodePlots.heatmap(t)))
     end
     @require GeometryBasics = "5c1252a2-5f33-56bf-86c9-59e7332b4326" begin

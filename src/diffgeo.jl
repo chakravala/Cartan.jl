@@ -310,8 +310,8 @@ for fun ∈ (:_slow,:_fast)
             :(Chain($([:($$cd(f,l[$n],Val($n),i...)) for n ∈ list(1,N)]...)))
         end
         $cd(f::RealRegion) = ProductSpace($cd.(f.v))
-        $cd(f::GridFrameBundle{Coordinate{P,G},N,<:PointArray{P,G,N,<:RealRegion,<:Global{N,<:InducedMetric}}}) where {P,G,N} = ProductSpace($cd.(base(f).v))
-        $cd(f::GridFrameBundle{Coordinate{P,G},N,<:PointArray{P,G,N,<:RealRegion}}) where {P,G,N} = applymetric.($cd(base(f)),fiber(f))
+        $cd(f::GridFrameBundle{Coordinate{P,G},N,<:PointArray{P,G,N,<:RealRegion,<:Global{N,<:InducedMetric}}}) where {P,G,N} = ProductSpace($cd.(base(base(f)).v))
+        $cd(f::GridFrameBundle{Coordinate{P,G},N,<:PointArray{P,G,N,<:RealRegion}}) where {P,G,N} = applymetric.($cd(base(base(f))),fiber(f))
         function $cd(f::AbstractRange,l::Tuple=size(f))
             d = Vector{eltype(f)}(undef,l[1])
             @threads for i ∈ 1:l[1]
@@ -530,15 +530,30 @@ end
 
 export arclength, arctime, trapz, cumtrapz, linecumtrapz, psum, pcumsum
 export centraldiff, tangent, tangent_fast, unittangent, speed, normal, unitnormal
-export curvenormal, unitcurvenormal
+export curvenormal, unitcurvenormal, ribbon, tangentsurface, planecurve
+export normalnorm, area, surfacearea, weingarten, gauss
 
 # use graph for IntervalMap? or RealFunction!
 tangent(f::IntervalMap) = gradient(f)
-tangent(f::ScalarField) = det(gradient(graph(f)))
+tangent(f::ScalarField) = tangent(graph(f))
+tangent(f::VectorField) = det(gradient(f))
 normal(f::ScalarField) = ⋆tangent(f)
+normal(f::VectorField) = ⋆tangent(f)
 unittangent(f::ScalarField,n=tangent(f)) = TensorField(domain(f), codomain(n)./abs.(.⋆codomain(n)))
+unittangent(f::VectorField,n=tangent(f)) = TensorField(domain(f), codomain(n)./abs.(.⋆codomain(n)))
 unittangent(f::IntervalMap) = unitgradient(f)
 unitnormal(f) = ⋆unittangent(f)
+normalnorm(f) = Real(abs(normal(f)))
+
+ribbon(f::AbstractCurve,g::Vector{<:AbstractCurve}) = TensorField(points(f)⊕LinRange(0,1,length(g)+1),hcat(fiber(f),fiber.(g)...))
+ribbon(f::AbstractCurve,g::AbstractCurve,n::Int=100) = tangentsurface(f,g-f,n)
+tangentsurface(f::AbstractCurve,g::AbstractCurve,n::Int=100) = ribbon(f,Ref(f).+(LinRange(inv(n),1,n).*Ref(g)))
+tangentsurface(f::AbstractCurve,v::Real=1,n::Int=100) = tangentsurface(f,v*tangent(f),n)
+
+area(f::VectorField) = integral(normalnorm(f))
+surfacearea(f::VectorField) = integrate(normalnorm(f))
+weingarten(f::VectorField) = gradient(unitnormal(f))
+gauss(f::VectorField) = Real(abs(det(weingarten(f))))
 
 function speed(f::IntervalMap,d=centraldiff(points(f)),t=centraldiff(codomain(f),d))
     TensorField(domain(f), abs.(t))
@@ -655,6 +670,11 @@ function bishop(f::SpaceCurve,κ=value.(codomain(curvature(f))))
 end
 #bishoppolar(f::TensorField) = TensorField(domain(f), Chain.(value.(codomain(curvature(f))),getindex.(codomain(cumtrapz(torsion(f))),1)))
 #bishop(f::TensorField,κ=value.(codomain(curvature(f))),θ=getindex.(codomain(cumtrapz(torsion(f))),1)) = TensorField(domain(f), Chain.(κ.*cos.(θ),κ.*sin.(θ)))
+
+function planecurve(κ::RealFunction,φ::Real=0.0)
+    int = iszero(φ) ? integral(κ) : integral(κ)+φ
+    integral(Chain.(cos(int),sin(int)))
+end
 
 export surfacemetric, surfaceframe
 
