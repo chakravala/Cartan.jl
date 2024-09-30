@@ -257,7 +257,7 @@ for type ∈ (:Coordinate,:LocalSection,:LocalTensor)
     for fun ∈ (:-,:!,:~,:real,:imag,:conj,:deg2rad)
         @eval Base.$fun(s::$type) = $type(base(s), $fun(fiber(s)))
     end
-    for fun ∈ (:inv,:exp,:log,:sinh,:cosh,:abs,:sqrt,:cbrt,:cos,:sin,:tan,:cot,:sec,:csc,:asec,:acsc,:sech,:csch,:asech,:tanh,:coth,:asinh,:acosh,:atanh,:acoth,:asin,:acos,:atan,:acot,:sinc,:cosc,:abs2)
+    for fun ∈ (:inv,:exp,:exp2,:exp10,:log,:log2,:log10,:sinh,:cosh,:abs,:sqrt,:cbrt,:cos,:sin,:tan,:cot,:sec,:csc,:asec,:acsc,:sech,:csch,:asech,:tanh,:coth,:asinh,:acosh,:atanh,:acoth,:asin,:acos,:atan,:acot,:sinc,:cosc,:cis,:abs2)
         @eval Base.$fun(s::$type) = $type(base(s), $fun(fiber(s),metrictensor(base(s))))
     end
     for fun ∈ (:reverse,:involute,:clifford,:even,:odd,:scalar,:vector,:bivector,:volume,:value,:curl,:∂,:d,:complementleft,:realvalue,:imagvalue,:outermorphism)
