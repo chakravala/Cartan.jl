@@ -34,12 +34,12 @@ using Base.Threads
 edgelength(v) = value(abs(base(v[2])-base(v[1])))
 Grassmann.volumes(t::SimplexFrameBundle) = mdims(immersion(t))≠2 ? Grassmann.volumes(t,Grassmann.detsimplex(t)) : edgelength.(PointCloud(t)[immersion(t)])
 
-initedges(n::Int) = SimplexManifold(Values{2,Int}.(1:n-1,2:n),Base.OneTo(n))
+initedges(n::Int) = SimplexTopology(Values{2,Int}.(1:n-1,2:n),Base.OneTo(n))
 initedges(r::R) where R<:AbstractVector = SimplexFrameBundle(PointCloud(initpoints(r)),initedges(length(r)))
 function initmesh(r::R) where R<:AbstractVector
     t = initedges(r); p = PointCloud(t); n = length(p)
     bound = Values{1,Int}.([1,n])
-    p,SimplexManifold(bound,vertices(bound),n),ImmersedTopology(t)
+    p,SimplexTopology(bound,vertices(bound),n),ImmersedTopology(t)
 end
 
 initpoints(P::T) where T<:AbstractVector = Chain{varmanifold(2),1}.(1.0,P)
@@ -51,12 +51,12 @@ end
 
 function initpointsdata(P,E,N::Val{n}=Val(size(P,1))) where n
     p = PointCloud(initpoints(P,N)); l = list(1,n)
-    p,SimplexManifold([Int.(E[l,k]) for k ∈ 1:size(E,2)],length(p))
+    p,SimplexTopology([Int.(E[l,k]) for k ∈ 1:size(E,2)],length(p))
 end
 
 function initmeshdata(P,E,T,N::Val{n}=Val(size(P,1))) where n
     p,e = initpointsdata(P,E,N); l = list(1,n+1)
-    t = SimplexManifold([Int.(T[l,k]) for k ∈ 1:size(T,2)],length(p))
+    t = SimplexTopology([Int.(T[l,k]) for k ∈ 1:size(T,2)],length(p))
     return p,e,t
 end
 
@@ -78,7 +78,7 @@ end
 Grassmann.columns(t::ImmersedTopology{N},i=1) where N = columns(topology(t))
 Grassmann.columns(t::AbstractVector{<:Values{N}},i=1) where N = column.(Ref(t),list(i,N))
 
-pointset(m::SimplexManifold) = vertices(m)
+pointset(m::SimplexTopology) = vertices(m)
 pointset(m::AbstractFrameBundle) = vertices(m)
 pointset(e::Vector{Values{N,Int}}) where N = vertices(e)
 vertices(e::Vector{Values{1,Int}}) = column(e)
@@ -113,7 +113,7 @@ function edges(t,adj=adjacency(t))
     mdims(t) == 2 && (return t)
     N = mdims(Manifold(t))
     f = findall(x->!iszero(x),LinearAlgebra.triu(adj))
-    SimplexManifold([Values{2,Int}(@inbounds f[n].I) for n ∈ 1:length(f)],length(points(t)))
+    SimplexTopology([Values{2,Int}(@inbounds f[n].I) for n ∈ 1:length(f)],length(points(t)))
 end
 
 #=function facetsinterior(t::Vector{<:Chain{V}}) where V
@@ -194,7 +194,7 @@ array(m::Vector{<:Chain}) = [m[i][j] for i∈1:length(m),j∈1:mdims(Manifold(m)
 array(m::Vector{<:Values{N}}) where N = [m[i][j] for i∈1:length(m),j∈1:N]
 array(m::SimplexFrameBundle) = array(PointCloud(m))
 array!(m::SimplexFrameBundle) = array!(PointCloud(m))
-function array(m::SimplexManifold)
+function array(m::SimplexTopology)
     B = bundle(m)
     for k ∈ length(array_top_cache):B
         push!(array_top_cache,Array{Any,2}(undef,0,0))
@@ -202,7 +202,7 @@ function array(m::SimplexManifold)
     isempty(array_top_cache[B]) && (array_top_cache[B] = array(topology(m)))
     return array_top_cache[B]
 end
-function array!(m::SimplexManifold)
+function array!(m::SimplexTopology)
     B = bundle(m)
     length(array_top_cache) ≥ B && (array_top_cache[B] = Array{Any,2}(undef,0,0))
 end
