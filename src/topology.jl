@@ -252,6 +252,10 @@ for mod ∈ (:Topology,:Parameter)
     end
 end
 
+isopen(t::QuotientTopology) = false
+isopen(t::OpenTopology) = true
+iscompact(t::QuotientTopology) = false
+iscompact(t::CompactTopology) = true
 _to_axis(f::Int) = (iseven(f) ? f : f+1)÷2
 
 getlocate(i) = Values((i,))

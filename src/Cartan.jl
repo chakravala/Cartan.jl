@@ -159,6 +159,8 @@ fibertype(::GlobalSection{B,F} where B) where F = F
 fibertype(::Type{<:GlobalSection{B,F} where B}) where F = F
 fibertype(::TensorField{B,F} where B) where F = F
 fibertype(::Type{<:TensorField{B,F} where B}) where F = F
+isopen(t::TensorField) = isopen(immersion(t))
+iscompact(t::TensorField) = iscompact(immersion(t))
 PointCloud(t::TensorField) = PointCloud(base(t))
 Grassmann.grade(::GradedField{G}) where G = G
 
@@ -245,10 +247,26 @@ function trilinterp(x,y,z,x1,x2,y1,y2,z1,z2,f111,f211,f121,f221,f112,f212,f122,f
     f2 = bilinterp(x,y,x1,x2,y1,y2,f112,f212,f122,f222)
     linterp(z,z1,z2,f1,f2)
 end
+function quadlinterp(x,y,z,w,x1,x2,y1,y2,z1,z2,w1,w2,f1111,f2111,f1211,f2211,f1121,f2121,f1221,f2221,f1112,f2112,f1212,f2212,f1122,f2122,f1222,f2222)
+    f1 = trilinterp(x,y,z,x1,x2,y1,y2,z1,z2,f1111,f2111,f1211,f2211,f1121,f2121,f1221,f2221)
+    f2 = trilinterp(x,y,z,x1,x2,y1,y2,z1,z2,f1112,f2112,f1212,f2212,f1122,f2122,f1222,f2222)
+    linterp(w,w1,w2,f1,f2)
+end
 
-(m::IntervalMap)(s::LocalTensor) = LocalTensor(base(s), m(fiber(s)))
+reposition_odd(p,x,t) = iseven(p) ? x[end]-x[1]+t : 2x[1]-t
+reposition_even(p,x,t) = isodd(p) ? x[1]-x[end]+t : 2x[end]-t
+
+(m::TensorField)(s::LocalTensor) = LocalTensor(base(s), m(fiber(s)))
 function (m::IntervalMap)(t); p = points(m)
     i = searchsortedfirst(p,t[1])-1
+    if !isopen(m)
+        q = immersion(m)
+        if iszero(i) && !iszero(q.r[1])
+            return m(reposition_odd(q.p[1],p,t[1]))
+        elseif i==length(p) && !iszero(q.r[2])
+            return m(reposition_even(q.p[2],p,t[1]))
+        end
+    end
     linterp(t[1],p[i],p[i+1],m.cod[i],m.cod[i+1])
 end
 function (m::IntervalMap)(t::Vector,d=diff(m.cod)./diff(m.dom))
@@ -291,10 +309,36 @@ function (m::TensorField{B,F,N,<:SimplexFrameBundle} where {B,N})(t) where F
 end
 
 (m::TensorField{B,F,N,<:RealSpace{2}} where {B,F,N})(x,y) = m(Chain(x,y))
-(m::TensorField{B,F,N,<:RealSpace{2}} where {B,F,N})(s::LocalSection) = LocalTensor(base(s), m(fiber(s)))
-function (m::TensorField{B,F,N,<:RealSpace{2}} where {B,F,N})(t::Chain)
+function (m::TensorField{B,F,N,<:RealSpace{2}} where {B,F,N})(t::Chain{V}) where V
     x,y = points(m).v[1],points(m).v[2]
     i,j = searchsortedfirst(x,t[1])-1,searchsortedfirst(y,t[2])-1
+    if !isopen(m)
+        q = immersion(m)
+        i1,i2,j1,j2 = (
+            iszero(i) && !iszero(q.r[1]),i==length(x) && !iszero(q.r[2]),
+            iszero(j) && !iszero(q.r[3]),j==length(y) && !iszero(q.r[4]))
+        if !j1 && !j2
+            if i1
+                return m(Chain{V}(reposition_odd(q.p[1],x,t[1]),t[2]))
+            elseif i2
+                return m(Chain{V}(reposition_even(q.p[2],x,t[1]),t[2]))
+            end
+        elseif !i1 && !i2
+            if j1
+                return m(Chain{V}(t[1],reposition_odd(q.p[3],y,t[2])))
+            elseif j2
+                return m(Chain{V}(t[1],reposition_even(q.p[4],y,t[2])))
+            end
+        elseif i1 && j1
+            return m(Chain{V}(reposition_odd(q.p[1],x,t[1]),reposition_odd(q.p[3],y,t[2])))
+        elseif i2 && j1
+            return m(Chain{V}(reposition_even(q.p[2],x,t[1]),reposition_odd(q.p[3],y,t[2])))
+        elseif i1 && j2
+            return m(Chain{V}(reposition_odd(q.p[1],x,t[1]),reposition_even(q.p[4],y,t[2])))
+        elseif i2 && j2
+            return m(Chain{V}(reposition_even(q.p[2],x,t[1]),reposition_even(q.p[4],y,t[2])))
+        end
+    end
     #f1 = linterp(t[1],x[i],x[i+1],m.cod[i,j],m.cod[i+1,j])
     #f2 = linterp(t[1],x[i],x[i+1],m.cod[i,j+1],m.cod[i+1,j+1])
     #linterp(t[2],y[j],y[j+1],f1,f2)
@@ -303,10 +347,81 @@ function (m::TensorField{B,F,N,<:RealSpace{2}} where {B,F,N})(t::Chain)
 end
 
 (m::TensorField{B,F,N,<:RealSpace{3}} where {B,F,N})(x,y,z) = m(Chain(x,y,z))
-(m::TensorField{B,F,N,<:RealSpace{3}} where {B,F,N})(s::LocalTensor) = LocalTensor(base(s), m(fiber(s)))
-function (m::TensorField{B,F,N,<:RealSpace{3}} where {B,F,N})(t::Chain)
+function (m::TensorField{B,F,N,<:RealSpace{3}} where {B,F,N})(t::Chain{V}) where V
     x,y,z = points(m).v[1],points(m).v[2],points(m).v[3]
     i,j,k = searchsortedfirst(x,t[1])-1,searchsortedfirst(y,t[2])-1,searchsortedfirst(z,t[3])-1
+    if !isopen(m)
+        q = immersion(m)
+        i1,i2,j1,j2,k1,k2 = (
+            iszero(i) && !iszero(q.r[1]),i==length(x) && !iszero(q.r[2]),
+            iszero(j) && !iszero(q.r[3]),j==length(y) && !iszero(q.r[4]),
+            iszero(k) && !iszero(q.r[5]),k==length(z) && !iszero(q.r[6]))
+        if !j1 && !j2 && !k1 && !k2
+            if i1
+                return m(Chain{V}(reposition_odd(q.p[1],x,t[1]),t[2],t[3]))
+            elseif i2
+                return m(Chain{V}(reposition_even(q.p[2],x,t[1]),t[2],t[3]))
+            end
+        elseif !i1 && !i2 && !k1 && !k2
+            if j1
+                return m(Chain{V}(t[1],reposition_odd(q.p[3],y,t[2]),t[3]))
+            elseif j2
+                return m(Chain{V}(t[1],reposition_even(q.p[4],y,t[2]),t[3]))
+            end
+        elseif !i1 && !i2 && !j1 && !j2
+            if k1
+                return m(Chain{V}(t[1],t[2],reposition_odd(q.p[5],z,t[3])))
+            elseif k2
+                return m(Chain{V}(t[1],t[2],reposition_even(q.p[6],z,t[3])))
+            end
+        elseif !k1 && !k2
+            if i1 && j1
+                return m(Chain{V}(reposition_odd(q.p[1],x,t[1]),reposition_odd(q.p[3],y,t[2]),t[3]))
+            elseif i2 && j1
+                return m(Chain{V}(reposition_even(q.p[2],x,t[1]),reposition_odd(q.p[3],y,t[2]),t[3]))
+            elseif i1 && j2
+                return m(Chain{V}(reposition_odd(q.p[1],x,t[1]),reposition_even(q.p[4],y,t[2]),t[3]))
+            elseif i2 && j2
+                return m(Chain{V}(reposition_even(q.p[2],x,t[1]),reposition_even(q.p[4],y,t[2]),t[3]))
+            end
+        elseif !j1 && !j2
+            if i1 && k1
+                return m(Chain{V}(reposition_odd(q.p[1],x,t[1]),t[2],reposition_odd(q.p[5],z,t[3])))
+            elseif i2 && k1
+                return m(Chain{V}(reposition_even(q.p[2],x,t[1]),t[2],reposition_odd(q.p[5],z,t[3])))
+            elseif i1 && k2
+                return m(Chain{V}(reposition_odd(q.p[1],x,t[1]),t[2],reposition_even(q.p[6],z,t[3])))
+            elseif i2 && k2
+                return m(Chain{V}(reposition_even(q.p[2],x,t[1]),t[2],reposition_even(q.p[6],z,t[3])))
+            end
+        elseif !i1 && !i2
+            if j1 && k1
+                return m(Chain{V}(t[1],reposition_odd(q.p[3],y,t[2]),reposition_odd(q.p[5],z,t[3])))
+            elseif j2 && k1
+                return m(Chain{V}(t[1],reposition_even(q.p[4],y,t[2]),reposition_odd(q.p[5],z,t[3])))
+            elseif j1 && k2
+                return m(Chain{V}(t[1],reposition_odd(q.p[3],y,t[2]),reposition_even(q.p[6],z,t[3])))
+            elseif j2 && k2
+                return m(Chain{V}(t[1],reposition_even(q.p[4],y,t[2]),reposition_even(q.p[6],z,t[3])))
+            end
+        elseif i1 && j1 && k1
+            return m(Chain{V}(reposition_odd(q.p[1],x,t[1]),reposition_odd(q.p[3],y,t[2]),reposition_odd(q.p[5],z,t[3])))
+        elseif i2 && j1 && k1
+            return m(Chain{V}(reposition_even(q.p[2],x,t[1]),reposition_odd(q.p[3],y,t[2]),reposition_odd(q.p[5],z,t[3])))
+        elseif i1 && j2 && k1
+            return m(Chain{V}(reposition_odd(q.p[1],x,t[1]),reposition_even(q.p[4],y,t[2]),reposition_odd(q.p[5],z,t[3])))
+        elseif i2 && j2 && k1
+            return m(Chain{V}(reposition_even(q.p[2],x,t[1]),reposition_even(q.p[4],y,t[2]),reposition_odd(q.p[5],z,t[3])))
+        elseif i1 && j1 && k2
+            return m(Chain{V}(reposition_odd(q.p[1],x,t[1]),reposition_odd(q.p[3],y,t[2]),reposition_even(q.p[6],z,t[3])))
+        elseif i2 && j1 && k2
+            return m(Chain{V}(reposition_even(q.p[2],x,t[1]),reposition_odd(q.p[3],y,t[2]),reposition_even(q.p[6],z,t[3])))
+        elseif i1 && j2 && k2
+            return m(Chain{V}(reposition_odd(q.p[1],x,t[1]),reposition_even(q.p[4],y,t[2]),reposition_even(q.p[6],z,t[3])))
+        elseif i2 && j2 && k2
+            return m(Chain{V}(reposition_even(q.p[2],x,t[1]),reposition_even(q.p[4],y,t[2]),reposition_even(q.p[6],z,t[3])))
+        end
+    end
     #f1 = linterp(t[1],x[i],x[i+1],m.cod[i,j,k],m.cod[i+1,j,k])
     #f2 = linterp(t[1],x[i],x[i+1],m.cod[i,j+1,k],m.cod[i+1,j+1,k])
     #g1 = linterp(t[2],y[j],y[j+1],f1,f2)
@@ -317,6 +432,229 @@ function (m::TensorField{B,F,N,<:RealSpace{3}} where {B,F,N})(t::Chain)
     trilinterp(t[1],t[2],t[3],x[i],x[i+1],y[j],y[j+1],z[k],z[k+1],
         m.cod[i,j,k],m.cod[i+1,j,k],m.cod[i,j+1,k],m.cod[i+1,j+1,k],
         m.cod[i,j,k+1],m.cod[i+1,j,k+1],m.cod[i,j+1,k+1],m.cod[i+1,j+1,k+1])
+end
+
+(m::TensorField{B,F,N,<:RealSpace{4}} where {B,F,N})(x,y,z,w) = m(Chain(x,y,z,w))
+function (m::TensorField{B,F,N,<:RealSpace{4}} where {B,F,N})(t::Chain{V}) where V
+    x,y,z,w = points(m).v[1],points(m).v[2],points(m).v[3],points(m).v[4]
+    i,j,k,l = searchsortedfirst(x,t[1])-1,searchsortedfirst(y,t[2])-1,searchsortedfirst(z,t[3])-1,searchsortedfirst(w,t[4])-1
+    if !isopen(m)
+        q = immersion(m)
+        i1,i2,j1,j2,k1,k2,l1,l2 = (
+            iszero(i) && !iszero(q.r[1]),i==length(x) && !iszero(q.r[2]),
+            iszero(j) && !iszero(q.r[3]),j==length(y) && !iszero(q.r[4]),
+            iszero(k) && !iszero(q.r[5]),k==length(z) && !iszero(q.r[6]),
+            iszero(l) && !iszero(q.r[7]),l==length(w) && !iszero(q.r[8]))
+        if !j1 && !j2 && !k1 && !k2 && !l1 && !l2
+            if i1
+                return m(Chain{V}(reposition_odd(q.p[1],x,t[1]),t[2],t[3],t[4]))
+            elseif i2
+                return m(Chain{V}(reposition_even(q.p[2],x,t[1]),t[2],t[3],t[4]))
+            end
+        elseif !i1 && !i2 && !k1 && !k2 && !l1 && !l2
+            if j1
+                return m(Chain{V}(t[1],reposition_odd(q.p[3],y,t[2]),t[3],t[4]))
+            elseif j2
+                return m(Chain{V}(t[1],reposition_even(q.p[4],y,t[2]),t[3],t[4]))
+            end
+        elseif !i1 && !i2 && !j1 && !j2 && !l1 && !l2
+            if k1
+                return m(Chain{V}(t[1],t[2],reposition_odd(q.p[5],z,t[3]),t[4]))
+            elseif k2
+                return m(Chain{V}(t[1],t[2],reposition_even(q.p[6],z,t[3]),t[4]))
+            end
+        elseif !i1 && !i2 && !j1 && !j2 && !k1 && !k2
+            if l1
+                return m(Chain{V}(t[1],t[2],t[3],reposition_odd(q.p[7],w,t[4])))
+            elseif l2
+                return m(Chain{V}(t[1],t[2],t[3],reposition_even(q.p[8],w,t[4])))
+            end
+        elseif !k1 && !k2 && !l1 && !l2
+            if i1 && j1
+                return m(Chain{V}(reposition_odd(q.p[1],x,t[1]),reposition_odd(q.p[3],y,t[2]),t[3],t[4]))
+            elseif i2 && j1
+                return m(Chain{V}(reposition_even(q.p[2],x,t[1]),reposition_odd(q.p[3],y,t[2]),t[3],t[4]))
+            elseif i1 && j2
+                return m(Chain{V}(reposition_odd(q.p[1],x,t[1]),reposition_even(q.p[4],y,t[2]),t[3],t[4]))
+            elseif i2 && j2
+                return m(Chain{V}(reposition_even(q.p[2],x,t[1]),reposition_even(q.p[4],y,t[2]),t[3],t[4]))
+            end
+        elseif !j1 && !j2 && !l1 && !l2
+            if i1 && k1
+                return m(Chain{V}(reposition_odd(q.p[1],x,t[1]),t[2],reposition_odd(q.p[5],z,t[3]),t[4]))
+            elseif i2 && k1
+                return m(Chain{V}(reposition_even(q.p[2],x,t[1]),t[2],reposition_odd(q.p[5],z,t[3]),t[4]))
+            elseif i1 && k2
+                return m(Chain{V}(reposition_odd(q.p[1],x,t[1]),t[2],reposition_even(q.p[6],z,t[3]),t[4]))
+            elseif i2 && k2
+                return m(Chain{V}(reposition_even(q.p[2],x,t[1]),t[2],reposition_even(q.p[6],z,t[3]),t[4]))
+            end
+        elseif !i1 && !i2 && !l1 && !l2
+            if j1 && k1
+                return m(Chain{V}(t[1],reposition_odd(q.p[3],y,t[2]),reposition_odd(q.p[5],z,t[3]),t[4]))
+            elseif j2 && k1
+                return m(Chain{V}(t[1],reposition_even(q.p[4],y,t[2]),reposition_odd(q.p[5],z,t[3]),t[4]))
+            elseif j1 && k2
+                return m(Chain{V}(t[1],reposition_odd(q.p[3],y,t[2]),reposition_even(q.p[6],z,t[3]),t[4]))
+            elseif j2 && k2
+                return m(Chain{V}(t[1],reposition_even(q.p[4],y,t[2]),reposition_even(q.p[6],z,t[3]),t[4]))
+            end
+        elseif !j1 && !j2 && !k1 && !k2
+            if i1 && l1
+                return m(Chain{V}(reposition_odd(q.p[1],x,t[1]),t[2],t[3],reposition_odd(q.p[7],w,t[4])))
+            elseif i2 && l1
+                return m(Chain{V}(reposition_even(q.p[2],x,t[1]),t[2],t[3],reposition_odd(q.p[7],w,t[4])))
+            elseif i1 && l2
+                return m(Chain{V}(reposition_odd(q.p[1],x,t[1]),t[2],t[3],reposition_even(q.p[8],w,t[4])))
+            elseif i2 && l2
+                return m(Chain{V}(reposition_even(q.p[2],x,t[1]),t[2],t[3],reposition_even(q.p[8],w,t[4])))
+            end
+        elseif !i1 && !i2 && !l1 && !l2
+            if j1 && k1
+                return m(Chain{V}(t[1],reposition_odd(q.p[3],y,t[2]),reposition_odd(q.p[5],z,t[3]),t[4]))
+            elseif j2 && k1
+                return m(Chain{V}(t[1],reposition_even(q.p[4],y,t[2]),reposition_odd(q.p[5],z,t[3]),t[4]))
+            elseif j1 && k2
+                return m(Chain{V}(t[1],reposition_odd(q.p[3],y,t[2]),reposition_even(q.p[6],z,t[3]),t[4]))
+            elseif j2 && k2
+                return m(Chain{V}(t[1],reposition_even(q.p[4],y,t[2]),reposition_even(q.p[6],z,t[3]),t[4]))
+            end
+        elseif !i1 && !i2 && !k1 && !k2
+            if j1 && l1
+                return m(Chain{V}(t[1],reposition_odd(q.p[3],y,t[2]),t[3],reposition_odd(q.p[7],w,t[4])))
+            elseif j2 && k1
+                return m(Chain{V}(t[1],reposition_even(q.p[4],y,t[2]),t[3],reposition_odd(q.p[7],w,t[4])))
+            elseif j1 && l2
+                return m(Chain{V}(t[1],reposition_odd(q.p[3],y,t[2]),t[3],reposition_even(q.p[8],w,t[4])))
+            elseif j2 && l2
+                return m(Chain{V}(t[1],reposition_even(q.p[4],y,t[2]),t[3],reposition_even(q.p[8],w,t[4])))
+            end
+        elseif !l1 && !l2
+            if i1 && j1 && k1
+                return m(Chain{V}(reposition_odd(q.p[1],x,t[1]),reposition_odd(q.p[3],y,t[2]),reposition_odd(q.p[5],z,t[3]),t[4]))
+            elseif i2 && j1 && k1
+                return m(Chain{V}(reposition_even(q.p[2],x,t[1]),reposition_odd(q.p[3],y,t[2]),reposition_odd(q.p[5],z,t[3]),t[4]))
+            elseif i1 && j2 && k1
+                return m(Chain{V}(reposition_odd(q.p[1],x,t[1]),reposition_even(q.p[4],y,t[2]),reposition_odd(q.p[5],z,t[3]),t[4]))
+            elseif i2 && j2 && k1
+                return m(Chain{V}(reposition_even(q.p[2],x,t[1]),reposition_even(q.p[4],y,t[2]),reposition_odd(q.p[5],z,t[3]),t[4]))
+            elseif i1 && j1 && k2
+                return m(Chain{V}(reposition_odd(q.p[1],x,t[1]),reposition_odd(q.p[3],y,t[2]),reposition_even(q.p[6],z,t[3]),t[4]))
+            elseif i2 && j1 && k2
+                return m(Chain{V}(reposition_even(q.p[2],x,t[1]),reposition_odd(q.p[3],y,t[2]),reposition_even(q.p[6],z,t[3]),t[4]))
+            elseif i1 && j2 && k2
+                return m(Chain{V}(reposition_odd(q.p[1],x,t[1]),reposition_even(q.p[4],y,t[2]),reposition_even(q.p[6],z,t[3]),t[4]))
+            elseif i2 && j2 && k2
+                return m(Chain{V}(reposition_even(q.p[2],x,t[1]),reposition_even(q.p[4],y,t[2]),reposition_even(q.p[6],z,t[3]),t[4]))
+            end
+        elseif !k1 && !k2
+            if i1 && j1 && l1
+                return m(Chain{V}(reposition_odd(q.p[1],x,t[1]),reposition_odd(q.p[3],y,t[2]),t[3],reposition_odd(q.p[7],w,t[4])))
+            elseif i2 && j1 && l1
+                return m(Chain{V}(reposition_even(q.p[2],x,t[1]),reposition_odd(q.p[3],y,t[2]),t[3],reposition_odd(q.p[7],w,t[4])))
+            elseif i1 && j2 && l1
+                return m(Chain{V}(reposition_odd(q.p[1],x,t[1]),reposition_even(q.p[4],y,t[2]),t[3],reposition_odd(q.p[7],w,t[4])))
+            elseif i2 && j2 && l1
+                return m(Chain{V}(reposition_even(q.p[2],x,t[1]),reposition_even(q.p[4],y,t[2]),t[3],reposition_odd(q.p[7],w,t[4])))
+            elseif i1 && j1 && l2
+                return m(Chain{V}(reposition_odd(q.p[1],x,t[1]),reposition_odd(q.p[3],y,t[2]),t[3],reposition_even(q.p[8],w,t[4])))
+            elseif i2 && j1 && l2
+                return m(Chain{V}(reposition_even(q.p[2],x,t[1]),reposition_odd(q.p[3],y,t[2]),t[3],reposition_even(q.p[8],w,t[4])))
+            elseif i1 && j2 && l2
+                return m(Chain{V}(reposition_odd(q.p[1],x,t[1]),reposition_even(q.p[4],y,t[2]),t[3],reposition_even(q.p[8],w,t[4])))
+            elseif i2 && j2 && l2
+                return m(Chain{V}(reposition_even(q.p[2],x,t[1]),reposition_even(q.p[4],y,t[2]),t[3],reposition_even(q.p[8],w,t[4])))
+            end
+        elseif !j1 && !j2
+            if i1 && k1 && l1
+                return m(Chain{V}(reposition_odd(q.p[1],x,t[1]),t[2],reposition_odd(q.p[5],z,t[3]),reposition_odd(q.p[7],w,t[4])))
+            elseif i2 && k1 && l1
+                return m(Chain{V}(reposition_even(q.p[2],x,t[1]),t[2],reposition_odd(q.p[5],z,t[3]),reposition_odd(q.p[7],w,t[4])))
+            elseif i1 && k2 && l1
+                return m(Chain{V}(reposition_odd(q.p[1],x,t[1]),t[2],reposition_even(q.p[6],z,t[3]),reposition_odd(q.p[7],w,t[4])))
+            elseif i2 && k2 && l1
+                return m(Chain{V}(reposition_even(q.p[2],x,t[1]),t[2],reposition_even(q.p[6],z,t[3]),reposition_odd(q.p[7],w,t[4])))
+            elseif i1 && k1 && l2
+                return m(Chain{V}(reposition_odd(q.p[1],x,t[1]),t[2],reposition_odd(q.p[5],z,t[3]),reposition_even(q.p[8],w,t[4])))
+            elseif i2 && k1 && l2
+                return m(Chain{V}(reposition_even(q.p[2],x,t[1]),t[2],reposition_odd(q.p[5],z,t[3]),reposition_even(q.p[8],w,t[4])))
+            elseif i1 && k2 && l2
+                return m(Chain{V}(reposition_odd(q.p[1],x,t[1]),t[2],reposition_even(q.p[6],z,t[3]),reposition_even(q.p[8],w,t[4])))
+            elseif i2 && k2 && l2
+                return m(Chain{V}(reposition_even(q.p[2],x,t[1]),t[2],reposition_even(q.p[6],z,t[3]),reposition_even(q.p[8],w,t[4])))
+            end
+        elseif !i1 && !i2
+            if j1 && k1 && l1
+                return m(Chain{V}(t[1],reposition_odd(q.p[3],y,t[2]),reposition_odd(q.p[5],z,t[3]),reposition_odd(q.p[7],w,t[4])))
+            elseif j2 && k1 && l1
+                return m(Chain{V}(t[1],reposition_even(q.p[4],y,t[2]),reposition_odd(q.p[5],z,t[3]),reposition_odd(q.p[7],w,t[4])))
+            elseif j1 && k2 && l1
+                return m(Chain{V}(t[1],reposition_odd(q.p[3],y,t[2]),reposition_even(q.p[6],z,t[3]),reposition_odd(q.p[7],w,t[4])))
+            elseif j2 && k2 && l1
+                return m(Chain{V}(t[1],reposition_even(q.p[4],y,t[2]),reposition_even(q.p[6],z,t[3]),reposition_odd(q.p[7],w,t[4])))
+            elseif j1 && k1 && l2
+                return m(Chain{V}(t[1],reposition_odd(q.p[3],y,t[2]),reposition_odd(q.p[5],z,t[3]),reposition_even(q.p[8],w,t[4])))
+            elseif j2 && k1 && l2
+                return m(Chain{V}(t[1],reposition_even(q.p[4],y,t[2]),reposition_odd(q.p[5],z,t[3]),reposition_even(q.p[8],w,t[4])))
+            elseif j1 && k2 && l2
+                return m(Chain{V}(t[1],reposition_odd(q.p[3],y,t[2]),reposition_even(q.p[6],z,t[3]),reposition_even(q.p[8],w,t[4])))
+            elseif j2 && k2 && l2
+                return m(Chain{V}(t[1],reposition_even(q.p[4],y,t[2]),reposition_even(q.p[6],z,t[3]),reposition_even(q.p[8],w,t[4])))
+            end
+        elseif i1 && j1 && k1 && l1
+            return m(Chain{V}(reposition_odd(q.p[1],x,t[1]),reposition_odd(q.p[3],y,t[2]),reposition_odd(q.p[5],z,t[3]),reposition_odd(q.p[7],w,t[4])))
+        elseif i2 && j1 && k1 && l1
+            return m(Chain{V}(reposition_even(q.p[2],x,t[1]),reposition_odd(q.p[3],y,t[2]),reposition_odd(q.p[5],z,t[3]),reposition_odd(q.p[7],w,t[4])))
+        elseif i1 && j2 && k1 && l1
+            return m(Chain{V}(reposition_odd(q.p[1],x,t[1]),reposition_even(q.p[4],y,t[2]),reposition_odd(q.p[5],z,t[3]),reposition_odd(q.p[7],w,t[4])))
+        elseif i2 && j2 && k1 && l1
+            return m(Chain{V}(reposition_even(q.p[2],x,t[1]),reposition_even(q.p[4],y,t[2]),reposition_odd(q.p[5],z,t[3]),reposition_odd(q.p[7],w,t[4])))
+        elseif i1 && j1 && k2 && l1
+            return m(Chain{V}(reposition_odd(q.p[1],x,t[1]),reposition_odd(q.p[3],y,t[2]),reposition_even(q.p[6],z,t[3]),reposition_odd(q.p[7],w,t[4])))
+        elseif i2 && j1 && k2 && l1
+            return m(Chain{V}(reposition_even(q.p[2],x,t[1]),reposition_odd(q.p[3],y,t[2]),reposition_even(q.p[6],z,t[3]),reposition_odd(q.p[7],w,t[4])))
+        elseif i1 && j2 && k2 && l1
+            return m(Chain{V}(reposition_odd(q.p[1],x,t[1]),reposition_even(q.p[4],y,t[2]),reposition_even(q.p[6],z,t[3]),reposition_odd(q.p[7],w,t[4])))
+        elseif i2 && j2 && k2 && l1
+            return m(Chain{V}(reposition_even(q.p[2],x,t[1]),reposition_even(q.p[4],y,t[2]),reposition_even(q.p[6],z,t[3]),reposition_odd(q.p[7],w,t[4])))
+        elseif i1 && j1 && k1 && l2
+            return m(Chain{V}(reposition_odd(q.p[1],x,t[1]),reposition_odd(q.p[3],y,t[2]),reposition_odd(q.p[5],z,t[3]),reposition_even(q.p[8],w,t[4])))
+        elseif i2 && j1 && k1 && l2
+            return m(Chain{V}(reposition_even(q.p[2],x,t[1]),reposition_odd(q.p[3],y,t[2]),reposition_odd(q.p[5],z,t[3]),reposition_even(q.p[8],w,t[4])))
+        elseif i1 && j2 && k1 && l2
+            return m(Chain{V}(reposition_odd(q.p[1],x,t[1]),reposition_even(q.p[4],y,t[2]),reposition_odd(q.p[5],z,t[3]),reposition_even(q.p[8],w,t[4])))
+        elseif i2 && j2 && k1 && l2
+            return m(Chain{V}(reposition_even(q.p[2],x,t[1]),reposition_even(q.p[4],y,t[2]),reposition_odd(q.p[5],z,t[3]),reposition_even(q.p[8],w,t[4])))
+        elseif i1 && j1 && k2 && l2
+            return m(Chain{V}(reposition_odd(q.p[1],x,t[1]),reposition_odd(q.p[3],y,t[2]),reposition_even(q.p[6],z,t[3]),reposition_even(q.p[8],w,t[4])))
+        elseif i2 && j1 && k2 && l2
+            return m(Chain{V}(reposition_even(q.p[2],x,t[1]),reposition_odd(q.p[3],y,t[2]),reposition_even(q.p[6],z,t[3]),reposition_even(q.p[8],w,t[4])))
+        elseif i1 && j2 && k2 && l2
+            return m(Chain{V}(reposition_odd(q.p[1],x,t[1]),reposition_even(q.p[4],y,t[2]),reposition_even(q.p[6],z,t[3]),reposition_even(q.p[8],w,t[4])))
+        elseif i2 && j2 && k2 && l2
+            return m(Chain{V}(reposition_even(q.p[2],x,t[1]),reposition_even(q.p[4],y,t[2]),reposition_even(q.p[6],z,t[3]),reposition_even(q.p[8],w,t[4])))
+        end
+    end
+    #f1 = linterp(t[1],x[i],x[i+1],m.cod[i,j,k,l],m.cod[i+1,j,k,l])
+    #f2 = linterp(t[1],x[i],x[i+1],m.cod[i,j+1,k,l],m.cod[i+1,j+1,k,l])
+    #g1 = linterp(t[2],y[j],y[j+1],f1,f2)
+    #f3 = linterp(t[1],x[i],x[i+1],m.cod[i,j,k+1,l],m.cod[i+1,j,k+1,l])
+    #f4 = linterp(t[1],x[i],x[i+1],m.cod[i,j+1,k+1,l],m.cod[i+1,j+1,k+1,l])
+    #g2 = linterp(t[2],y[j],y[j+1],f3,f4)
+    #h1 = linterp(t[3],z[k],z[k+1],g1,g2)
+    #f5 = linterp(t[1],x[i],x[i+1],m.cod[i,j,k,l+1],m.cod[i+1,j,k,l+1])
+    #f6 = linterp(t[1],x[i],x[i+1],m.cod[i,j+1,k,l+1],m.cod[i+1,j+1,k,l+1])
+    #g3 = linterp(t[2],y[j],y[j+1],f5,f6)
+    #f7 = linterp(t[1],x[i],x[i+1],m.cod[i,j,k+1,l+1],m.cod[i+1,j,k+1,l+1])
+    #f8 = linterp(t[1],x[i],x[i+1],m.cod[i,j+1,k+1,l+1],m.cod[i+1,j+1,k+1,l+1])
+    #g4 = linterp(t[2],y[j],y[j+1],f7,f8)
+    #h2 = linterp(t[3],z[k],z[k+1],g3,g4)
+    #linterp(t[4],w[l],w[l+1],h1,h2)
+    quadlinterp(t[1],t[2],t[3],t[4],x[i],x[i+1],y[j],y[j+1],z[k],z[k+1],w[l],w[l+1],
+        m.cod[i,j,k,l],m.cod[i+1,j,k,l],m.cod[i,j+1,k,l],m.cod[i+1,j+1,k,l],
+        m.cod[i,j,k+1,l],m.cod[i+1,j,k+1,l],m.cod[i,j+1,k+1,l],m.cod[i+1,j+1,k+1,l],
+        m.cod[i,j,k,l+1],m.cod[i+1,j,k,l+1],m.cod[i,j+1,k,l+1],m.cod[i+1,j+1,k,l+1],
+        m.cod[i,j,k+1,l+1],m.cod[i+1,j,k+1,l+1],m.cod[i,j+1,k+1,l+1],m.cod[i+1,j+1,k+1,l+1])
 end
 
 valmat(t::Values{N,<:Vector},s=size(t[1])) where N = [Values((t[q][i] for q ∈ OneTo(N))...) for i ∈ OneTo(s[1])]
