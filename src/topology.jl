@@ -73,20 +73,50 @@ remove(t::ProductSpace{V,T,2} where {V,T},::Val{1}) = t.v[2]
 remove(t::ProductSpace{V,T,2} where {V,T},::Val{2}) = t.v[1]
 @generated remove(t::ProductSpace{V,T,N} where {V,T},::Val{J}) where {N,J} = :(ProductSpace(domain(t).v[$(Values([i for i ∈ 1:N if i≠J]...))]))
 
+# 1
 (m::ProductSpace)(c::Colon,i::Int...) = m.v[1]
 (m::ProductSpace)(i::Int,c::Colon,j::Int...) = m.v[2]
 (m::ProductSpace)(i::Int,j::Int,c::Colon,k::Int...) = m.v[3]
 (m::ProductSpace)(i::Int,j::Int,k::Int,c::Colon,l::Int...) = m.v[4]
+(m::ProductSpace)(i::Int,j::Int,k::Int,l::Int,c::Colon,o::Int...) = m.v[5]
+
+# 2 - 0
 (m::ProductSpace)(c::Colon,::Colon,i::Int...) = ProductSpace(m.v[Values(1,2)])
 (m::ProductSpace)(c::Colon,i::Int,::Colon,j::Int...) = ProductSpace(m.v[Values(1,3)])
 (m::ProductSpace)(c::Colon,i::Int,j::Int,::Colon,k::Int...) = ProductSpace(m.v[Values(1,4)])
+(m::ProductSpace)(c::Colon,i::Int,j::Int,k::Int,::Colon,l::Int...) = ProductSpace(m.v[Values(1,5)])
+# 2 - 1
 (m::ProductSpace)(i::Int,c::Colon,::Colon,j::Int...) = ProductSpace(m.v[Values(2,3)])
 (m::ProductSpace)(i::Int,c::Colon,j::Int,::Colon,k::Int...) = ProductSpace(m.v[Values(2,4)])
+(m::ProductSpace)(i::Int,c::Colon,j::Int,k::Int,::Colon,l::Int...) = ProductSpace(m.v[Values(2,5)])
+# 2 - 2
 (m::ProductSpace)(i::Int,j::Int,c::Colon,::Colon,k::Int...) = ProductSpace(m.v[Values(3,4)])
+(m::ProductSpace)(i::Int,j::Int,c::Colon,k::Int,::Colon,l::Int...) = ProductSpace(m.v[Values(3,5)])
+# 2 - 3
+(m::ProductSpace)(i::Int,j::Int,k::Int,c::Colon,::Colon,l::Int...) = ProductSpace(m.v[Values(4,5)])
+
+# 3 - 0 - 0
 (m::ProductSpace)(c::Colon,::Colon,::Colon,i::Int...) = ProductSpace(m.v[Values(1,2,3)])
 (m::ProductSpace)(c::Colon,::Colon,i::Int,::Colon,j::Int...) = ProductSpace(m.v[Values(1,2,4)])
+(m::ProductSpace)(c::Colon,::Colon,i::Int,j::Int,::Colon,k::Int...) = ProductSpace(m.v[Values(1,2,5)])
+# 3 - 0 - 1
 (m::ProductSpace)(c::Colon,i::Int,::Colon,::Colon,j::Int...) = ProductSpace(m.v[Values(1,3,4)])
+(m::ProductSpace)(c::Colon,i::Int,::Colon,j::Int,::Colon,k::Int...) = ProductSpace(m.v[Values(1,3,5)])
+# 3 - 0 - 2
+(m::ProductSpace)(c::Colon,i::Int,j::Int,::Colon,::Colon,k::Int...) = ProductSpace(m.v[Values(1,4,5)])
+# 3 - 1
 (m::ProductSpace)(i::Int,c::Colon,::Colon,::Colon,j::Int...) = ProductSpace(m.v[Values(2,3,4)])
+(m::ProductSpace)(i::Int,c::Colon,j::Int,::Colon,::Colon,k::Int...) = ProductSpace(m.v[Values(2,4,5)])
+(m::ProductSpace)(i::Int,c::Colon,::Colon,j::Int,::Colon,k::Int...) = ProductSpace(m.v[Values(2,3,5)])
+# 3 - 2
+(m::ProductSpace)(i::Int,j::Int,c::Colon,::Colon,::Colon,k::Int...) = ProductSpace(m.v[Values(3,4,5)])
+
+# 4
+(m::ProductSpace)(c::Colon,::Colon,::Colon,::Colon,i::Int...) = ProductSpace(m.v[Values(1,2,3,4)])
+(m::ProductSpace)(c::Colon,::Colon,::Colon,i::Int,::Colon,j::Int...) = ProductSpace(m.v[Values(1,2,3,5)])
+(m::ProductSpace)(c::Colon,::Colon,i::Int,::Colon,::Colon,j::Int...) = ProductSpace(m.v[Values(1,2,4,5)])
+(m::ProductSpace)(c::Colon,i::Int,::Colon,::Colon,::Colon,j::Int...) = ProductSpace(m.v[Values(1,3,4,5)])
+(m::ProductSpace)(i::Int,c::Colon,::Colon,::Colon,::Colon,j::Int...) = ProductSpace(m.v[Values(2,3,4,5)])
 
 export CrossRange
 struct CrossRange <: AbstractVector{Int}
@@ -178,14 +208,17 @@ MirrorTopology(n::Values{1,Int}) = QuotientTopology(Values((1,)),Array{Values{0,
 MirrorTopology(n::Values{2,Int}) = QuotientTopology(Values((1,)),Values((ProductTopology(n[2]),)),Values(1,0,0,0),n)
 MirrorTopology(n::Values{3,Int}) = QuotientTopology(Values((1,)),Values((ProductTopology(n[2],n[3]),)),Values(1,0,0,0,0,0),n)
 MirrorTopology(n::Values{4,Int}) = QuotientTopology(Values((1,)),Values((ProductTopology(n[2],n[3],n[4]),)),Values(1,0,0,0,0,0,0,0),n)
+MirrorTopology(n::Values{5,Int}) = QuotientTopology(Values((1,)),Values((ProductTopology(n[2],n[3],n[4],n[5]),)),Values(1,0,0,0,0,0,0,0,0,0),n)
 ClampedTopology(n::Values{1,Int}) = QuotientTopology(Values(1,2),Array{Values{0,Int},0}.(Values(undef,undef)),Values(1,2),n)
 ClampedTopology(n::Values{2,Int}) = QuotientTopology(Values(1,2,3,4),Values(ProductTopology(n[2]),ProductTopology(n[2]),ProductTopology(n[1]),ProductTopology(n[1])),Values(1,2,3,4),n)
 ClampedTopology(n::Values{3,Int}) = QuotientTopology(Values(1,2,3,4,5,6),Values(ProductTopology(n[2],n[3]),ProductTopology(n[2],n[3]),ProductTopology(n[1],n[3]),ProductTopology(n[1],n[3]),ProductTopology(n[1],n[2]),ProductTopology(n[1],n[2])),Values(1,2,3,4,5,6),n)
 ClampedTopology(n::Values{4,Int}) = QuotientTopology(Values(1,2,3,4,5,6,7,8),Values(ProductTopology(n[2],n[3],n[4]),ProductTopology(n[2],n[3],n[4]),ProductTopology(n[1],n[3],n[4]),ProductTopology(n[1],n[3],n[4]),ProductTopology(n[1],n[2],n[4]),ProductTopology(n[1],n[2],n[4]),ProductTopology(n[1],n[2],n[3]),ProductTopology(n[1],n[2],n[3])),Values(1,2,3,4,5,6,7,8),n)
+ClampedTopology(n::Values{5,Int}) = QuotientTopology(Values(1,2,3,4,5,6,7,8,9,10),Values(ProductTopology(n[2],n[3],n[4],n[5]),ProductTopology(n[2],n[3],n[4],n[5]),ProductTopology(n[1],n[3],n[4],n[5]),ProductTopology(n[1],n[3],n[4],n[5]),ProductTopology(n[1],n[2],n[4],n[5]),ProductTopology(n[1],n[2],n[4],n[5]),ProductTopology(n[1],n[2],n[3],n[5]),ProductTopology(n[1],n[2],n[3],n[5]),ProductTopology(n[1],n[2],n[3],n[4]),ProductTopology(n[1],n[2],n[3],n[4])),Values(1,2,3,4,5,6,7,8,9,10),n)
 TorusTopology(n::Values{1,Int}) = QuotientTopology(Values(2,1),Array{Values{0,Int},0}.(Values(undef,undef)),Values(1,2),n)
 TorusTopology(n::Values{2,Int}) = QuotientTopology(Values(2,1,4,3),Values(ProductTopology(n[2]),ProductTopology(n[2]),ProductTopology(n[1]),ProductTopology(n[1])),Values(1,2,3,4),n)
 TorusTopology(n::Values{3,Int}) = QuotientTopology(Values(2,1,4,3,6,5),Values(ProductTopology(n[2],n[3]),ProductTopology(n[2],n[3]),ProductTopology(n[1],n[3]),ProductTopology(n[1],n[3]),ProductTopology(n[1],n[2]),ProductTopology(n[1],n[2])),Values(1,2,3,4,5,6),n)
 TorusTopology(n::Values{4,Int}) = QuotientTopology(Values(2,1,4,3,6,5,8,7),Values(ProductTopology(n[2],n[3],n[4]),ProductTopology(n[2],n[3],n[4]),ProductTopology(n[1],n[3],n[4]),ProductTopology(n[1],n[3],n[4]),ProductTopology(n[1],n[2],n[4]),ProductTopology(n[1],n[2],n[4]),ProductTopology(n[1],n[2],n[3]),ProductTopology(n[1],n[2],n[3])),Values(1,2,3,4,5,6,7,8),n)
+TorusTopology(n::Values{5,Int}) = QuotientTopology(Values(2,1,4,3,6,5,8,7,10,9),Values(ProductTopology(n[2],n[3],n[4],n[5]),ProductTopology(n[2],n[3],n[4],n[5]),ProductTopology(n[1],n[3],n[4],n[5]),ProductTopology(n[1],n[3],n[4],n[5]),ProductTopology(n[1],n[2],n[4],n[5]),ProductTopology(n[1],n[2],n[4],n[5]),ProductTopology(n[1],n[2],n[3],n[5]),ProductTopology(n[1],n[2],n[3],n[5]),ProductTopology(n[1],n[2],n[3],n[4]),ProductTopology(n[1],n[2],n[3],n[4])),Values(1,2,3,4,5,6,7,8,9,10),n)
 HopfTopology(n::Values{2,Int}) = QuotientTopology(Values(2,1,4,3),Values(ProductTopology(CrossRange(n[2])),ProductTopology(CrossRange(n[2])),ProductTopology(n[1]),ProductTopology(n[1])),Values(1,2,3,4),n)
 HopfTopology(n::Values{3,Int}) = QuotientTopology(Values(2,1,4,3,6,5),Values(ProductTopology(OneTo(n[2]),CrossRange(n[3])),ProductTopology(OneTo(n[2]),CrossRange(n[3])),ProductTopology(OneTo(n[1]),CrossRange(n[3])),ProductTopology(OneTo(n[1]),CrossRange(n[3])),ProductTopology(n[1],n[2]),ProductTopology(n[1],n[2])),Values(1,2,3,4,5,6),n)
 KleinTopology(n::Values{2,Int}) = QuotientTopology(Values(2,1,4,3),Values(ProductTopology(n[2]),ProductTopology(n[2]),ProductTopology(n[1]:-1:1),ProductTopology(n[1]:-1:1)),Values(1,2,3,4),n)
@@ -198,6 +231,7 @@ OpenParameter(n::Values{1,Int}) = TensorField(GridFrameBundle(PointArray(0,LinRa
 OpenParameter(n::Values{2,Int}) = TensorField(GridFrameBundle(PointArray(LinRange(0,1,n[1])⊕LinRange(0,1,n[2])),OpenTopology(n)))
 OpenParameter(n::Values{3,Int}) = TensorField(GridFrameBundle(PointArray((LinRange(0,1,n[1])⊕LinRange(0,1,n[2]))⊕LinRange(0,1,n[3])),OpenTopology(n)))
 OpenParameter(n::Values{4,Int}) = TensorField(GridFrameBundle(PointArray(((LinRange(0,1,n[1])⊕LinRange(0,1,n[2]))⊕LinRange(0,1,n[3]))⊕LinRange(0,1,n[4])),OpenTopology(n)))
+OpenParameter(n::Values{5,Int}) = TensorField(GridFrameBundle(PointArray((((LinRange(0,1,n[1])⊕LinRange(0,1,n[2]))⊕LinRange(0,1,n[3]))⊕LinRange(0,1,n[4]))⊕LinRange(0,1,n[5])),OpenTopology(n)))
 RibbonParameter(n::Values{2,Int}) = TensorField(GridFrameBundle(PointArray(LinRange(0,2π,n[1])⊕LinRange(-1,1,n[2])),RibbonTopology(n)))
 MobiusParameter(n::Values{2,Int}) = TensorField(GridFrameBundle(PointArray(LinRange(0,2π,n[1])⊕LinRange(-1,1,n[2])),MobiusTopology(n)))
 WingParameter(n::Values{2,Int}) = TensorField(GridFrameBundle(PointArray(LinRange(0,1,n[1])⊕LinRange(-1,1,n[2])),WingTopology(n)))
@@ -205,14 +239,17 @@ MirrorParameter(n::Values{1,Int}) = TensorField(GridFrameBundle(PointArray(0,Lin
 MirrorParameter(n::Values{2,Int}) = TensorField(GridFrameBundle(PointArray(LinRange(0,2π,n[1])⊕LinRange(0,1,n[2])),MirrorTopology(n)))
 MirrorParameter(n::Values{3,Int}) = TensorField(GridFrameBundle(PointArray((LinRange(0,2π,n[1])⊕LinRange(0,1,n[2]))⊕LinRange(0,1,n[3])),MirrorTopology(n)))
 MirrorParameter(n::Values{4,Int}) = TensorField(GridFrameBundle(PointArray(((LinRange(0,2π,n[1])⊕LinRange(0,1,n[2]))⊕LinRange(0,1,n[3]))⊕LinRange(0,1,n[4])),MirrorTopology(n)))
+MirrorParameter(n::Values{5,Int}) = TensorField(GridFrameBundle(PointArray((((LinRange(0,2π,n[1])⊕LinRange(0,1,n[2]))⊕LinRange(0,1,n[3]))⊕LinRange(0,1,n[4]))⊕LinRange(0,1,n[5])),MirrorTopology(n)))
 ClampedParameter(n::Values{1,Int}) = TensorField(GridFrameBundle(PointArray(0,LinRange(0,2π,n[1])),ClampedTopology(n)))
 ClampedParameter(n::Values{2,Int}) = TensorField(GridFrameBundle(PointArray(LinRange(0,2π,n[1])⊕LinRange(0,2π,n[2])),ClampedTopology(n)))
 ClampedParameter(n::Values{3,Int}) = TensorField(GridFrameBundle(PointArray((LinRange(0,2π,n[1])⊕LinRange(0,2π,n[2]))⊕LinRange(0,2π,n[3])),ClampedTopology(n)))
 ClampedParameter(n::Values{4,Int}) = TensorField(GridFrameBundle(PointArray(((LinRange(0,2π,n[1])⊕LinRange(0,2π,n[2]))⊕LinRange(0,2π,n[3]))⊕LinRange(0,2π,n[4])),ClampedTopology(n)))
+ClampedParameter(n::Values{5,Int}) = TensorField(GridFrameBundle(PointArray((((LinRange(0,2π,n[1])⊕LinRange(0,2π,n[2]))⊕LinRange(0,2π,n[3]))⊕LinRange(0,2π,n[4]))⊕LinRange(0,2π,n[5])),ClampedTopology(n)))
 TorusParameter(n::Values{1,Int}) = TensorField(GridFrameBundle(PointArray(0,LinRange(0,2π,n[1])),TorusTopology(n)))
 TorusParameter(n::Values{2,Int}) = TensorField(GridFrameBundle(PointArray(LinRange(0,2π,n[1])⊕LinRange(0,2π,n[2])),TorusTopology(n)))
 TorusParameter(n::Values{3,Int}) = TensorField(GridFrameBundle(PointArray((LinRange(0,2π,n[1])⊕LinRange(0,2π,n[2]))⊕LinRange(0,2π,n[3])),TorusTopology(n)))
 TorusParameter(n::Values{4,Int}) = TensorField(GridFrameBundle(PointArray(((LinRange(0,2π,n[1])⊕LinRange(0,2π,n[2]))⊕LinRange(0,2π,n[3]))⊕LinRange(0,2π,n[4])),TorusTopology(n)))
+TorusParameter(n::Values{5,Int}) = TensorField(GridFrameBundle(PointArray((((LinRange(0,2π,n[1])⊕LinRange(0,2π,n[2]))⊕LinRange(0,2π,n[3]))⊕LinRange(0,2π,n[4]))⊕LinRange(0,2π,n[5])),TorusTopology(n)))
 HopfParameter(n::Values{2,Int}) = TensorField(GridFrameBundle(PointArray(LinRange(0,2π,n[2])⊕LinRange(0,4π,n[3])),HopfTopology(n)))
 HopfParameter(n::Values{3,Int}) = TensorField(GridFrameBundle(PointArray((LinRange(7π/16/n[1],7π/16,n[1])⊕LinRange(0,2π,n[2]))⊕LinRange(0,4π,n[3])),HopfTopology(n)))
 KleinParameter(n::Values{2,Int}) = TensorField(GridFrameBundle(PointArray(LinRange(0,2π,n[1])⊕LinRange(0,2π,n[2])),KleinTopology(n)))
@@ -262,6 +299,8 @@ getlocate(i) = Values((i,))
 getlocate(a,i) = Values((i,))
 getlocate(a,i,j) = isone(a) ? Values(i,j) : Values(j,i)
 getlocate(a,i,j,k) = isone(a) ? Values(i,j,k) : (a==2) ? Values(j,i,k) : Values(j,k,i)
+getlocate(a,i,j,k,l) = isone(a) ? Values(i,j,k,l) : (a==2) ? Values(j,i,k,l) : (a==3) ? Values(j,k,i,l) : Values(j,k,l,i)
+getlocate(a,i,j,k,l,o) = isone(a) ? Values(i,j,k,l,o) : (a==2) ? Values(j,i,k,l,o) : (a==3) ? Values(j,k,i,l,o) : (a==4) ? Values(j,k,l,i,o) : Values(j,k,l,o,i)
 
 function locate_fast(pr1::Int,s,i::Int)
     if isodd(pr1)
@@ -309,61 +348,7 @@ Base.iterate(t::QuotientTopology) = (getindex(t,1),1)
 Base.iterate(t::QuotientTopology,state) = (s=state+1; s≤length(t) ? (getindex(t,s),s) : nothing)
 
 function Base.getindex(m::QuotientTopology{N},i::Vararg{Int,N}) where N
-    Values{N,Int}(i)
-end
-function Base.getindex(m::QuotientTopology{3},i::Int,j::Int,k::Int)
-    s = size(m)
-    n1,n2,n3 = s[1],s[2],s[3]
-    isi,isj,isk = (i > 1 && i < n1),(j > 1 && j < n2),(k > 1 && k < n3)
-    if isj && isk && !isi
-        if i < 2
-            r = m.r[1]
-            !iszero(r) && (return location(m.p,m.q,r,s,i,j,k))
-        else
-            r = m.r[2]
-            !iszero(r) && (return location(m.p,m.q,r,n1,s,i,j,k))
-        end
-    elseif isi && isk && !isj
-        if j < 2
-            r = m.r[3]
-            !iszero(r) && (return location(m.p,m.q,r,s,j,i,k))
-        else
-            r = m.r[4]
-            !iszero(r) && (return location(m.p,m.q,r,n2,s,j,i,k))
-        end
-    elseif isi && isj && !isk
-        if k < 2
-            r = m.r[5]
-            !iszero(r) && (return location(m.p,m.q,r,s,k,i,j))
-        else
-            r = m.r[6]
-            !iszero(r) && (return location(m.p,m.q,r,n3,s,k,i,j))
-        end
-    end
-    return Values(i,j,k)
-end
-function Base.getindex(m::QuotientTopology{2},i::Int,j::Int)
-    s = size(m)
-    n1,n2 = s[1],s[2]
-    isi,isj = (i > 1 && i < n1),(j > 1 && j < n2)
-    if isj && !isi
-        if i < 2
-            r = m.r[1]
-            !iszero(r) && (return location(m.p,m.q,r,s,i,j))
-        else
-            r = m.r[2]
-            !iszero(r) && (return location(m.p,m.q,r,n1,s,i,j))
-        end
-    elseif isi && !isj
-        if j < 2
-            r = m.r[3]
-            !iszero(r) && (return location(m.p,m.q,r,s,j,i))
-        else
-            r = m.r[4]
-            !iszero(r) && (return location(m.p,m.q,r,n2,s,j,i))
-        end
-    end
-    return Values(i,j)
+    N > 5 ? Values{N,Int}(i) : getindex(m,Val(0),i...)
 end
 function Base.getindex(m::QuotientTopology{1},i::Int)
     n = size(m)[1]
@@ -379,14 +364,14 @@ function Base.getindex(m::QuotientTopology{1},i::Int)
     return Values{1,Int}((ii,))
 end
 
+bounds(i,n,::Val{N},::Val{M}) where {N,M} = (i > (N∈(0,M) ? 1 : 0) && (N∈(0,M) ? (<) : (≤))(i,n))
+
 Base.getindex(m::QuotientTopology{N},::Val,i::Vararg{Int,N}) where N = getindex(m,i...)
 Base.getindex(m::QuotientTopology{1},::Val,i::Int) = getindex(m,i)
-function Base.getindex(m::QuotientTopology{2},::Val{N},i::Int,j::Int) where N
-    s,Q = size(m),isone(N)
+function Base.getindex(m::QuotientTopology{2},N::Val,i::Int,j::Int)
+    s = size(m)
     n1,n2 = s[1],s[2]
-    isi,isj = (
-        (i > (Q ? 1 : 0) && (Q ? (<) : (≤))(i,n1)),
-        (j > (Q ? 0 : 1) && (Q ? (≤) : (<))(j,n2)))
+    isi,isj = (bounds(i,n1,N,Val(1)),bounds(j,n2,N,Val(2)))
     if isj && !isi
         if i < 2
             r = m.r[1]
@@ -406,13 +391,10 @@ function Base.getindex(m::QuotientTopology{2},::Val{N},i::Int,j::Int) where N
     end
     return Values(i,j)
 end
-function Base.getindex(m::QuotientTopology{3},::Val{N},i::Int,j::Int,k::Int) where N
+function Base.getindex(m::QuotientTopology{3},N::Val,i::Int,j::Int,k::Int)
     s = size(m)
     n1,n2,n3 = s[1],s[2],s[3]
-    isi,isj,isk = (
-        (i > (N==1 ? 1 : 0) && (N==1 ? (<) : (≤))(i,n1)),
-        (j > (N==2 ? 1 : 0) && (N==2 ? (<) : (≤))(j,n2)),
-        (k > (N==3 ? 1 : 0) && (N==3 ? (<) : (≤))(k,n3)))
+    isi,isj,isk = (bounds(i,n1,N,Val(1)),bounds(j,n2,N,Val(2)),bounds(k,n3,N,Val(3)))
     if isj && isk && !isi
         if i < 2
             r = m.r[1]
@@ -439,6 +421,92 @@ function Base.getindex(m::QuotientTopology{3},::Val{N},i::Int,j::Int,k::Int) whe
         end
     end
     return Values(i,j,k)
+end
+function Base.getindex(m::QuotientTopology{4},N::Val,i::Int,j::Int,k::Int,l::Int)
+    s = size(m)
+    n1,n2,n3,n4 = s[1],s[2],s[3],s[4]
+    isi,isj,isk,isl = (bounds(i,n1,N,Val(1)),bounds(j,n2,N,Val(2)),bounds(k,n3,N,Val(3)),bounds(l,n4,N,Val(4)))
+    if isj && isk && isl && !isi
+        if i < 2
+            r = m.r[1]
+            !iszero(r) && (return location(m.p,m.q,r,s,i,j,k,l))
+        else
+            r = m.r[2]
+            !iszero(r) && (return location(m.p,m.q,r,n1,s,i,j,k,l))
+        end
+    elseif isi && isk && isl && !isj
+        if j < 2
+            r = m.r[3]
+            !iszero(r) && (return location(m.p,m.q,r,s,j,i,k,l))
+        else
+            r = m.r[4]
+            !iszero(r) && (return location(m.p,m.q,r,n2,s,j,i,k,l))
+        end
+    elseif isi && isj && isl && !isk
+        if k < 2
+            r = m.r[5]
+            !iszero(r) && (return location(m.p,m.q,r,s,k,i,j,l))
+        else
+            r = m.r[6]
+            !iszero(r) && (return location(m.p,m.q,r,n3,s,k,i,j,l))
+        end
+    elseif isi && isj && isk && !isl
+        if l < 2
+            r = m.r[7]
+            !iszero(r) && (return location(m.p,m.q,r,s,l,i,j,k))
+        else
+            r = m.r[8]
+            !iszero(r) && (return location(m.p,m.q,r,n4,s,l,i,j,k))
+        end
+    end
+    return Values(i,j,k,l)
+end
+function Base.getindex(m::QuotientTopology{5},N::Val,i::Int,j::Int,k::Int,l::Int,o::Int)
+    s = size(m)
+    n1,n2,n3,n4,n5 = s[1],s[2],s[3],s[4],s[5]
+    isi,isj,isk,isl,iso = (bounds(i,n1,N,Val(1)),bounds(j,n2,N,Val(2)),bounds(k,n3,N,Val(3)),bounds(l,n4,N,Val(4)),bounds(o,n5,N,Val(5)))
+    if isj && isk && isl && iso && !isi
+        if i < 2
+            r = m.r[1]
+            !iszero(r) && (return location(m.p,m.q,r,s,i,j,k,l,o))
+        else
+            r = m.r[2]
+            !iszero(r) && (return location(m.p,m.q,r,n1,s,i,j,k,l,o))
+        end
+    elseif isi && isk && isl && iso && !isj
+        if j < 2
+            r = m.r[3]
+            !iszero(r) && (return location(m.p,m.q,r,s,j,i,k,l,o))
+        else
+            r = m.r[4]
+            !iszero(r) && (return location(m.p,m.q,r,n2,s,j,i,k,l,o))
+        end
+    elseif isi && isj && isl && iso && !isk
+        if k < 2
+            r = m.r[5]
+            !iszero(r) && (return location(m.p,m.q,r,s,k,i,j,l,o))
+        else
+            r = m.r[6]
+            !iszero(r) && (return location(m.p,m.q,r,n3,s,k,i,j,l,o))
+        end
+    elseif isi && isj && isk && iso && !isl
+        if l < 2
+            r = m.r[7]
+            !iszero(r) && (return location(m.p,m.q,r,s,l,i,j,k,o))
+        else
+            r = m.r[8]
+            !iszero(r) && (return location(m.p,m.q,r,n4,s,l,i,j,k,o))
+        end
+    elseif isi && isj && isk && isl && !iso
+        if o < 2
+            r = m.r[9]
+            !iszero(r) && (return location(m.p,m.q,r,s,o,i,j,k,l))
+        else
+            r = m.r[10]
+            !iszero(r) && (return location(m.p,m.q,r,n4,s,o,i,j,k,l))
+        end
+    end
+    return Values(i,j,k,l,o)
 end
 
 function findface(m,r,i,vals)
@@ -462,6 +530,8 @@ subtopology(m::OpenTopology,i::NTuple{N,Int},::Colon,j::NTuple{M,Int},::Colon,k:
 subtopology(m::QuotientTopology{1},i::NTuple{N,Int},::Colon,j::NTuple{M,Int} where M) where N = m
 subtopology(m::QuotientTopology{2},i::NTuple{N,Int},::Colon,j::NTuple{M,Int},::Colon,k::NTuple{L,Int} where L) where {N,M} = m
 subtopology(m::QuotientTopology{3},i::NTuple{N,Int},::Colon,j::NTuple{M,Int},::Colon,k::NTuple{L,Int},::Colon,l::NTuple{O,Int} where O) where {N,M,L} = m
+subtopology(m::QuotientTopology{4},i::NTuple{N,Int},::Colon,j::NTuple{M,Int},::Colon,k::NTuple{L,Int},::Colon,l::NTuple{O,Int},::Colon,o::NTuple{Y,Int} where Y) where {N,M,L,O} = m
+subtopology(m::QuotientTopology{5},i::NTuple{N,Int},::Colon,j::NTuple{M,Int},::Colon,k::NTuple{L,Int},::Colon,l::NTuple{O,Int},::Colon,o::NTuple{Y,Int},::Colon,z::NTuple{Z,Int} where Z) where {N,M,L,O,Y} = m
 function subtopology(m::QuotientTopology,i::NTuple{N,Int},::Colon,j::NTuple{M,Int} where M) where N
     N1 = N+1
     r,vals = m.r[Values(2N1-1,2N1)],Values(i...,j...)
@@ -522,21 +592,77 @@ function subtopology(m::QuotientTopology,i::NTuple{N,Int},::Colon,j::NTuple{M,In
     c = Values(p1z ? 0 : 1,p2z ? 0 : !(p1z)+!(p2z),p3z ? 0 : !(p1z)+!(p2z)+!(p3z),p4z ? 0 : !(p1z)+!(p2z)+!(p3z)+!(p4z),p5z ? 0 : !(p1z)+!(p2z)+!(p3z)+!(p4z)+!(p5z),p6z ? 0 : pz)
     QuotientTopology(a,b,c,Values(s[N1],s[M1],s[L1]))
 end
+function subtopology(m::QuotientTopology,i::NTuple{N,Int},::Colon,j::NTuple{M,Int},::Colon,k::NTuple{L,Int},::Colon,l::NTuple{O,Int},::Colon,h::NTuple{H,Int} where H) where {N,M,L,O}
+    N1,M1,L1,O1,s = N+1,N+M+2,N+M+L+3,N+M+L+O+4,size(m)
+    r,vals = m.r[Values(2N1-1,2N1,2M1-1,2M1,2L1-1,2L1,2O1-1,2O1)],Values(i...,j...,k...,l...,h...)
+    (p1,p2,p3,p4,p5,p6,p7,p8) = (
+        findface(m,r,1,vals,M1-1,L1-1,O1-1),findface(m,r,2,vals,M1-1,L1-1,O1-1),
+        findface(m,r,3,vals,N1,L1-1,O1-1),findface(m,r,4,vals,N1,L1-1,O1-1),
+        findface(m,r,5,vals,N1,M1,O1-1),findface(m,r,6,vals,N1,M1,O1-1),
+        findface(m,r,7,vals,N1,M1,L1),findface(m,r,8,vals,N1,M1,L1))
+    p1z,p2z,p3z,p4z,p5z,p6z,p7z,p8z = iszero.((p1,p2,p3,p4,p5,p6,p7,p8))
+    pz = !(p1z)+!(p2z)+!(p3z)+!(p4z)+!(p5z)+!(p6z)+!(p7z)+!(p8z)
+    a = Values{pz,Int}((p1z ? () : (p1,))...,(p2z ? () : (p2,))...,(p3z ? () : (p3,))...,(p4z ? () : (p4,))...,(p5z ? () : (p5,))...,(p6z ? () : (p6,))...,(p7z ? () : (p7,))...,(p8z ? () : (p8,))...)
+    b = if iszero(pz)
+        Values{pz,Array{Values{3,Int},3}}()
+    else; Values{pz}(
+        (p1z ? () : (ProductTopology(m.q[r[1]].v[Values(M1-1,L1-1,O1-1)]),))...,
+        (p2z ? () : (ProductTopology(m.q[r[2]].v[Values(M1-1,L1-1,O1-1)]),))...,
+        (p3z ? () : (ProductTopology(m.q[r[3]].v[Values(N1,L1-1,O1-1)]),))...,
+        (p4z ? () : (ProductTopology(m.q[r[4]].v[Values(N1,L1-1,O1-1)]),))...,
+        (p5z ? () : (ProductTopology(m.q[r[5]].v[Values(N1,M1,O1-1)]),))...,
+        (p6z ? () : (ProductTopology(m.q[r[6]].v[Values(N1,M1,O1-1)]),))...,
+        (p7z ? () : (ProductTopology(m.q[r[7]].v[Values(N1,M1,L1)]),))...,
+        (p8z ? () : (ProductTopology(m.q[r[8]].v[Values(N1,M1,L1)]),))...)
+    end
+    c = Values(p1z ? 0 : 1,p2z ? 0 : !(p1z)+!(p2z),p3z ? 0 : !(p1z)+!(p2z)+!(p3z),p4z ? 0 : !(p1z)+!(p2z)+!(p3z)+!(p4z),p5z ? 0 : !(p1z)+!(p2z)+!(p3z)+!(p4z)+!(p5z),p6z ? 0 : !(p1z)+!(p2z)+!(p3z)+!(p4z)+!(p5z)+!(p6z),p7z ? 0 : !(p1z)+!(p2z)+!(p3z)+!(p4z)+!(p5z)+!(p6z)+!(p7z),p8z ? 0 : pz)
+    QuotientTopology(a,b,c,Values(s[N1],s[M1],s[L1],s[O1]))
+end
 
+# 1
 (m::QuotientTopology)(c::Colon,i::Int...) = subtopology(m,(),c,i)
 (m::QuotientTopology)(i::Int,c::Colon,j::Int...) = subtopology(m,(i,),c,j)
 (m::QuotientTopology)(i::Int,j::Int,c::Colon,k::Int...) = subtopology(m,(i,j),c,k)
 (m::QuotientTopology)(i::Int,j::Int,k::Int,c::Colon,l::Int...) = subtopology(m,(i,j,k),c,l)
+(m::QuotientTopology)(i::Int,j::Int,k::Int,l::Int,c::Colon,h::Int...) = subtopology(m,(i,j,k,l),c,h)
+
+# 2 - 0
 (m::QuotientTopology)(c::Colon,::Colon,i::Int...) = subtopology(m,(),c,(),c,i)
 (m::QuotientTopology)(c::Colon,i::Int,::Colon,j::Int...) = subtopology(m,(),c,(i,),c,j)
 (m::QuotientTopology)(c::Colon,i::Int,j::Int,::Colon,k::Int...) = subtopology(m,(),c,(i,j),c,k)
+(m::QuotientTopology)(c::Colon,i::Int,j::Int,k::Int,::Colon,l::Int...) = subtopology(m,(),c,(i,j,k),c,l)
+# 2 - 1
 (m::QuotientTopology)(i::Int,c::Colon,::Colon,j::Int...) = subtopology(m,(i,),c,(),c,j)
 (m::QuotientTopology)(i::Int,c::Colon,j::Int,::Colon,k::Int...) = subtopology(m,(i,),c,(j,),c,k)
+(m::QuotientTopology)(i::Int,c::Colon,j::Int,k::Int,::Colon,l::Int...) = subtopology(m,(i,),c,(j,k),c,l)
+# 2 - 2
 (m::QuotientTopology)(i::Int,j::Int,c::Colon,::Colon,k::Int...) = subtopology(m,(i,j),c,(),c,k)
+(m::QuotientTopology)(i::Int,j::Int,c::Colon,k::Int,::Colon,l::Int...) = subtopology(m,(i,j),c,(k,),c,l)
+# 2 - 3
+(m::QuotientTopology)(i::Int,j::Int,k::Int,c::Colon,::Colon,l::Int...) = subtopology(m,(i,j,k),c,(),c,l)
+
+# 3 - 0 - 0
 (m::QuotientTopology)(c::Colon,::Colon,::Colon,i::Int...) = subtopology(m,(),c,(),c,(),c,i)
 (m::QuotientTopology)(c::Colon,::Colon,i::Int,::Colon,j::Int...) = subtopology(m,(),c,(),c,(i,),c,j)
+(m::QuotientTopology)(c::Colon,::Colon,i::Int,j::Int,::Colon,k::Int...) = subtopology(m,(),c,(),c,(i,j),c,k)
+# 3 - 0 - 1
 (m::QuotientTopology)(c::Colon,i::Int,::Colon,::Colon,j::Int...) = subtopology(m,(),c,(i,),c,(),c,j)
+(m::QuotientTopology)(c::Colon,i::Int,::Colon,j::Int,::Colon,k::Int...) = subtopology(m,(),c,(i,),c,(j,),c,k)
+# 3 - 0 - 2
+(m::QuotientTopology)(c::Colon,i::Int,j::Int,::Colon,::Colon,k::Int...) = subtopology(m,(),c,(i,j),c,(),c,k)
+# 3 - 1
 (m::QuotientTopology)(i::Int,c::Colon,::Colon,::Colon,j::Int...) = subtopology(m,(i,),c,(),c,(),c,j)
+(m::QuotientTopology)(i::Int,c::Colon,j::Int,::Colon,::Colon,k::Int...) = subtopology(m,(i,),c,(j,),c,(),c,k)
+(m::QuotientTopology)(i::Int,c::Colon,::Colon,j::Int,::Colon,k::Int...) = subtopology(m,(i,),c,(),c,(j,),c,k)
+# 3 - 2
+(m::QuotientTopology)(i::Int,j::Int,c::Colon,::Colon,::Colon,k::Int...) = subtopology(m,(i,j),c,(),c,(),c,k)
+
+# 4
+(m::QuotientTopology)(c::Colon,::Colon,::Colon,::Colon,i::Int...) = subtopology(m,(),c,(),c,(),c,(),c,i)
+(m::QuotientTopology)(c::Colon,::Colon,::Colon,i::Int,::Colon,j::Int...) = subtopology(m,(),c,(),c,(),c,(i,),c,j)
+(m::QuotientTopology)(c::Colon,::Colon,i::Int,::Colon,::Colon,j::Int...) = subtopology(m,(),c,(),c,(i,),c,(),c,j)
+(m::QuotientTopology)(c::Colon,i::Int,::Colon,::Colon,::Colon,j::Int...) = subtopology(m,(),c,(i,),c,(),c,(),c,j)
+(m::QuotientTopology)(i::Int,c::Colon,::Colon,::Colon,::Colon,j::Int...) = subtopology(m,(i,),c,(),c,(),c,(),c,j)
 
 # SimplexTopology
 

@@ -214,121 +214,240 @@ for fun ∈ (:_slow,:_fast)
         end
         $grad(f::TensorField,n::Int,args...) = $grad(f,Val(n),args...)
         $cd(f::AbstractArray,args...) = $cdg(Grid(f),args...)
-        function $cdg(f::Grid{1},dt::Real,l::Tuple=size(f))
+        function $cdg(f::Grid{1},dt::Real,s::Tuple=size(f))
             d = similar(points(f))
-            @threads for i ∈ 1:l[1]
-                d[i] = $cdg(f,l,i)/$cdg(i,dt,l)
+            @threads for i ∈ OneTo(s[1])
+                d[i] = $cdg(f,s,i)/$cdg(i,dt,l)
             end
             return d
         end
-        function $cdg(f::Grid{1},dt::Vector,l::Tuple=size(f))
+        function $cdg(f::Grid{1},dt::Vector,s::Tuple=size(f))
             d = similar(points(f))
-            @threads for i ∈ 1:l[1]
-                d[i] = $cdg(f,l,i)/dt[i]
+            @threads for i ∈ OneTo(s[1])
+                d[i] = $cdg(f,s,i)/dt[i]
             end
             return d
         end
-        function $cdg(f::Grid{1},l::Tuple=size(f))
+        function $cdg(f::Grid{1},s::Tuple=size(f))
             d = similar(points(f))
-            @threads for i ∈ 1:l[1]
-                d[i] = $cdg(f,l,i)
+            @threads for i ∈ OneTo(s[1])
+                d[i] = $cdg(f,s,i)
             end
             return d
         end
-        function $cdg(f::Grid{2},dt::AbstractMatrix,l::Tuple=size(f))
-            d = Array{Chain{Submanifold(2),1,pointtype(f),2},2}(undef,l...)
-            @threads for i ∈ 1:l[1]; for j ∈ 1:l[2]
-                d[i,j] = Chain($cdg(f,l,i,j).v./dt[i,j].v)
+        function $cdg(f::Grid{2},dt::AbstractMatrix,s::Tuple=size(f))
+            d = Array{Chain{Submanifold(2),1,pointtype(f),2},2}(undef,s...)
+            @threads for i ∈ OneTo(s[1]); for j ∈ OneTo(s[2])
+                d[i,j] = Chain($cdg(f,s,i,j).v./dt[i,j].v)
             end end
             return d
         end
-        function $cdg(f::Grid{2},l::Tuple=size(f))
-            d = Array{Chain{Submanifold(2),1,pointtype(f),2},2}(undef,l...)
-            @threads for i ∈ 1:l[1]; for j ∈ 1:l[2]
-                d[i,j] = $cdg(f,l,i,j)
+        function $cdg(f::Grid{2},s::Tuple=size(f))
+            d = Array{Chain{Submanifold(2),1,pointtype(f),2},2}(undef,s...)
+            @threads for i ∈ OneTo(s[1]); for j ∈ OneTo(s[2])
+                d[i,j] = $cdg(f,s,i,j)
             end end
             return d
         end
-        function $cdg(f::Grid{3},dt::AbstractArray{T,3} where T,l::Tuple=size(f))
-            d = Array{Chain{Submanifold(3),1,pointtype(f),3},3}(undef,l...)
-            @threads for i ∈ 1:l[1]; for j ∈ 1:l[2]; for k ∈ 1:l[3]
-                d[i,j,k] = Chain($cdg(f,l,i,j,k).v./dt[i,j,k].v)
+        function $cdg(f::Grid{3},dt::AbstractArray{T,3} where T,s::Tuple=size(f))
+            d = Array{Chain{Submanifold(3),1,pointtype(f),3},3}(undef,s...)
+            @threads for i ∈ OneTo(s[1]); for j ∈ OneTo(s[2]); for k ∈ OneTo(s[3])
+                d[i,j,k] = Chain($cdg(f,s,i,j,k).v./dt[i,j,k].v)
             end end end
             return d
         end
-        function $cdg(f::Grid{3},l::Tuple=size(f.v))
-            d = Array{Chain{Submanifold(3),1,pointtype(f),3},3}(undef,l...)
-            @threads for i ∈ 1:l[1]; for j ∈ 1:l[2]; for k ∈ 1:l[3]
-                d[i,j,k] = $cdg(f,l,i,j,k)
+        function $cdg(f::Grid{3},s::Tuple=size(f.v))
+            d = Array{Chain{Submanifold(3),1,pointtype(f),3},3}(undef,s...)
+            @threads for i ∈ OneTo(s[1]); for j ∈ OneTo(s[2]); for k ∈ OneTo(s[3])
+                d[i,j,k] = $cdg(f,s,i,j,k)
             end end end
             return d
         end
-        function $cdg(f::Grid{2},n::Val{1},dt::AbstractVector,l::Tuple=size(f))
-            d = Array{pointtype(f),2}(undef,l...)
-            @threads for i ∈ 1:l[1]; for j ∈ 1:l[2]
-                d[i,j] = $cdg(f,l[1],n,i,j)/dt[i]
+        function $cdg(f::Grid{4},dt::AbstractArray{T,4} where T,s::Tuple=size(f))
+            d = Array{Chain{Submanifold(4),1,pointtype(f),4},4}(undef,s...)
+            @threads for i ∈ OneTo(s[1]); for j ∈ OneTo(s[2]); for k ∈ OneTo(s[3]); for l ∈ OneTo(s[4])
+                d[i,j,k,l] = Chain($cdg(f,s,i,j,k,l).v./dt[i,j,k,l].v)
+            end end end end
+            return d
+        end
+        function $cdg(f::Grid{4},s::Tuple=size(f.v))
+            d = Array{Chain{Submanifold(4),1,pointtype(f),4},4}(undef,s...)
+            @threads for i ∈ OneTo(s[1]); for j ∈ OneTo(s[2]); for k ∈ OneTo(s[3]); for l ∈ OneTo(s[4])
+                d[i,j,k,l] = $cdg(f,s,i,j,k,l)
+            end end end end
+            return d
+        end
+        function $cdg(f::Grid{5},dt::AbstractArray{T,5} where T,s::Tuple=size(f))
+            d = Array{Chain{Submanifold(5),1,pointtype(f),5},5}(undef,s...)
+            @threads for i ∈ OneTo(s[1]); for j ∈ OneTo(s[2]); for k ∈ OneTo(s[3]); for l ∈ OneTo(s[4]); for o ∈ OneTo(s[5])
+                d[i,j,k,l,o] = Chain($cdg(f,s,i,j,k,l,o).v./dt[i,j,k,l,o].v)
+            end end end end end
+            return d
+        end
+        function $cdg(f::Grid{5},s::Tuple=size(f.v))
+            d = Array{Chain{Submanifold(5),1,pointtype(f),5},5}(undef,s...)
+            @threads for i ∈ OneTo(s[1]); for j ∈ OneTo(s[2]); for k ∈ OneTo(s[3]); for l ∈ OneTo(s[4]); for o ∈ OneTo(s[5])
+                d[i,j,k,l,o] = $cdg(f,s,i,j,k,l,o)
+            end end end end end
+            return d
+        end
+        function $cdg(f::Grid{2},n::Val{1},dt::AbstractVector,s::Tuple=size(f))
+            d = Array{pointtype(f),2}(undef,s...)
+            @threads for i ∈ OneTo(s[1]); for j ∈ OneTo(s[2])
+                d[i,j] = $cdg(f,s[1],n,i,j)/dt[i]
             end end
             return d
         end
-        function $cdg(f::Grid{2},n::Val{2},dt::AbstractVector,l::Tuple=size(f))
-            d = Array{pointtype(f),2}(undef,l...)
-            @threads for i ∈ 1:l[1]; for j ∈ 1:l[2]
-                d[i,j] = $cdg(f,l[2],n,i,j)/dt[j]
+        function $cdg(f::Grid{2},n::Val{2},dt::AbstractVector,s::Tuple=size(f))
+            d = Array{pointtype(f),2}(undef,s...)
+            @threads for i ∈ OneTo(s[1]); for j ∈ OneTo(s[2])
+                d[i,j] = $cdg(f,s[2],n,i,j)/dt[j]
             end end
             return d
         end
-        function $cdg(f::Grid{2},n::Val{N},dt::AbstractMatrix,l::Tuple=size(f)) where N
-            d = Array{pointtype(f),2}(undef,l...)
-            @threads for i ∈ 1:l[1]; for j ∈ 1:l[2]
-                d[i,j] = $cdg(f,l[N],n,i,j)/dt[i,j]
+        function $cdg(f::Grid{2},n::Val{N},dt::AbstractMatrix,s::Tuple=size(f)) where N
+            d = Array{pointtype(f),2}(undef,s...)
+            @threads for i ∈ OneTo(s[1]); for j ∈ OneTo(s[2])
+                d[i,j] = $cdg(f,s[N],n,i,j)/dt[i,j]
             end end
             return d
         end
-        function $cdg(f::Grid{2},n::Val{N},l::Tuple=size(f)) where N
-            d = Array{pointtype(f),2}(undef,l...)
-            @threads for i ∈ 1:l[1]; for j ∈ 1:l[2]
-                d[i,j] = $cdg(f,l[N],n,i,j)
+        function $cdg(f::Grid{2},n::Val{N},s::Tuple=size(f)) where N
+            d = Array{pointtype(f),2}(undef,s...)
+            @threads for i ∈ OneTo(s[1]); for j ∈ OneTo(s[2])
+                d[i,j] = $cdg(f,s[N],n,i,j)
             end end
             return d
         end
-        function $cdg(f::Grid{3},n::Val{1},dt::AbstractVector,l::Tuple=size(f))
-            d = Array{pointtype(f),3}(undef,l...)
-            @threads for i ∈ 1:l[1]; for j ∈ 1:l[2]; for k ∈ 1:l[3]
-                d[i,j,k] = $cdg(f,l[1],n,i,j,k)/dt[i]
+        function $cdg(f::Grid{3},n::Val{1},dt::AbstractVector,s::Tuple=size(f))
+            d = Array{pointtype(f),3}(undef,s...)
+            @threads for i ∈ OneTo(s[1]); for j ∈ OneTo(s[2]); for k ∈ OneTo(s[3])
+                d[i,j,k] = $cdg(f,s[1],n,i,j,k)/dt[i]
             end end end
             return d
         end
-        function $cdg(f::Grid{3},n::Val{2},dt::AbstractVector,l::Tuple=size(f))
-            d = Array{pointtype(f),3}(undef,l...)
-            @threads for i ∈ 1:l[1]; for j ∈ 1:l[2]; for k ∈ 1:l[3]
-                d[i,j,k] = $cdg(f,l[2],n,i,j,k)/dt[j]
+        function $cdg(f::Grid{3},n::Val{2},dt::AbstractVector,s::Tuple=size(f))
+            d = Array{pointtype(f),3}(undef,s...)
+            @threads for i ∈ OneTo(s[1]); for j ∈ OneTo(s[2]); for k ∈ OneTo(s[3])
+                d[i,j,k] = $cdg(f,s[2],n,i,j,k)/dt[j]
             end end end
             return d
         end
-        function $cdg(f::Grid{3},n::Val{3},dt::AbstractVector,l::Tuple=size(f))
-            d = Array{pointtype(f),3}(undef,l...)
-            @threads for i ∈ 1:l[1]; for j ∈ 1:l[2]; for k ∈ 1:l[3]
-                d[i,j,k] = $cdg(f,l[3],n,i,j,k)/dt[k]
+        function $cdg(f::Grid{3},n::Val{3},dt::AbstractVector,s::Tuple=size(f))
+            d = Array{pointtype(f),3}(undef,s...)
+            @threads for i ∈ OneTo(s[1]); for j ∈ OneTo(s[2]); for k ∈ OneTo(s[3])
+                d[i,j,k] = $cdg(f,s[3],n,i,j,k)/dt[k]
             end end end
             return d
         end
-        function $cdg(f::Grid{3},n::Val{N},dt::AbstractArray,l::Tuple=size(f)) where N
-            d = Array{pointtype(f),3}(undef,l...)
-            @threads for i ∈ 1:l[1]; for j ∈ 1:l[2]; for k ∈ 1:l[3]
-                d[i,j,k] = $cdg(f,l[N],n,i,j,k)/dt[i,j,k]
+        function $cdg(f::Grid{3},n::Val{N},dt::AbstractArray,s::Tuple=size(f)) where N
+            d = Array{pointtype(f),3}(undef,s...)
+            @threads for i ∈ OneTo(s[1]); for j ∈ OneTo(s[2]); for k ∈ OneTo(s[3])
+                d[i,j,k] = $cdg(f,s[N],n,i,j,k)/dt[i,j,k]
             end end end
             return d
         end
-        function $cdg(f::Grid{3},n::Val{N},l::Tuple=size(f)) where N
-            d = Array{pointtype(f),3}(undef,l...)
-            @threads for i ∈ 1:l[1]; for j ∈ 1:l[2]; for k ∈ 1:l[3]
-                d[i,j,k] = $cdg(f,l[N],n,i,j,k)
+        function $cdg(f::Grid{3},n::Val{N},s::Tuple=size(f)) where N
+            d = Array{pointtype(f),3}(undef,s...)
+            @threads for i ∈ OneTo(s[1]); for j ∈ OneTo(s[2]); for k ∈ OneTo(s[3])
+                d[i,j,k] = $cdg(f,s[N],n,i,j,k)
             end end end
             return d
         end
-        $cdg(f::Grid{1},l::Tuple,i::Int) = $cdg(f,l[1],Val(1),i)
-        @generated function $cdg(f::Grid{N},l::Tuple,i::Vararg{Int}) where N
-            :(Chain($([:($$cdg(f,l[$n],Val($n),i...)) for n ∈ list(1,N)]...)))
+        function $cdg(f::Grid{4},n::Val{1},dt::AbstractVector,s::Tuple=size(f))
+            d = Array{pointtype(f),4}(undef,s...)
+            @threads for i ∈ OneTo(s[1]); for j ∈ OneTo(s[2]); for k ∈ OneTo(s[3]); for l ∈ OneTo(s[4])
+                d[i,j,k,l] = $cdg(f,s[1],n,i,j,k,l)/dt[i]
+            end end end end
+            return d
+        end
+        function $cdg(f::Grid{4},n::Val{2},dt::AbstractVector,s::Tuple=size(f))
+            d = Array{pointtype(f),4}(undef,s...)
+            @threads for i ∈ OneTo(s[1]); for j ∈ OneTo(s[2]); for k ∈ OneTo(s[3]); for l ∈ OneTo(s[4])
+                d[i,j,k,l] = $cdg(f,s[2],n,i,j,k,l)/dt[j]
+            end end end end
+            return d
+        end
+        function $cdg(f::Grid{4},n::Val{3},dt::AbstractVector,s::Tuple=size(f))
+            d = Array{pointtype(f),4}(undef,s...)
+            @threads for i ∈ OneTo(s[1]); for j ∈ OneTo(s[2]); for k ∈ OneTo(s[3]); for l ∈ OneTo(s[4])
+                d[i,j,k,l] = $cdg(f,s[3],n,i,j,k,l)/dt[k]
+            end end end end
+            return d
+        end
+        function $cdg(f::Grid{4},n::Val{4},dt::AbstractVector,s::Tuple=size(f))
+            d = Array{pointtype(f),4}(undef,s...)
+            @threads for i ∈ OneTo(s[1]); for j ∈ OneTo(s[2]); for k ∈ OneTo(s[3]); for l ∈ OneTo(s[4])
+                d[i,j,k,l] = $cdg(f,s[4],n,i,j,k,l)/dt[l]
+            end end end end
+            return d
+        end
+        function $cdg(f::Grid{4},n::Val{N},dt::AbstractArray,s::Tuple=size(f)) where N
+            d = Array{pointtype(f),4}(undef,s...)
+            @threads for i ∈ OneTo(s[1]); for j ∈ OneTo(s[2]); for k ∈ OneTo(s[3]); for l ∈ OneTo(s[4])
+                d[i,j,k,l] = $cdg(f,s[N],n,i,j,k,l)/dt[i,j,k,l]
+            end end end end
+            return d
+        end
+        function $cdg(f::Grid{4},n::Val{N},s::Tuple=size(f)) where N
+            d = Array{pointtype(f),4}(undef,s...)
+            @threads for i ∈ OneTo(s[1]); for j ∈ OneTo(s[2]); for k ∈ OneTo(s[3]); for l ∈ OneTo(s[4])
+                d[i,j,k,l] = $cdg(f,s[N],n,i,j,k,l)
+            end end end end
+            return d
+        end
+        function $cdg(f::Grid{5},n::Val{1},dt::AbstractVector,s::Tuple=size(f))
+            d = Array{pointtype(f),5}(undef,s...)
+            @threads for i ∈ OneTo(s[1]); for j ∈ OneTo(s[2]); for k ∈ OneTo(s[3]); for l ∈ OneTo(s[4]); for o ∈ OneTo(s[5])
+                d[i,j,k,l,o] = $cdg(f,s[1],n,i,j,k,l,o)/dt[i]
+            end end end end end
+            return d
+        end
+        function $cdg(f::Grid{5},n::Val{2},dt::AbstractVector,s::Tuple=size(f))
+            d = Array{pointtype(f),5}(undef,s...)
+            @threads for i ∈ OneTo(s[1]); for j ∈ OneTo(s[2]); for k ∈ OneTo(s[3]); for l ∈ OneTo(s[4]); for o ∈ OneTo(s[5])
+                d[i,j,k,l,o] = $cdg(f,s[2],n,i,j,k,l,o)/dt[j]
+            end end end end end
+            return d
+        end
+        function $cdg(f::Grid{5},n::Val{3},dt::AbstractVector,s::Tuple=size(f))
+            d = Array{pointtype(f),5}(undef,s...)
+            @threads for i ∈ OneTo(s[1]); for j ∈ OneTo(s[2]); for k ∈ OneTo(s[3]); for l ∈ OneTo(s[4]); for o ∈ OneTo(s[5])
+                d[i,j,k,l,o] = $cdg(f,s[3],n,i,j,k,l,o)/dt[k]
+            end end end end end
+            return d
+        end
+        function $cdg(f::Grid{5},n::Val{4},dt::AbstractVector,s::Tuple=size(f))
+            d = Array{pointtype(f),5}(undef,s...)
+            @threads for i ∈ OneTo(s[1]); for j ∈ OneTo(s[2]); for k ∈ OneTo(s[3]); for l ∈ OneTo(s[4]); for o ∈ OneTo(s[5])
+                d[i,j,k,l,o] = $cdg(f,s[4],n,i,j,k,l,o)/dt[l]
+            end end end end end
+            return d
+        end
+        function $cdg(f::Grid{5},n::Val{5},dt::AbstractVector,s::Tuple=size(f))
+            d = Array{pointtype(f),5}(undef,s...)
+            @threads for i ∈ OneTo(s[1]); for j ∈ OneTo(s[2]); for k ∈ OneTo(s[3]); for l ∈ OneTo(s[4]); for o ∈ OneTo(s[5])
+                d[i,j,k,l,o] = $cdg(f,s[5],n,i,j,k,l,o)/dt[o]
+            end end end end end
+            return d
+        end
+        function $cdg(f::Grid{5},n::Val{N},dt::AbstractArray,s::Tuple=size(f)) where N
+            d = Array{pointtype(f),5}(undef,s...)
+            @threads for i ∈ OneTo(s[1]); for j ∈ OneTo(s[2]); for k ∈ OneTo(s[3]); for l ∈ OneTo(s[4]); for o ∈ OneTo(s[5])
+                d[i,j,k,l,o] = $cdg(f,s[N],n,i,j,k,l,o)/dt[i,j,k,l,o]
+            end end end end end
+            return d
+        end
+        function $cdg(f::Grid{5},n::Val{N},s::Tuple=size(f)) where N
+            d = Array{pointtype(f),5}(undef,s...)
+            @threads for i ∈ OneTo(s[1]); for j ∈ OneTo(s[2]); for k ∈ OneTo(s[3]); for l ∈ OneTo(s[4]); for o ∈ OneTo(s[5])
+                d[i,j,k,l,o] = $cdg(f,s[N],n,i,j,k,l,o)
+            end end end end end
+            return d
+        end
+        $cdg(f::Grid{1},s::Tuple,i::Int) = $cdg(f,s[1],Val(1),i)
+        @generated function $cdg(f::Grid{N},s::Tuple,i::Vararg{Int}) where N
+            :(Chain($([:($$cdg(f,s[$n],Val($n),i...)) for n ∈ list(1,N)]...)))
         end
         $cd(f::RealRegion) = ProductSpace($cd.(f.v))
         $cd(f::GridFrameBundle{Coordinate{P,G},N,<:PointArray{P,G,N,<:RealRegion,<:Global{N,<:InducedMetric}},<:ProductTopology}) where {P,G,N} = ProductSpace($cd.(base(base(f)).v))
@@ -337,17 +456,17 @@ for fun ∈ (:_slow,:_fast)
         $cd(f::GridFrameBundle{Coordinate{P,G},N,<:PointArray{P,G,N,<:RealRegion},<:ProductTopology}) where {P,G,N} = applymetric.($cd(base(base(f))),fiber(f))
         $cd(f::GridFrameBundle{Coordinate{P,G},N,<:PointArray{P,G,N,<:RealRegion},<:OpenTopology}) where {P,G,N} = applymetric.($cd(base(base(f))),fiber(f))
         $cd(f::GridFrameBundle{Coordinate{P,G},N,<:PointArray{P,G,N,<:RealRegion}}) where {P,G,N} = applymetric.(sum.(value.($cdg(f))),fiber(f))
-        function $cd(f::AbstractRange,l::Tuple=size(f))
-            d = Vector{eltype(f)}(undef,l[1])
-            @threads for i ∈ 1:l[1]
-                d[i] = $cdg(i,step(f),l[1])
+        function $cd(f::AbstractRange,s::Tuple=size(f))
+            d = Vector{eltype(f)}(undef,s[1])
+            @threads for i ∈ OneTo(s[1])
+                d[i] = $cdg(i,step(f),s[1])
             end
             return d
         end
-        function $cd(dt::Real,l::Tuple)
-            d = Vector{Float64}(undef,l[1])
-            @threads for i ∈ 1:l[1]
-                d[i] = $cdg(i,dt,l[1])
+        function $cd(dt::Real,s::Tuple)
+            d = Vector{Float64}(undef,s[1])
+            @threads for i ∈ OneTo(s[1])
+                d[i] = $cdg(i,dt,s[1])
             end
             return d
         end
@@ -539,7 +658,6 @@ trapz(f::ParametricMap,j::Int) = trapz(f,Val(j))
 trapz(f::ParametricMap,j::Val{J}) where J = remove(domain(f),j) → trapz2(codomain(f),j,diff(points(f).v[J]))
 trapz(f::ParametricMap{B,F,N,<:AlignedSpace} where {B,F,N},j::Val{J}) where J = remove(domain(f),j) → trapz1(codomain(f),j,step(points(f).v[J]))
 gentrapz1(n,j,h=:h,f=:f) = :($h*(($(select1(n,j,1))+$(select1(n,j,:(size(f)[$j]))))/2+$(select1(n,j,1,:(sum($(select1(n,j,:(2:$(:end)-1),f)),dims=$j))))))
-selectaxes(n,j) = (i≠3 ? i : 0 for i ∈ 1:10)
 @generated function trapz1(f::Array{T,N} where T,::Val{J},h::Real,s::Tuple=size(f)) where {N,J}
     gentrapz1(N,J)
 end
@@ -864,5 +982,16 @@ end
 end
 @generated function secondkind(ig,dg)
     Expr(:call,:Chain,[:(secondkind(ig,dg,$j)) for j ∈ list(1,mdims(fibertype(dg)))]...)
+end
+
+#export beta, betafunction
+
+function beta(a,b,n=30000)
+    x = OpenParameter(n)
+    integrate(x^(a-1)*(1-x)^(b-1))
+end
+function betafunction(a,b,n=100)
+    x = OpenParameter(n)
+    integral(x^(a-1)*(1-x)^(b-1))
 end
 
