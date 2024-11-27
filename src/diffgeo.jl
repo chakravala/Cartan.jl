@@ -63,10 +63,10 @@ end
 end=#
 Base.getindex(g::GridFrameBundle{C,M,<:FiberBundle,<:OpenTopology} where C,j::Int,n::Val,i::Vararg{Int}) where M = getpoint(g,j,n,i...)
 @generated function getpoint(g::GridFrameBundle{C,M,<:FiberBundle} where C,j::Int,::Val{N},i::Vararg{Int}) where {M,N}
-    :(Base.getindex(points(g),$([k≠N ? :(i[$k]) : :(i[$k]+j) for k ∈ 1:M]...)))
+    :(Base.getindex(points(g),$([k≠N ? :(@inbounds i[$k]) : :(@inbounds i[$k]+j) for k ∈ 1:M]...)))
 end
 @generated function Base.getindex(g::GridFrameBundle{C,M} where C,j::Int,n::Val{N},i::Vararg{Int}) where {M,N}
-    :(Base.getindex(points(g),Base.getindex(immersion(g),n,$([k≠N ? :(i[$k]) : :(i[$k]+j) for k ∈ 1:M]...))...))
+    :(Base.getindex(points(g),Base.getindex(immersion(g),n,$([k≠N ? :(@inbounds i[$k]) : :(@inbounds i[$k]+j) for k ∈ 1:M]...))...))
 end
 
 # centraldiff
@@ -294,14 +294,14 @@ for fun ∈ (:_slow,:_fast)
         function $cdg(f::Grid{2},n::Val{1},dt::AbstractVector,s::Tuple=size(f))
             d = Array{pointtype(f),2}(undef,s...)
             @threads for i ∈ OneTo(s[1]); for j ∈ OneTo(s[2])
-                d[i,j] = $cdg(f,s[1],n,i,j)/dt[i]
+                d[i,j] = $cdg(f,(@inbounds s[1]),n,i,j)/dt[i]
             end end
             return d
         end
         function $cdg(f::Grid{2},n::Val{2},dt::AbstractVector,s::Tuple=size(f))
             d = Array{pointtype(f),2}(undef,s...)
             @threads for i ∈ OneTo(s[1]); for j ∈ OneTo(s[2])
-                d[i,j] = $cdg(f,s[2],n,i,j)/dt[j]
+                d[i,j] = $cdg(f,(@inbounds s[2]),n,i,j)/dt[j]
             end end
             return d
         end
@@ -322,21 +322,21 @@ for fun ∈ (:_slow,:_fast)
         function $cdg(f::Grid{3},n::Val{1},dt::AbstractVector,s::Tuple=size(f))
             d = Array{pointtype(f),3}(undef,s...)
             @threads for i ∈ OneTo(s[1]); for j ∈ OneTo(s[2]); for k ∈ OneTo(s[3])
-                d[i,j,k] = $cdg(f,s[1],n,i,j,k)/dt[i]
+                d[i,j,k] = $cdg(f,(@inbounds s[1]),n,i,j,k)/dt[i]
             end end end
             return d
         end
         function $cdg(f::Grid{3},n::Val{2},dt::AbstractVector,s::Tuple=size(f))
             d = Array{pointtype(f),3}(undef,s...)
             @threads for i ∈ OneTo(s[1]); for j ∈ OneTo(s[2]); for k ∈ OneTo(s[3])
-                d[i,j,k] = $cdg(f,s[2],n,i,j,k)/dt[j]
+                d[i,j,k] = $cdg(f,(@inbounds s[2]),n,i,j,k)/dt[j]
             end end end
             return d
         end
         function $cdg(f::Grid{3},n::Val{3},dt::AbstractVector,s::Tuple=size(f))
             d = Array{pointtype(f),3}(undef,s...)
             @threads for i ∈ OneTo(s[1]); for j ∈ OneTo(s[2]); for k ∈ OneTo(s[3])
-                d[i,j,k] = $cdg(f,s[3],n,i,j,k)/dt[k]
+                d[i,j,k] = $cdg(f,(@inbounds s[3]),n,i,j,k)/dt[k]
             end end end
             return d
         end
@@ -357,28 +357,28 @@ for fun ∈ (:_slow,:_fast)
         function $cdg(f::Grid{4},n::Val{1},dt::AbstractVector,s::Tuple=size(f))
             d = Array{pointtype(f),4}(undef,s...)
             @threads for i ∈ OneTo(s[1]); for j ∈ OneTo(s[2]); for k ∈ OneTo(s[3]); for l ∈ OneTo(s[4])
-                d[i,j,k,l] = $cdg(f,s[1],n,i,j,k,l)/dt[i]
+                d[i,j,k,l] = $cdg(f,(@inbounds s[1]),n,i,j,k,l)/dt[i]
             end end end end
             return d
         end
         function $cdg(f::Grid{4},n::Val{2},dt::AbstractVector,s::Tuple=size(f))
             d = Array{pointtype(f),4}(undef,s...)
             @threads for i ∈ OneTo(s[1]); for j ∈ OneTo(s[2]); for k ∈ OneTo(s[3]); for l ∈ OneTo(s[4])
-                d[i,j,k,l] = $cdg(f,s[2],n,i,j,k,l)/dt[j]
+                d[i,j,k,l] = $cdg(f,(@inbounds s[2]),n,i,j,k,l)/dt[j]
             end end end end
             return d
         end
         function $cdg(f::Grid{4},n::Val{3},dt::AbstractVector,s::Tuple=size(f))
             d = Array{pointtype(f),4}(undef,s...)
             @threads for i ∈ OneTo(s[1]); for j ∈ OneTo(s[2]); for k ∈ OneTo(s[3]); for l ∈ OneTo(s[4])
-                d[i,j,k,l] = $cdg(f,s[3],n,i,j,k,l)/dt[k]
+                d[i,j,k,l] = $cdg(f,(@inbounds s[3]),n,i,j,k,l)/dt[k]
             end end end end
             return d
         end
         function $cdg(f::Grid{4},n::Val{4},dt::AbstractVector,s::Tuple=size(f))
             d = Array{pointtype(f),4}(undef,s...)
             @threads for i ∈ OneTo(s[1]); for j ∈ OneTo(s[2]); for k ∈ OneTo(s[3]); for l ∈ OneTo(s[4])
-                d[i,j,k,l] = $cdg(f,s[4],n,i,j,k,l)/dt[l]
+                d[i,j,k,l] = $cdg(f,(@inbounds s[4]),n,i,j,k,l)/dt[l]
             end end end end
             return d
         end
@@ -399,35 +399,35 @@ for fun ∈ (:_slow,:_fast)
         function $cdg(f::Grid{5},n::Val{1},dt::AbstractVector,s::Tuple=size(f))
             d = Array{pointtype(f),5}(undef,s...)
             @threads for i ∈ OneTo(s[1]); for j ∈ OneTo(s[2]); for k ∈ OneTo(s[3]); for l ∈ OneTo(s[4]); for o ∈ OneTo(s[5])
-                d[i,j,k,l,o] = $cdg(f,s[1],n,i,j,k,l,o)/dt[i]
+                d[i,j,k,l,o] = $cdg(f,(@inbounds s[1]),n,i,j,k,l,o)/dt[i]
             end end end end end
             return d
         end
         function $cdg(f::Grid{5},n::Val{2},dt::AbstractVector,s::Tuple=size(f))
             d = Array{pointtype(f),5}(undef,s...)
             @threads for i ∈ OneTo(s[1]); for j ∈ OneTo(s[2]); for k ∈ OneTo(s[3]); for l ∈ OneTo(s[4]); for o ∈ OneTo(s[5])
-                d[i,j,k,l,o] = $cdg(f,s[2],n,i,j,k,l,o)/dt[j]
+                d[i,j,k,l,o] = $cdg(f,(@inbounds s[2]),n,i,j,k,l,o)/dt[j]
             end end end end end
             return d
         end
         function $cdg(f::Grid{5},n::Val{3},dt::AbstractVector,s::Tuple=size(f))
             d = Array{pointtype(f),5}(undef,s...)
             @threads for i ∈ OneTo(s[1]); for j ∈ OneTo(s[2]); for k ∈ OneTo(s[3]); for l ∈ OneTo(s[4]); for o ∈ OneTo(s[5])
-                d[i,j,k,l,o] = $cdg(f,s[3],n,i,j,k,l,o)/dt[k]
+                d[i,j,k,l,o] = $cdg(f,(@inbounds s[3]),n,i,j,k,l,o)/dt[k]
             end end end end end
             return d
         end
         function $cdg(f::Grid{5},n::Val{4},dt::AbstractVector,s::Tuple=size(f))
             d = Array{pointtype(f),5}(undef,s...)
             @threads for i ∈ OneTo(s[1]); for j ∈ OneTo(s[2]); for k ∈ OneTo(s[3]); for l ∈ OneTo(s[4]); for o ∈ OneTo(s[5])
-                d[i,j,k,l,o] = $cdg(f,s[4],n,i,j,k,l,o)/dt[l]
+                d[i,j,k,l,o] = $cdg(f,(@inbounds s[4]),n,i,j,k,l,o)/dt[l]
             end end end end end
             return d
         end
         function $cdg(f::Grid{5},n::Val{5},dt::AbstractVector,s::Tuple=size(f))
             d = Array{pointtype(f),5}(undef,s...)
             @threads for i ∈ OneTo(s[1]); for j ∈ OneTo(s[2]); for k ∈ OneTo(s[3]); for l ∈ OneTo(s[4]); for o ∈ OneTo(s[5])
-                d[i,j,k,l,o] = $cdg(f,s[5],n,i,j,k,l,o)/dt[o]
+                d[i,j,k,l,o] = $cdg(f,(@inbounds s[5]),n,i,j,k,l,o)/dt[o]
             end end end end end
             return d
         end
@@ -453,9 +453,9 @@ for fun ∈ (:_slow,:_fast)
         $cd(f::GridFrameBundle{Coordinate{P,G},N,<:PointArray{P,G,N,<:RealRegion,<:Global{N,<:InducedMetric}},<:ProductTopology}) where {P,G,N} = ProductSpace($cd.(base(base(f)).v))
         $cd(f::GridFrameBundle{Coordinate{P,G},N,<:PointArray{P,G,N,<:RealRegion,<:Global{N,<:InducedMetric}},<:OpenTopology}) where {P,G,N} = ProductSpace($cd.(base(base(f)).v))
         $cd(f::GridFrameBundle{Coordinate{P,G},N,<:PointArray{P,G,N,<:RealRegion,<:Global{N,<:InducedMetric}}}) where {P,G,N} = sum.(value.($cdg(f)))
-        $cd(f::GridFrameBundle{Coordinate{P,G},N,<:PointArray{P,G,N,<:RealRegion},<:ProductTopology}) where {P,G,N} = applymetric.($cd(base(base(f))),fiber(f))
-        $cd(f::GridFrameBundle{Coordinate{P,G},N,<:PointArray{P,G,N,<:RealRegion},<:OpenTopology}) where {P,G,N} = applymetric.($cd(base(base(f))),fiber(f))
-        $cd(f::GridFrameBundle{Coordinate{P,G},N,<:PointArray{P,G,N,<:RealRegion}}) where {P,G,N} = applymetric.(sum.(value.($cdg(f))),fiber(f))
+        #$cd(f::GridFrameBundle{Coordinate{P,G},N,<:PointArray{P,G,N,<:RealRegion},<:ProductTopology}) where {P,G,N} = applymetric.($cd(base(base(f))),metricextensor(f))
+        $cd(f::GridFrameBundle{Coordinate{P,G},N,<:PointArray{P,G,N,<:RealRegion},<:OpenTopology}) where {P,G,N} = applymetric.($cd(base(base(f))),metricextensor(f))
+        $cd(f::GridFrameBundle{Coordinate{P,G},N,<:PointArray{P,G,N,<:RealRegion}}) where {P,G,N} = applymetric.(sum.(value.($cdg(f))),metricextensor(f))
         function $cd(f::AbstractRange,s::Tuple=size(f))
             d = Vector{eltype(f)}(undef,s[1])
             @threads for i ∈ OneTo(s[1])
@@ -473,7 +473,14 @@ for fun ∈ (:_slow,:_fast)
     end
 end
 
-applymetric(f::Chain{V,G},g::DiagonalOperator{V,<:Multivector}) where {V,G} = Chain{V,G}(value(f)./sqrt.(value(value(g)(Val(G)))))
+applymetric(f::Chain{V,G},g::DiagonalOperator{W,<:Multivector} where W) where {V,G} = Chain{V,G}(value(f)./sqrt.(value(value(g)(Val(G)))))
+applymetric(f::Chain{V,G},g::DiagonalOperator{W,<:Chain} where W) where {V,G} = Chain{V,G}(value(f)./sqrt.(value(value(g))))
+applymetric(f::Chain{V,G},g::Outermorphism) where {V,G} = applymetric(f,(@inbounds value(g)[1]))
+applymetric(f::Chain{V,G},g::Endomorphism{W,<:Simplex} where W) where {V,G} = applymetric(f,value(g))
+@generated function applymetric(x::Chain{V,G,T,N} where {G,T},g::Simplex) where {V,N}
+    Expr(:call,:(Chain{V}),[:(x[$k]/sqrt(g[$k,$k])) for k ∈ list(1,N)]...)
+end
+
 
 function centraldiff_slow_calc(f::Grid{M,T,PA,<:OpenTopology} where {M,T,PA},l::Int,n::Val{N},i::Vararg{Int}) where N #l=size(f)[N]
     if isone(i[N])
@@ -941,7 +948,7 @@ function planecurve(κ::RealFunction,φ::Real=0.0)
     integral(Chain.(cos(int),sin(int)))
 end
 
-export surfacemetric, surfaceframe
+export surfacemetric, surfaceframe, firstkind, secondkind, geodesicsystem, applymetric
 
 surfacemetric(dom::ScalarField,f::Function) = surfacemetric(TensorField(dom,f))
 function surfacemetric(t::ScalarField)
@@ -969,10 +976,24 @@ function surfaceframe(t)
     TensorOperator.(Chain.(Chain.(E,F)./mag,Chain.(F,.-E)./(sig.*mag)))
 end
 
-firstkind(dg,k,i,j) = dg[k,j][i] + dg[i,k][j] - dg[i,j][k]
+_firstkind(dg,k,i,j) = dg[k,j][i] + dg[i,k][j] - dg[i,j][k]
+firstkind(g::TensorField) = TensorField(base(g),TensorOperator.(firstkind.(d(g)/2)))
+@generated function firstkind(dg,i,j,k)
+    Expr(:call,:+,[:(_firstkind(dg,$l,i,j)) for l ∈ list(1,mdims(fibertype(dg)))]...)
+end
+@generated function firstkind(dg,i,j)
+    Expr(:call,:Chain,[:(firstkind(dg,i,j,$k)) for k ∈ list(1,mdims(fibertype(dg)))]...)
+end
+@generated function firstkind(dg,j)
+    Expr(:call,:Chain,[:(firstkind(dg,$i,j)) for i ∈ list(1,mdims(fibertype(dg)))]...)
+end
+@generated function firstkind(dg)
+    Expr(:call,:Chain,[:(firstkind(dg,$j)) for j ∈ list(1,mdims(fibertype(dg)))]...)
+end
+
 secondkind(g) = TensorField(base(g),TensorOperator.(secondkind.(inv.(g),d(g)/2)))
 @generated function secondkind(ig,dg,i,j,k)
-    Expr(:call,:+,[:(ig[k,$l]*firstkind(dg,$l,i,j)) for l ∈ list(1,mdims(fibertype(dg)))]...)
+    Expr(:call,:+,[:(ig[k,$l]*_firstkind(dg,$l,i,j)) for l ∈ list(1,mdims(fibertype(dg)))]...)
 end
 @generated function secondkind(ig,dg,i,j)
     Expr(:call,:Chain,[:(secondkind(ig,dg,i,j,$k)) for k ∈ list(1,mdims(fibertype(dg)))]...)
@@ -982,6 +1003,17 @@ end
 end
 @generated function secondkind(ig,dg)
     Expr(:call,:Chain,[:(secondkind(ig,dg,$j)) for j ∈ list(1,mdims(fibertype(dg)))]...)
+end
+
+geodesicsystem(x::Chain,Γ) = Chain(x,-geodesic(x,Γ))
+geodesicsystem(x::Chain,Γ,g) = Chain(applymetric(x,g),applymetric(-geodesic(x,Γ),g))
+geodesicsystem(x::Chain,Γ::TensorField) = geodesicsystem(x,Γ(x))
+geodesicsystem(x::Chain,Γ::TensorField,g::TensorField) = geodesicsystem(x,Γ(x),g(x))
+@generated function geodesic(x::Chain{V,G,T,N} where {V,G,T},Γ) where N
+    Expr(:call,:+,vcat([[:(Γ[$i,$j]*(x[$i]*x[$j])) for i ∈ list(1,N)] for j ∈ list(1,N)]...)...)
+end
+@generated function metricscale(x::Chain{V,G,T,N} where {G,T},g::Simplex) where {V,N}
+    Expr(:call,:(Chain{V}),[:(x[$k]*sqrt(g[$k,$k])) for k ∈ list(1,N)]...)
 end
 
 #export beta, betafunction

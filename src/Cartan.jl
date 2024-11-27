@@ -30,6 +30,8 @@ import Grassmann: realvalue, imagvalue, points, metrictensor, metricextensor
 import Grassmann: Values, Variables, FixedVector, list
 import Grassmann: Scalar, GradedVector, Bivector, Trivector
 import Base: @pure, OneTo, getindex
+import LinearAlgebra: cross
+#import ElasticArrays: resize_lastdim!
 
 export Values, Derivation
 export initmesh, pdegrad, det
@@ -57,22 +59,26 @@ end
 
 struct TensorField{B,F,N,M<:AbstractFrameBundle{B,N}} <: GlobalFiber{LocalTensor{B,F},N}
     dom::M
-    cod::Array{F,N}
+    cod::Array{F,N}#ElasticArray{F,N,L,Vector{F}}
+    #function TensorField(dom::M,cod::ElasticArray{F,N,L,Vector{F}}) where {B,F,N,M<:AbstractFrameBundle{B,N},L}
     function TensorField(dom::M,cod::Array{F,N}) where {B,F,N,M<:AbstractFrameBundle{B,N}}
         new{B,F,N,M}(dom,cod)
     end
 end
 
-function TensorField(id::Int,dom::PA,cod::Array{F,N},met::GA=Global{N}(InducedMetric())) where {N,P,F,PA<:AbstractArray{P,N},GA<:AbstractArray}
+#function TensorField(dom::M,cod::Array{F,N}) where {B,F,N,M<:AbstractFrameBundle{B,N}}
+#    TensorField(dom,ElasticArray(cod))
+#end
+function TensorField(id::Int,dom::PA,cod::DenseArray{F,N},met::GA=Global{N}(InducedMetric())) where {N,P,F,PA<:AbstractArray{P,N},GA<:AbstractArray}
     TensorField(GridFrameBundle(id,dom,met),cod)
 end
-function TensorField(id::Int,dom::P,cod::Vector{F},met::G=Global{N}(InducedMetric())) where {F,P<:PointCloud,G<:AbstractVector}
+function TensorField(id::Int,dom::P,cod::DenseVector{F},met::G=Global{N}(InducedMetric())) where {F,P<:PointCloud,G<:AbstractVector}
     TensorField(SimplexFrameBundle(id,dom,met),cod)
 end
-TensorField(id::Int,dom,cod::Array,met::GlobalFiber) = TensorField(id,dom,cod,fiber(met))
+TensorField(id::Int,dom,cod::DenseArray,met::GlobalFiber) = TensorField(id,dom,cod,fiber(met))
 TensorField(dom::AbstractFrameBundle,cod::AbstractFrameBundle) = TensorField(dom,points(cod))
-TensorField(dom::AbstractArray{B,N} where B,cod::Array{F,N} where F,met::AbstractArray=Global{N}(InducedMetric())) where N = TensorField((global grid_id+=1),dom,cod,fiber(met))
-TensorField(dom::ChainBundle,cod::Vector,met::AbstractVector=Global{1}(InducedMetric())) = TensorField((global grid_id+=1),dom,cod,met)
+TensorField(dom::AbstractArray{B,N} where B,cod::DenseArray{F,N} where F,met::AbstractArray=Global{N}(InducedMetric())) where N = TensorField((global grid_id+=1),dom,cod,fiber(met))
+TensorField(dom::ChainBundle,cod::DenseVector,met::AbstractVector=Global{1}(InducedMetric())) = TensorField((global grid_id+=1),dom,cod,met)
 TensorField(a::TensorField,b::TensorField) = TensorField(fiber(a),fiber(b))
 
 #const ParametricMesh{B,F,P<:AbstractVector{<:Chain}} = TensorField{B,F,1,P}
@@ -127,7 +133,7 @@ for bundle ∈ (:TensorField,:GlobalSection)
         $bundle(dom,fun::BitArray) = $bundle(dom, Float64.(fun))
         $bundle(dom,fun::$bundle) = $bundle(dom, fiber(fun))
         $bundle(dom::$bundle,fun) = $bundle(base(dom), fun)
-        $bundle(dom::$bundle,fun::Array) = $bundle(base(dom), fun)
+        $bundle(dom::$bundle,fun::DenseArray) = $bundle(base(dom), fun)
         $bundle(dom::$bundle,fun::Function) = $bundle(base(dom), fun)
         $bundle(dom::AbstractArray,fun::AbstractRange) = $bundle(dom, collect(fun))
         $bundle(dom::AbstractArray,fun::RealRegion) = $bundle(dom, collect(fun))
@@ -164,11 +170,18 @@ iscompact(t::TensorField) = iscompact(immersion(t))
 PointCloud(t::TensorField) = PointCloud(base(t))
 Grassmann.grade(::GradedField{G}) where G = G
 
+resize(t::TensorField) = TensorField(resize(domain(t)),codomain(t))
+resize(t::GlobalSection) = GlobalSection(resize(domain(t)),codomain(t))
+
 @pure Base.eltype(::Type{<:TensorField{B,F}}) where {B,F} = LocalTensor{B,F}
 Base.getindex(m::TensorField,i::Vararg{Int}) = LocalTensor(getindex(domain(m),i...), getindex(codomain(m),i...))
 Base.getindex(m::TensorField,i::Vararg{Union{Int,Colon}}) = TensorField(domain(m)(i...), getindex(codomain(m),i...))
 #Base.setindex!(m::TensorField{B,F,1,<:Interval},s::LocalTensor,i::Vararg{Int}) where {B,F} = setindex!(codomain(m),fiber(s),i...)
 Base.setindex!(m::TensorField{B,Fm} where Fm,s::F,i::Vararg{Int}) where {B,F} = setindex!(codomain(m),s,i...)
+Base.setindex!(m::TensorField{B,Fm} where Fm,s::TensorField,::Colon,i::Int) where B = setindex!(codomain(m),codomain(s),:,i)
+Base.setindex!(m::TensorField{B,Fm} where Fm,s::TensorField,::Colon,::Colon,i::Int) where B = setindex!(codomain(m),codomain(s),:,:,i)
+Base.setindex!(m::TensorField{B,Fm} where Fm,s::TensorField,::Colon,::Colon,::Colon,i::Int) where B = setindex!(codomain(m),codomain(s),:,:,:,i)
+Base.setindex!(m::TensorField{B,Fm} where Fm,s::TensorField,::Colon,::Colon,::Colon,::Colon,i::Int) where B = setindex!(codomain(m),codomain(s),:,:,:,:,i)
 function Base.setindex!(m::TensorField{B,F,N,<:IntervalRange} where {B,F,N},s::LocalTensor,i::Vararg{Int})
     setindex!(codomain(m),fiber(s),i...)
     return s
@@ -190,6 +203,18 @@ function Base.setindex!(m::GlobalSection,s::LocalSection,i::Vararg{Int})
     setindex!(codomain(m),fiber(s),i...)
     return s
 end
+
+extract(x::AbstractVector,i) = (@inbounds x[i])
+extract(x::AbstractMatrix,i) = (@inbounds LocalTensor(points(x).v[end][i],x[:,i]))
+extract(x::AbstractArray{T,3} where T,i) = (@inbounds LocalTensor(points(x).v[end][i],x[:,:,i]))
+extract(x::AbstractArray{T,4} where T,i) = (@inbounds LocalTensor(points(x).v[end][i],x[:,:,:,i]))
+extract(x::AbstractArray{T,5} where T,i) = (@inbounds LocalTensor(points(x).v[end][i],x[:,:,:,:,i]))
+
+assign!(x::AbstractVector,i,s) = (@inbounds x[i] = s)
+assign!(x::AbstractMatrix,i,s) = (@inbounds x[:,i] = s)
+assign!(x::AbstractArray{T,3} where T,i,s) = (@inbounds x[:,:,i] = s)
+assign!(x::AbstractArray{T,4} where T,i,s) = (@inbounds x[:,:,:,i] = s)
+assign!(x::AbstractArray{T,5} where T,i,s) = (@inbounds x[:,:,:,:,i] = s)
 
 Base.BroadcastStyle(::Type{<:TensorField{B,F,N,P}}) where {B,F,N,P} = Broadcast.ArrayStyle{TensorField{B,F,N,P}}()
 Base.BroadcastStyle(::Type{<:GlobalSection{B,F,N,BA,FA}}) where {B,F,N,BA,FA} = Broadcast.ArrayStyle{TensorField{B,F,N,BA,FA}}()
@@ -258,22 +283,32 @@ function quintlinterp(x,y,z,w,v,x1,x2,y1,y2,z1,z2,w1,w2,v1,v2,f11111,f21111,f121
     linterp(v,v1,v2,f1,f2)
 end
 
-reposition_odd(p,x,t) = iseven(p) ? x[end]-x[1]+t : 2x[1]-t
-reposition_even(p,x,t) = isodd(p) ? x[1]-x[end]+t : 2x[end]-t
+reposition_odd(p,x,t) = @inbounds (iseven(p) ? x[end]-x[1]+t : 2x[1]-t)
+reposition_even(p,x,t) = @inbounds (isodd(p) ? x[1]-x[end]+t : 2x[end]-t)
 @inline reposition(i1,i2,p1,p2,x,t) = i1 ? reposition_odd(p1,x,t) : i2 ? reposition_even(p2,x,t) : eltype(x)(t)
 
 (m::TensorField)(s::LocalTensor) = LocalTensor(base(s), m(fiber(s)))
-function (m::IntervalMap)(t); p = points(m)
-    i = searchsortedfirst(p,t[1])-1
+function (m::IntervalMap)(t); p,t1 = points(m),(@inbounds t[1])
+    i = searchsortedfirst(p,@inbounds t1)-1
     if !isopen(m)
         q = immersion(m)
-        if iszero(i) && !iszero(q.r[1])
-            return m(reposition_odd(q.p[1],p,t[1]))
-        elseif i==length(p) && !iszero(q.r[2])
-            return m(reposition_even(q.p[2],p,t[1]))
+        if iszero(i)
+            if iszero(@inbounds q.r[1])
+                return zero(fibertype(m))
+            else
+                return m(@inbounds reposition_odd(q.p[1],p,t1))
+            end
+        elseif i==length(p)
+            if iszero(@inbounds q.r[2])
+                return zero(fibertype(m))
+            else
+                return m(@inbounds reposition_even(q.p[2],p,t1))
+            end
         end
+    elseif iszero(i) || i==length(p)
+        return zero(fibertype(m))
     end
-    linterp(t[1],p[i],p[i+1],m.cod[i],m.cod[i+1])
+    linterp(t1,p[i],p[i+1],m.cod[i],m.cod[i+1])
 end
 function (m::IntervalMap)(t::Vector,d=diff(m.cod)./diff(m.dom))
     [parametric(i,m,d) for i ∈ t]
@@ -284,22 +319,24 @@ function parametric(t,m,d=diff(codomain(m))./diff(domain(m)))
     codomain(m)[i]+(t-p[i])*d[i]
 end
 
-(m::RectangleMap)(i::Int,j::Int=2) = isone(j) ? m[i,:] : m[:,i]
-function (m::RectangleMap)(t::AbstractFloat,j::Int=2)
+(m::RectangleMap)(t::Real) = slice(m,t)
+slice(m::RectangleMap,i::Int,j::Int=2) = isone(j) ? m[i,:] : m[:,i]
+function slice(m::RectangleMap,t::AbstractFloat,j::Int=2)
     Q,p = isone(j),points(m).v[j]
     i = searchsortedfirst(p,t)-1
     TensorField(points(m).v[Q ? 2 : 1],linterp(t,p[i],p[i+1],Q ? m.cod[i,:] : m.cod[:,i],Q ? m.cod[i+1,:] : m.cod[:,i+1]))
 end
 
-function slice(m::HyperrectangleMap,i::Int,j::Int,k::Int=3)
+(m::HyperrectangleMap)(t::Real,j::Int=3) = slice(m,t,j)
+function slice2(m::HyperrectangleMap,i::Int,j::Int,k::Int=3)
     isone(k) ? m[:,i,j] : k==2 ? m[i,:,j] : m[i,j,:]
 end
-function (m::HyperrectangleMap)(i::Int,j::Int=3)
+function slice(m::HyperrectangleMap,i::Int,j::Int=3)
     isone(j) ? m[i,:,:] : j==2 ? m[:,i,:] : m[:,:,i]
 end
 
-(m::TensorField{B,F,2,<:FiberProductBundle} where {B,F})(i::Int) = TensorField(base(base(m)),fiber(m)[:,i])
-function (m::TensorField{B,F,2,<:FiberProductBundle} where {B,F})(t::AbstractFloat)
+slice(m::TensorField{B,F,2,<:FiberProductBundle} where {B,F},i::Int) = TensorField(base(base(m)),fiber(m)[:,i])
+function (m::TensorField{B,F,2,<:FiberProductBundle} where {B,F})(t::Real)
     k = 2; p = base(m).cod.v[1]
     i = searchsortedfirst(p,t)-1
     TensorField(base(base(m)),linterp(t,p[i],p[i+1],m.cod[:,i],m.cod[:,i+1]))
@@ -315,46 +352,65 @@ function (m::TensorField{B,F,N,<:SimplexFrameBundle} where {B,N})(t) where F
 end
 
 (m::TensorField{B,F,N,<:RealSpace{2}} where {B,F,N})(x,y) = m(Chain(x,y))
-function (m::TensorField{B,F,N,<:RealSpace{2}} where {B,F,N})(t::Chain{V}) where V
-    x,y = points(m).v[1],points(m).v[2]
-    i,j = searchsortedfirst(x,t[1])-1,searchsortedfirst(y,t[2])-1
+function (m::TensorField{B,F,N,<:RealSpace{2}} where {B,N})(t::Chain{V,G,T,2} where {G,T}) where {F,V}
+    x,y,t1,t2 = @inbounds (points(m).v[1],points(m).v[2],t[1],t[2])
+    i,j = searchsortedfirst(x,t1)-1,searchsortedfirst(y,t2)-1
     if !isopen(m)
         q = immersion(m)
-        i1,i2,j1,j2 = (
-            iszero(i) && !iszero(q.r[1]),i==length(x) && !iszero(q.r[2]),
-            iszero(j) && !iszero(q.r[3]),j==length(y) && !iszero(q.r[4]))
-        if i1 || i2 || j1 || j2
-            return m(Chain{V}(
-                reposition(i1,i2,q.p[1],q.p[2],x,t[1]),
-                reposition(j1,j2,q.p[3],q.p[4],y,t[2])))
+        i01,i02,iq1,iq2,j01,j02,jq1,jq2 = @inbounds (
+            iszero(i),i==length(x),iszero(q.r[1]),iszero(q.r[2]),
+            iszero(j),j==length(y),iszero(q.r[3]),iszero(q.r[4]))
+        if (i01 && iq1) || (i02 && iq2) || (j01 && jq1) || (j02 && jq2)
+            return zero(F)
+        else
+            i1,i2,j1,j2 = (
+                i01 && !iq1,i02 && !iq2,
+                j01 && !jq1,j02 && !jq2)
+            if i1 || i2 || j1 || j2
+                return m(Chain{V}(
+                    (@inbounds reposition(i1,i2,q.p[1],q.p[2],x,t1)),
+                    (@inbounds reposition(j1,j2,q.p[3],q.p[4],y,t2))))
+            end
         end
+    elseif iszero(i) || iszero(j) || i==length(x) || j==length(y)
+        return zero(F) # elseif condition creates 1 allocation, as opposed to 0 ???
     end
     #f1 = linterp(t[1],x[i],x[i+1],m.cod[i,j],m.cod[i+1,j])
     #f2 = linterp(t[1],x[i],x[i+1],m.cod[i,j+1],m.cod[i+1,j+1])
     #linterp(t[2],y[j],y[j+1],f1,f2)
-    bilinterp(t[1],t[2],x[i],x[i+1],y[j],y[j+1],
+    bilinterp(t1,t2,x[i],x[i+1],y[j],y[j+1],
         m.cod[i,j],m.cod[i+1,j],m.cod[i,j+1],m.cod[i+1,j+1])
 end
 
 (m::TensorField{B,F,N,<:RealSpace{3}} where {B,F,N})(x,y,z) = m(Chain(x,y,z))
-function (m::TensorField{B,F,N,<:RealSpace{3}} where {B,F,N})(t::Chain{V}) where V
-    x,y,z = points(m).v[1],points(m).v[2],points(m).v[3]
+function (m::TensorField{B,F,N,<:RealSpace{3}} where {B,N})(t::Chain{V,G,T,3} where {G,T}) where {F,V}
+    x,y,z,t1,t2,t3 = @inbounds (points(m).v[1],points(m).v[2],points(m).v[3],t[1],t[2],t[3])
     i,j,k = (
-        searchsortedfirst(x,t[1])-1,
-        searchsortedfirst(y,t[2])-1,
-        searchsortedfirst(z,t[3])-1)
+        searchsortedfirst(x,t1)-1,
+        searchsortedfirst(y,t2)-1,
+        searchsortedfirst(z,t3)-1)
     if !isopen(m)
         q = immersion(m)
-        i1,i2,j1,j2,k1,k2 = (
-            iszero(i) && !iszero(q.r[1]),i==length(x) && !iszero(q.r[2]),
-            iszero(j) && !iszero(q.r[3]),j==length(y) && !iszero(q.r[4]),
-            iszero(k) && !iszero(q.r[5]),k==length(z) && !iszero(q.r[6]))
-        if i1 || i2 || j1 || j2 || k1 || k2
-            return m(Chain{V}(
-                reposition(i1,i2,q.p[1],q.p[2],x,t[1]),
-                reposition(j1,j2,q.p[3],q.p[4],y,t[2]),
-                reposition(k1,k2,q.p[5],q.p[6],z,t[3])))
+        i01,i02,iq1,iq2,j01,j02,jq1,jq2,k01,k02,kq1,kq2 = @inbounds (
+            iszero(i),i==length(x),iszero(q.r[1]),iszero(q.r[2]),
+            iszero(j),j==length(y),iszero(q.r[3]),iszero(q.r[4]),
+            iszero(k),k==length(z),iszero(q.r[5]),iszero(q.r[6]))
+        if (i01 && iq1) || (i02 && iq2) || (j01 && jq1) || (j02 && jq2) || (k01 && kq1) || (k02 && kq2)
+            return zero(F)
+        else
+            i1,i2,j1,j2,k1,k2 = (
+                i01 && !iq1,i02 && !iq2,
+                j01 && !jq1,j02 && !jq2,
+                k01 && !kq1,k02 && !kq2)
+            if i1 || i2 || j1 || j2 || k1 || k2
+                return m(Chain{V}(
+                    (@inbounds reposition(i1,i2,q.p[1],q.p[2],x,t1)),
+                    (@inbounds reposition(j1,j2,q.p[3],q.p[4],y,t2)),
+                    (@inbounds reposition(k1,k2,q.p[5],q.p[6],z,t3))))
+            end
         end
+    elseif iszero(i) || iszero(j) || iszero(k) || i==length(x) || j==length(y) || k==length(z)
+        return zero(F) # elseif condition creates 1 allocation, as opposed to 0 ???
     end
     #f1 = linterp(t[1],x[i],x[i+1],m.cod[i,j,k],m.cod[i+1,j,k])
     #f2 = linterp(t[1],x[i],x[i+1],m.cod[i,j+1,k],m.cod[i+1,j+1,k])
@@ -363,33 +419,44 @@ function (m::TensorField{B,F,N,<:RealSpace{3}} where {B,F,N})(t::Chain{V}) where
     #f4 = linterp(t[1],x[i],x[i+1],m.cod[i,j+1,k+1],m.cod[i+1,j+1,k+1])
     #g2 = linterp(t[2],y[j],y[j+1],f3,f4)
     #linterp(t[3],z[k],z[k+1],g1,g2)
-    trilinterp(t[1],t[2],t[3],x[i],x[i+1],y[j],y[j+1],z[k],z[k+1],
+    trilinterp(t1,t2,t3,x[i],x[i+1],y[j],y[j+1],z[k],z[k+1],
         m.cod[i,j,k],m.cod[i+1,j,k],m.cod[i,j+1,k],m.cod[i+1,j+1,k],
         m.cod[i,j,k+1],m.cod[i+1,j,k+1],m.cod[i,j+1,k+1],m.cod[i+1,j+1,k+1])
 end
 
 (m::TensorField{B,F,N,<:RealSpace{4}} where {B,F,N})(x,y,z,w) = m(Chain(x,y,z,w))
-function (m::TensorField{B,F,N,<:RealSpace{4}} where {B,F,N})(t::Chain{V}) where V
-    x,y,z,w = points(m).v[1],points(m).v[2],points(m).v[3],points(m).v[4]
+function (m::TensorField{B,F,N,<:RealSpace{4}} where {B,N})(t::Chain{V,G,T,4} where {G,T}) where {F,V}
+    x,y,z,w,t1,t2,t3,t4 = @inbounds (points(m).v[1],points(m).v[2],points(m).v[3],points(m).v[4],t[1],t[2],t[3],t[4])
     i,j,k,l = (
-        searchsortedfirst(x,t[1])-1,
-        searchsortedfirst(y,t[2])-1,
-        searchsortedfirst(z,t[3])-1,
-        searchsortedfirst(w,t[4])-1)
+        searchsortedfirst(x,t1)-1,
+        searchsortedfirst(y,t2)-1,
+        searchsortedfirst(z,t3)-1,
+        searchsortedfirst(w,t4)-1)
     if !isopen(m)
         q = immersion(m)
-        i1,i2,j1,j2,k1,k2,l1,l2 = (
-            iszero(i) && !iszero(q.r[1]),i==length(x) && !iszero(q.r[2]),
-            iszero(j) && !iszero(q.r[3]),j==length(y) && !iszero(q.r[4]),
-            iszero(k) && !iszero(q.r[5]),k==length(z) && !iszero(q.r[6]),
-            iszero(l) && !iszero(q.r[7]),l==length(w) && !iszero(q.r[8]))
-        if i1 || i2 || j1 || j2 || k1 || k2 || l1 || l2
-            return m(Chain{V}(
-                reposition(i1,i2,q.p[1],q.p[2],x,t[1]),
-                reposition(j1,j2,q.p[3],q.p[4],y,t[2]),
-                reposition(k1,k2,q.p[5],q.p[6],z,t[3]),
-                reposition(l1,l2,q.p[7],q.p[8],w,t[4])))
+        i01,i02,iq1,iq2,j01,j02,jq1,jq2,k01,k02,kq1,kq2,l01,l02,lq1,lq2 = @inbounds (
+            iszero(i),i==length(x),iszero(q.r[1]),iszero(q.r[2]),
+            iszero(j),j==length(y),iszero(q.r[3]),iszero(q.r[4]),
+            iszero(k),k==length(z),iszero(q.r[5]),iszero(q.r[6]),
+            iszero(l),l==length(w),iszero(q.r[7]),iszero(q.r[8]))
+        if (i01 && iq1) || (i02 && iq2) || (j01 && jq1) || (j02 && jq2) || (k01 && kq1) || (k02 && kq2) || (l01 && lq1) || (l02 && lq2)
+            return zero(F)
+        else
+            i1,i2,j1,j2,k1,k2,l1,l2 = (
+                i01 && !iq1,i02 && !iq2,
+                j01 && !jq1,j02 && !jq2,
+                k01 && !kq1,k02 && !kq2,
+                l01 && !lq1,l02 && !lq2)
+            if i1 || i2 || j1 || j2 || k1 || k2 || l1 || l2
+                return m(Chain{V}(
+                    (@inbounds reposition(i1,i2,q.p[1],q.p[2],x,t1)),
+                    (@inbounds reposition(j1,j2,q.p[3],q.p[4],y,t2)),
+                    (@inbounds reposition(k1,k2,q.p[5],q.p[6],z,t3)),
+                    (@inbounds reposition(l1,l2,q.p[7],q.p[8],w,t4))))
+            end
         end
+    elseif iszero(i) || iszero(j) || iszero(k) || iszero(l) || i==length(x) || j==length(y) || k==length(z) || l==length(w)
+        return zero(F) # elseif condition creates 1 allocation, as opposed to 0 ???
     end
     #f1 = linterp(t[1],x[i],x[i+1],m.cod[i,j,k,l],m.cod[i+1,j,k,l])
     #f2 = linterp(t[1],x[i],x[i+1],m.cod[i,j+1,k,l],m.cod[i+1,j+1,k,l])
@@ -406,7 +473,7 @@ function (m::TensorField{B,F,N,<:RealSpace{4}} where {B,F,N})(t::Chain{V}) where
     #g4 = linterp(t[2],y[j],y[j+1],f7,f8)
     #h2 = linterp(t[3],z[k],z[k+1],g3,g4)
     #linterp(t[4],w[l],w[l+1],h1,h2)
-    quadlinterp(t[1],t[2],t[3],t[4],x[i],x[i+1],y[j],y[j+1],z[k],z[k+1],w[l],w[l+1],
+    quadlinterp(t1,t2,t3,t4,x[i],x[i+1],y[j],y[j+1],z[k],z[k+1],w[l],w[l+1],
         m.cod[i,j,k,l],m.cod[i+1,j,k,l],m.cod[i,j+1,k,l],m.cod[i+1,j+1,k,l],
         m.cod[i,j,k+1,l],m.cod[i+1,j,k+1,l],m.cod[i,j+1,k+1,l],m.cod[i+1,j+1,k+1,l],
         m.cod[i,j,k,l+1],m.cod[i+1,j,k,l+1],m.cod[i,j+1,k,l+1],m.cod[i+1,j+1,k,l+1],
@@ -414,32 +481,44 @@ function (m::TensorField{B,F,N,<:RealSpace{4}} where {B,F,N})(t::Chain{V}) where
 end
 
 (m::TensorField{B,F,N,<:RealSpace{5}} where {B,F,N})(x,y,z,w,v) = m(Chain(x,y,z,w,v))
-function (m::TensorField{B,F,N,<:RealSpace{5}} where {B,F,N})(t::Chain{V}) where V
-    x,y,z,w,v = points(m).v[1],points(m).v[2],points(m).v[3],points(m).v[4],points(m).v[5]
+function (m::TensorField{B,F,N,<:RealSpace{5}} where {B,N})(t::Chain{V,G,T,5} where {G,T}) where {F,V}
+    x,y,z,w,v,t1,t2,t3,t4,t5 = @inbounds (points(m).v[1],points(m).v[2],points(m).v[3],points(m).v[4],points(m).v[5],t[1],t[2],t[3],t[4],t[5])
     i,j,k,l,o = (
-        searchsortedfirst(x,t[1])-1,
-        searchsortedfirst(y,t[2])-1,
-        searchsortedfirst(z,t[3])-1,
-        searchsortedfirst(w,t[4])-1,
-        searchsortedfirst(v,t[5])-1)
+        searchsortedfirst(x,t1)-1,
+        searchsortedfirst(y,t2)-1,
+        searchsortedfirst(z,t3)-1,
+        searchsortedfirst(w,t4)-1,
+        searchsortedfirst(v,t5)-1)
     if !isopen(m)
         q = immersion(m)
-        i1,i2,j1,j2,k1,k2,l1,l2,o1,o2 = (
-            iszero(i) && !iszero(q.r[1]),i==length(x) && !iszero(q.r[2]),
-            iszero(j) && !iszero(q.r[3]),j==length(y) && !iszero(q.r[4]),
-            iszero(k) && !iszero(q.r[5]),k==length(z) && !iszero(q.r[6]),
-            iszero(l) && !iszero(q.r[7]),l==length(w) && !iszero(q.r[8]),
-            iszero(o) && !iszero(q.r[9]),o==length(v) && !iszero(q.r[10]))
-        if i1 || i2 || j1 || j2 || k1 || k2 || l1 || l2 || o1 || o2
-            return m(Chain{V}(
-                reposition(i1,i2,q.p[1],q.p[2],x,t[1]),
-                reposition(j1,j2,q.p[3],q.p[4],y,t[2]),
-                reposition(k1,k2,q.p[5],q.p[6],z,t[3]),
-                reposition(l1,l2,q.p[7],q.p[8],w,t[4]),
-                reposition(o1,o2,q.p[9],q.p[10],v,t[5])))
+        i01,i02,iq1,iq2,j01,j02,jq1,jq2,k01,k02,kq1,kq2,l01,l02,lq1,lq2,o01,o02,oq1,oq2 = @inbounds (
+            iszero(i),i==length(x),iszero(q.r[1]),iszero(q.r[2]),
+            iszero(j),j==length(y),iszero(q.r[3]),iszero(q.r[4]),
+            iszero(k),k==length(z),iszero(q.r[5]),iszero(q.r[6]),
+            iszero(l),l==length(w),iszero(q.r[7]),iszero(q.r[8]),
+            iszero(o),o==length(v),iszero(q.r[9]),iszero(q.r[10]))
+        if (i01 && iq1) || (i02 && iq2) || (j01 && jq1) || (j02 && jq2) || (k01 && kq1) || (k02 && kq2) || (l01 && lq1) || (l02 && lq2) || (o01 && oq1) || (o02 && oq2)
+            return zero(F)
+        else
+            i1,i2,j1,j2,k1,k2,l1,l2,o1,o2 = (
+                i01 && !iq1,i02 && !iq2,
+                j01 && !jq1,j02 && !jq2,
+                k01 && !kq1,k02 && !kq2,
+                l01 && !lq1,l02 && !lq2,
+                o01 && !oq1,o02 && !oq2)
+            if i1 || i2 || j1 || j2 || k1 || k2 || l1 || l2 || o1 || o2
+                return m(Chain{V}(
+                    (@inbounds reposition(i1,i2,q.p[1],q.p[2],x,t1)),
+                    (@inbounds reposition(j1,j2,q.p[3],q.p[4],y,t2)),
+                    (@inbounds reposition(k1,k2,q.p[5],q.p[6],z,t3)),
+                    (@inbounds reposition(l1,l2,q.p[7],q.p[8],w,t4)),
+                    (@inbounds reposition(o1,o2,q.p[9],q.p[10],v,t5))))
+            end
         end
+    elseif iszero(i) || iszero(j) || iszero(k) || iszero(l) || iszero(o) || i==length(x) || j==length(y) || k==length(z) || l==length(w) || o==length(v)
+        return zero(F) # elseif condition creates 1 allocation, as opposed to 0 ???
     end
-    quintlinterp(t[1],t[2],t[3],t[4],t[5],x[i],x[i+1],y[j],y[j+1],z[k],z[k+1],w[l],w[l+1],v[o],v[o+1],
+    quintlinterp(t1,t2,t3,t4,t5,x[i],x[i+1],y[j],y[j+1],z[k],z[k+1],w[l],w[l+1],v[o],v[o+1],
         m.cod[i,j,k,l,o],m.cod[i+1,j,k,l,o],m.cod[i,j+1,k,l,o],m.cod[i+1,j+1,k,l,o],
         m.cod[i,j,k+1,l,o],m.cod[i+1,j,k+1,l,o],m.cod[i,j+1,k+1,l,o],m.cod[i+1,j+1,k+1,l,o],
         m.cod[i,j,k,l+1,o],m.cod[i+1,j,k,l+1,o],m.cod[i,j+1,k,l+1,o],m.cod[i+1,j+1,k,l+1,o],
@@ -526,24 +605,23 @@ checkdomain(a::GlobalFiber,b::GlobalFiber) = domain(a)≠domain(b) ? error("Glob
 
 Variation(dom,cod::TensorField) = TensorField(dom,cod.(dom))
 function Variation(cod::TensorField); p = points(cod).v[end]
-    TensorField(p,cod.(1:length(p)))
+    TensorField(p,slice.(Ref(cod),1:length(p)))
 end
 function Variation(cod::TensorField{B,F,2,<:FiberProductBundle} where {B,F})
     p = base(cod).cod.v[1]
-    TensorField(p,cod.(1:length(p)))
+    TensorField(p,slice.(Ref(cod),1:length(p)))
 end
 const variation = Variation
 
 alteration(dom,cod::TensorField) = TensorField(dom,cod.(dom))
 function alteration(cod::TensorField); p = points(cod).v[1]
-    TensorField(p,cod.(1:length(p),1))
+    TensorField(p,slice.(Ref(cod),1:length(p),1))
 end
 
 modification(dom,cod::TensorField) = TensorField(dom,cod.(dom))
 function modification(cod::TensorField); p = points(cod).v[2]
-    TensorField(p,cod.(1:length(p),2))
+    TensorField(p,slice.(Ref(cod),1:length(p),2))
 end
-
 
 include("diffgeo.jl")
 include("constants.jl")
@@ -566,27 +644,27 @@ function variation(v::Variation,t,fun::Function,fun!::Function,args...)
 end
 function variation(v::TensorField,t,fun::Function,args...)
     for i ∈ 1:length(points(v).v[end])
-        display(fun(v(i),args...))
+        display(fun(slice(v,i),args...))
         sleep(t)
     end
 end
 function variation(v::TensorField,t,fun::Function,fun!::Function,args...)
-    display(fun(v(1),args...))
+    display(fun(slice(v,1),args...))
     for i ∈ 2:length(points(v).v[end])
-        fun!(v(i),args...)
+        fun!(slice(v,i),args...)
         sleep(t)
     end
 end
 function variation(v::TensorField{B,F,2,<:FiberProductBundle} where {B,F},t,fun::Function,args...)
     for i ∈ 1:length(base(v).cod.v[1])
-        display(fun(v(i),args...))
+        display(fun(slice(v,i),args...))
         sleep(t)
     end
 end
 function variation(v::TensorField{B,F,2,<:FiberProductBundle} where {B,F},t,fun::Function,fun!::Function,args...)
-    display(fun(v(1),args...))
+    display(fun(slice(v,1),args...))
     for i ∈ 2:length(base(v).cod.v[1])
-        fun!(v(i),args...)
+        fun!(slice(v,i),args...)
         sleep(t)
     end
 end
@@ -595,14 +673,14 @@ alteration(v::TensorField,fun::Function,args...) = alteration(v,0.0,fun,args...)
 alteration(v::TensorField,fun::Function,fun!::Function,args...) = alteration(v,0.0,fun,fun!,args...)
 function alteration(v::TensorField,t,fun::Function,args...)
     for i ∈ 1:length(points(v).v[1])
-        display(fun(v(i,1),args...))
+        display(fun(slice(v,i,1),args...))
         sleep(t)
     end
 end
 function alteration(v::TensorField,t,fun::Function,fun!::Function,args...)
-    display(fun(v(1,1),args...))
+    display(fun(slice(v,1,1),args...))
     for i ∈ 2:length(points(v).v[1])
-        fun!(v(i,1),args...)
+        fun!(slice(v,i,1),args...)
         sleep(t)
     end
 end
@@ -611,14 +689,14 @@ modification(v::TensorField,fun::Function,args...) = modification(v,0.0,fun,args
 modification(v::TensorField,fun::Function,fun!::Function,args...) = modification(v,0.0,fun,fun!,args...)
 function modification(v::TensorField,t,fun::Function,args...)
     for i ∈ 1:length(points(v).v[2])
-        display(fun(v(i,2),args...))
+        display(fun(slice(v,i,2),args...))
         sleep(t)
     end
 end
 function modification(v::TensorField,t,fun::Function,fun!::Function,args...)
-    display(fun(v(1,2),args...))
+    display(fun(slice(v,1,2),args...))
     for i ∈ 2:length(points(v).v[2])
-        fun!(v(i,2),args...)
+        fun!(slice(v,i,2),args...)
         sleep(t)
     end
 end
@@ -794,12 +872,12 @@ function __init__()
             alteration(M,Makie.lines!,Makie.lines!)
         end
         function linegraph(v::TensorField{B,<:Chain,3,<:GridFrameBundle} where B,args...)
-            display(Makie.lines(slice(v,1,1,1),args...))
+            display(Makie.lines(slice2(v,1,1,1),args...))
             c = (2,3),(1,3),(1,2)
             for k ∈ (1,2,3)
                 for i ∈ 1:length(points(v).v[c[k][1]])
                     for j ∈ 1:length(points(v).v[c[k][2]])
-                        Makie.lines!(slice(v,i,j,k),args...)
+                        Makie.lines!(slice2(v,i,j,k),args...)
                     end
                 end
             end

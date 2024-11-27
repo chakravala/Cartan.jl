@@ -13,9 +13,11 @@
 #   https://crucialflow.com
 
 export FiberProduct, FiberProductBundle, HomotopyBundle
-export LocalSection, GlobalFiber, LocalFiber
+export LocalSection, GlobalFiber, LocalFiber, localfiber, globalfiber
 export base, fiber, domain, codomain, ↦, →, ←, ↤, basetype, fibertype, graph
 export ProductSpace, RealRegion, NumberLine, Rectangle, Hyperrectangle, ⧺, ⊕
+
+resize_lastdim!(x::Vector,i) = resize!(x,i)
 
 # ProductSpace
 
@@ -42,9 +44,11 @@ Base.show(io::IO,t::RealRegion{V,T,N,<:AbstractRange} where {V,T,N}) = print(io,
 Base.iterate(t::RealRegion) = (getindex(t,1),1)
 Base.iterate(t::RealRegion,state) = (s=state+1; s≤length(t) ? (getindex(t,s),s) : nothing)
 
-@generated Base.size(m::RealRegion{V}) where V = :(($([:(size(m.v[$i])...) for i ∈ 1:mdims(V)]...),))
-@generated Base.getindex(m::RealRegion{V,T,N},i::Vararg{Int}) where {V,T,N} = :(Chain{V,1,T}(Values{N,T}($([:(m.v[$j][i[$j]]) for j ∈ 1:N]...))))
-Base.getindex(m::NumberLine{V,T},i::Int) where {V,T} = Chain{V,1,T}(Values((m.v[1][i],)))
+resize_lastdim!(m::ProductSpace,i) = (resize!(m.v[end],i); m)
+
+@generated Base.size(m::RealRegion{V}) where V = :(($([:(size(@inbounds m.v[$i])...) for i ∈ 1:mdims(V)]...),))
+@generated Base.getindex(m::RealRegion{V,T,N},i::Vararg{Int}) where {V,T,N} = :(Chain{V,1,T}(Values{N,T}($([:((@inbounds m.v[$j])[@inbounds i[$j]]) for j ∈ 1:N]...))))
+Base.getindex(m::NumberLine{V,T},i::Int) where {V,T} = Chain{V,1,T}(Values(((@inbounds m.v[1])[i],)))
 @pure Base.getindex(t::RealRegion,i::CartesianIndex) = getindex(t,i.I...)
 @pure Base.eltype(::Type{<:ProductSpace{V,T,N}}) where {V,T,N} = Chain{V,1,T,N}
 
@@ -64,17 +68,20 @@ end
 
 ⊕(a::AbstractVector{<:Real}...) = RealRegion(Values(a))
 ⊕(a::ProductSpace,b::AbstractVector{<:Real}) = RealRegion(Values(a.v...,b))
+⊕(a::ProductSpace,b::ProductSpace) = RealRegion(Values(a.v...,b.v...))
+cross(a::ProductSpace,b::AbstractVector{<:Real}) = a⊕b
+cross(a::ProductSpace,b::ProductSpace) = a⊕b
 
 @generated ⧺(a::Real...) = :(Chain($([:(a[$i]) for i ∈ 1:length(a)]...)))
 @generated ⧺(a::Complex...) = :(Chain($([:(a[$i]) for i ∈ 1:length(a)]...)))
 ⧺(a::Chain{A,G},b::Chain{B,G}) where {A,B,G} = Chain{A∪B,G}(vcat(a.v,b.v))
 
-remove(t::ProductSpace{V,T,2} where {V,T},::Val{1}) = t.v[2]
-remove(t::ProductSpace{V,T,2} where {V,T},::Val{2}) = t.v[1]
+remove(t::ProductSpace{V,T,2} where {V,T},::Val{1}) = (@inbounds t.v[2])
+remove(t::ProductSpace{V,T,2} where {V,T},::Val{2}) = (@inbounds t.v[1])
 @generated remove(t::ProductSpace{V,T,N} where {V,T},::Val{J}) where {N,J} = :(ProductSpace(domain(t).v[$(Values([i for i ∈ 1:N if i≠J]...))]))
 
 # 1
-(m::ProductSpace)(c::Colon,i::Int...) = m.v[1]
+(m::ProductSpace)(c::Colon,i::Int...) = (@inbounds m.v[1])
 (m::ProductSpace)(i::Int,c::Colon,j::Int...) = m.v[2]
 (m::ProductSpace)(i::Int,j::Int,c::Colon,k::Int...) = m.v[3]
 (m::ProductSpace)(i::Int,j::Int,k::Int,c::Colon,l::Int...) = m.v[4]
@@ -122,12 +129,15 @@ export CrossRange
 struct CrossRange <: AbstractVector{Int}
     n::Int
     m::Int
-    CrossRange(n::Int) = new(n,Int((isodd(n) ? n+1 : n)/2)-1)
+    CrossRange(n::Int) = new(n,crossrange(n))
 end
+
+crossrange(n) = Int((isodd(n) ? n+1 : n)/2)-1
 
 Base.iterate(t::CrossRange) = (getindex(t,1),1)
 Base.iterate(t::CrossRange,state) = (s=state+1; s≤length(t) ? (getindex(t,s),s) : nothing)
 
+#Base.resize!(m::CrossRange,i) = (m.n = i; m.m = crossrange(n))
 Base.size(m::CrossRange) = (length(m),)
 Base.length(m::CrossRange) = m.n
 Base.getindex(m::CrossRange,i::Int) = i≤m.m ? i+m.m : i-m.m
@@ -153,7 +163,7 @@ ProductTopology(i::Int) = ProductTopology(Values((OneTo(i),)))
 ProductTopology(i::AbstractVector) = ProductTopology(Values((i,)))
 ProductTopology(i::AbstractVector,jk::AbstractVector...) = ProductTopology(Values(i,jk...))
 
-Base.show(io::IO,t::ProductTopology{N,<:AbstractRange} where N) = print(io,'(',Values(getindex.(t.v,1)),"):(",Values(Number.(getproperty.(t.v,:step))),"):(",Values(getindex.(t.v,length.(t.v))),')')
+Base.show(io::IO,t::ProductTopology{N,<:AbstractRange} where N) = print(io,Values(getindex.(t.v,1)),':',Values(getindex.(t.v,length.(t.v))))
 
 (::Base.Colon)(min::Values{N,Int},max::Values{N,Int}) where N = ProductTopology(Colon().(value(min),value(max)))
 (::Base.Colon)(min::Values{N,Int},step::Values{N,Int},max::Values{N,Int}) where N = ProductTopology(Colon().(value(min),value(step),value(max)))
@@ -161,9 +171,17 @@ Base.show(io::IO,t::ProductTopology{N,<:AbstractRange} where N) = print(io,'(',V
 Base.iterate(t::ProductTopology) = (getindex(t,1),1)
 Base.iterate(t::ProductTopology,state) = (s=state+1; s≤length(t) ? (getindex(t,s),s) : nothing)
 
-@generated Base.size(m::ProductTopology{N}) where N = :(($([:(size(m.v[$i])...) for i ∈ 1:N]...),))
-@generated Base.getindex(m::ProductTopology{N},i::Vararg{Int}) where N = :(Values{N,Int}($([:(m.v[$j][i[$j]]) for j ∈ 1:N]...)))
-Base.getindex(m::ProductTopology{1},i::Int) = Values((m.v[1][i],))
+resize(::OneTo,i) = OneTo(i)
+resize(m::StepRange,i) = isone(m.start) ? (1:1:i) : (i:-1:1)
+resize(m::CrossRange,i) = CrossRange(i)
+resize(m::ProductTopology{1},i) = ProductTopology(@inbounds resize(m.v[1],i))
+@generated function resize(m::ProductTopology{N},i) where N
+    Expr(:call,:ProductTopology,Expr(:call,:Values,[j≠N ? :(@inbounds m.v[$j]) : :(@inbounds resize(m.v[$j],i)) for j ∈ list(1,N)]...))
+end
+
+@generated Base.size(m::ProductTopology{N}) where N = :(($([:(size(@inbounds m.v[$i])...) for i ∈ 1:N]...),))
+@generated Base.getindex(m::ProductTopology{N},i::Vararg{Int}) where N = :(Values{N,Int}($([:((@inbounds m.v[$j])[@inbounds i[$j]]) for j ∈ 1:N]...)))
+Base.getindex(m::ProductTopology{1},i::Int) = Values(((@inbounds m.v[1])[i],))
 @pure Base.getindex(t::ProductTopology,i::CartesianIndex) = getindex(t,i.I...)
 @pure Base.eltype(::Type{<:ProductTopology{N}}) where N = Values{N,Int}
 
@@ -185,6 +203,10 @@ exclude(m::ProductTopology) = m
 exclude(m::ProductTopology{N},n::Int) where N = ProductTopology(m.v[vcat([i≠n ? Values((i,)) : Values{0,Int}() for i ∈ list(1,N)]...)])
 exclude(m::ProductTopology{N},n::Int...) where N = ProductTopology(m.v[vcat([i∉n ? Values((i,)) : Values{0,Int}() for i ∈ list(1,N)]...)])
 
+cross(a::ProductTopology,b::ProductTopology) = ProductTopology(Values(a.v...,b.v...))
+cross(a::ProductTopology,b::AbstractVector{Int}) = ProductTopology(Values(a.v...,b))
+cross(a::ProductTopology,b::Int) = a × OneTo(b)
+
 # QuotientTopology
 
 struct QuotientTopology{N,L,M,O,LA<:ImmersedTopology{L,L}} <: ImmersedTopology{N,N}
@@ -192,7 +214,7 @@ struct QuotientTopology{N,L,M,O,LA<:ImmersedTopology{L,L}} <: ImmersedTopology{N
     q::Values{O,LA}
     r::Values{M,Int}
     s::Values{N,Int}
-    #QuotientTopology(p::Values{O,P},q::Values{O,LA},r::Values{M,Int},n::Values{N,Int}) where {P,L,LA<:ImmersedTopology{L,L},M,N} = QuotientTopology{N,L,M,O,P,LA}(p,q,r,n)
+    #QuotientTopology(p::Values{O,Int},q::Values{O,LA},r::Values{M,Int},n::Values{N,Int}) where {O,L,LA<:ImmersedTopology{L,L},M,N} = QuotientTopology{N,L,M,O,LA}(p,q,r,n)
 end
 
 const OpenTopology{N,L,M,LA} = QuotientTopology{N,L,M,0,LA}
@@ -201,8 +223,8 @@ QuotientTopology(n::ProductTopology) = OpenTopology(n.v)
 OpenTopology(n::ProductTopology) = OpenTopology(n.v)
 OpenTopology(n::QuotientTopology) = OpenTopology(size(n))
 OpenTopology(n::Values{N,Int}) where N = QuotientTopology(Values{0,Int}(),Values{0,Array{Values{N-1,Int},N-1}}(),zeros(Values{2N,Int}),n)
-RibbonTopology(n::Values{2,Int}) = QuotientTopology(Values(4,3),Values(ProductTopology(n[1]),ProductTopology(n[1])),Values(0,0,1,2),n)
-MobiusTopology(n::Values{2,Int}) = QuotientTopology(Values(4,3),Values(ProductTopology(n[1]:-1:1),ProductTopology(n[1]:-1:1)),Values(0,0,1,2),n)
+RibbonTopology(n::Values{2,Int}) = QuotientTopology(Values(2,1),Values(ProductTopology(n[2]),ProductTopology(n[2])),Values(1,2,0,0),n)
+MobiusTopology(n::Values{2,Int}) = QuotientTopology(Values(2,1),Values(ProductTopology(n[2]:-1:1),ProductTopology(n[2]:-1:1)),Values(1,2,0,0),n)
 WingTopology(n::Values{2,Int}) = QuotientTopology(Values(1,2),Values(ProductTopology(n[2]:-1:1),ProductTopology(n[2]:-1:1)),Values(1,2,0,0),n)
 MirrorTopology(n::Values{1,Int}) = QuotientTopology(Values((1,)),Array{Values{0,Int},0}.(Values((undef,))),Values(1,0),n)
 MirrorTopology(n::Values{2,Int}) = QuotientTopology(Values((1,)),Values((ProductTopology(n[2]),)),Values(1,0,0,0),n)
@@ -221,7 +243,7 @@ TorusTopology(n::Values{4,Int}) = QuotientTopology(Values(2,1,4,3,6,5,8,7),Value
 TorusTopology(n::Values{5,Int}) = QuotientTopology(Values(2,1,4,3,6,5,8,7,10,9),Values(ProductTopology(n[2],n[3],n[4],n[5]),ProductTopology(n[2],n[3],n[4],n[5]),ProductTopology(n[1],n[3],n[4],n[5]),ProductTopology(n[1],n[3],n[4],n[5]),ProductTopology(n[1],n[2],n[4],n[5]),ProductTopology(n[1],n[2],n[4],n[5]),ProductTopology(n[1],n[2],n[3],n[5]),ProductTopology(n[1],n[2],n[3],n[5]),ProductTopology(n[1],n[2],n[3],n[4]),ProductTopology(n[1],n[2],n[3],n[4])),Values(1,2,3,4,5,6,7,8,9,10),n)
 HopfTopology(n::Values{2,Int}) = QuotientTopology(Values(2,1,4,3),Values(ProductTopology(CrossRange(n[2])),ProductTopology(CrossRange(n[2])),ProductTopology(n[1]),ProductTopology(n[1])),Values(1,2,3,4),n)
 HopfTopology(n::Values{3,Int}) = QuotientTopology(Values(2,1,4,3,6,5),Values(ProductTopology(OneTo(n[2]),CrossRange(n[3])),ProductTopology(OneTo(n[2]),CrossRange(n[3])),ProductTopology(OneTo(n[1]),CrossRange(n[3])),ProductTopology(OneTo(n[1]),CrossRange(n[3])),ProductTopology(n[1],n[2]),ProductTopology(n[1],n[2])),Values(1,2,3,4,5,6),n)
-KleinTopology(n::Values{2,Int}) = QuotientTopology(Values(2,1,4,3),Values(ProductTopology(n[2]),ProductTopology(n[2]),ProductTopology(n[1]:-1:1),ProductTopology(n[1]:-1:1)),Values(1,2,3,4),n)
+KleinTopology(n::Values{2,Int}) = QuotientTopology(Values(2,1,4,3),Values(ProductTopology(n[2]:-1:1),ProductTopology(n[2]:-1:1),ProductTopology(1:1:n[1]),ProductTopology(1:1:n[1])),Values(1,2,3,4),n)
 ConeTopology(n::Values{2,Int}) = QuotientTopology(Values(1,4,3),Values(ProductTopology(CrossRange(n[2])),ProductTopology(n[1]),ProductTopology(n[1])),Values(1,0,2,3),n)
 DrumTopology(n::Values{2,Int}) = QuotientTopology(Values(1,2,4,3),Values(ProductTopology(CrossRange(n[2])),ProductTopology(n[2]),ProductTopology(n[1]),ProductTopology(n[1])),Values(1,2,3,4),n)
 SphereTopology(n::Values{2,Int}) = QuotientTopology(Values(1,2,4,3),Values(ProductTopology(CrossRange(n[2])),ProductTopology(CrossRange(n[2])),ProductTopology(n[1]),ProductTopology(n[1])),Values(1,2,3,4),n)
@@ -295,6 +317,15 @@ iscompact(t::QuotientTopology) = false
 iscompact(t::CompactTopology) = true
 _to_axis(f::Int) = (iseven(f) ? f : f+1)÷2
 
+function LinearAlgebra.cross(m::QuotientTopology{1},n::Int)
+    QuotientTopology(m.p,
+        Values(ProductTopology(n),ProductTopology(n)),
+        Values(m.r...,0,0),Values(m.s...,n))
+end
+function LinearAlgebra.cross(m::QuotientTopology,n::Int)
+    QuotientTopology(m.p,m.q .× n,Values(m.r...,0,0),Values(m.s...,n))
+end
+
 getlocate(i) = Values((i,))
 getlocate(a,i) = Values((i,))
 getlocate(a,i,j) = isone(a) ? Values(i,j) : Values(j,i)
@@ -306,12 +337,12 @@ function locate_fast(pr1::Int,s,i::Int)
     if isodd(pr1)
         return abs(i-1)+1
     else
-        return s[_to_axis(pr1)]-abs(i-1)
+        return @inbounds s[_to_axis(pr1)]-abs(i-1)
     end
 end
 function locate_fast(pr2::Int,n::Int,s,i::Int)
     if iseven(pr2)
-        return s[_to_axis(pr2)]+n-i
+        return @inbounds s[_to_axis(pr2)]+n-i
     else
         return (i+1)-n
     end
@@ -320,30 +351,47 @@ function locate(pr1::Int,a::Int,s,i::Int)
     if isodd(pr1)
         return abs(i-1)+1
     else
-        return s[a]-abs(i-1)
+        return @inbounds s[a]-abs(i-1)
     end
 end
 function locate(pr2::Int,a::Int,n::Int,s,i::Int)
     if iseven(pr2)
-        return s[a]+n-i
+        return @inbounds s[a]+n-i
     else
         return (i+1)-n
     end
 end
 
 function location(p,q,r::Int,s::Tuple,i::Int,jk::Int...)
-    pr = p[r]
+    pr = @inbounds p[r]
     a = _to_axis(pr)
-    getlocate(a,locate(pr,a,s,i),q[r][jk...]...)
+    getlocate(a,locate(pr,a,s,i),(@inbounds q[r])[jk...]...)
 end
 function location(p,q,r::Int,n::Int,s::Tuple,i::Int,jk::Int...)
-    pr = p[r]
+    pr = @inbounds p[r]
     a = _to_axis(pr)
-    getlocate(a,locate(pr,a,n,s,i),q[r][jk...]...)
+    getlocate(a,locate(pr,a,n,s,i),(@inbounds q[r])[jk...]...)
+end
+
+@generated function resize(m::OpenTopology{N},i) where N
+    Expr(:call,:QuotientTopology,:(m.p),:(m.q),:(m.r),
+         Expr(:call,:Values,[j≠N ? :(@inbounds m.s[$j]) : :i for j ∈ list(1,N)]...))
+end
+@generated function resize(m::QuotientTopology{N,L,M,O},i) where {N,L,M,O}
+    Expr(:call,:QuotientTopology,:(m.p),
+         Expr(:call,:Values,Expr(:tuple,[:((@inbounds m.r[$j])∉(@inbounds m.r[2N-1],@inbounds m.r[2N]) ? (@inbounds resize(m.q[$j],i)) : (@inbounds m.q[$j])) for j ∈ list(1,O)]...)),
+         :(m.r),
+         Expr(:call,:Values,[j≠N ? :(@inbounds m.s[$j]) : :i for j ∈ list(1,N)]...))
+end
+@generated function resize(m::CompactTopology{N,L,M,O},i) where {N,L,M,O}
+    Expr(:call,:QuotientTopology,:(m.p),
+         Expr(:call,:Values,[j∉(O-1,O) ? :(@inbounds resize(m.q[$j],i)) : :(@inbounds m.q[$j]) for j ∈ list(1,O)]...),
+         :(m.r),
+         Expr(:call,:Values,[j≠N ? :(@inbounds m.s[$j]) : :i for j ∈ list(1,N)]...))
 end
 
 @pure Base.eltype(::Type{<:QuotientTopology{N}}) where N = Values{N,Int}
-Base.size(m::QuotientTopology) = Tuple(m.s)
+Base.size(m::QuotientTopology) = m.s.v
 Base.iterate(t::QuotientTopology) = (getindex(t,1),1)
 Base.iterate(t::QuotientTopology,state) = (s=state+1; s≤length(t) ? (getindex(t,s),s) : nothing)
 
@@ -351,15 +399,16 @@ function Base.getindex(m::QuotientTopology{N},i::Vararg{Int,N}) where N
     N > 5 ? Values{N,Int}(i) : getindex(m,Val(0),i...)
 end
 function Base.getindex(m::QuotientTopology{1},i::Int)
-    n = size(m)[1]
+    s = size(m)
+    n = @inbounds s[1]
     ii = if (i > 1 && i < n)
         i
     elseif i < 2
-        r = m.r[1]
-        iszero(r) ? i : locate_fast(m.p[r],size(m),i)
+        r = @inbounds m.r[1]
+        iszero(r) ? i : locate_fast((@inbounds m.p[r]),s,i)
     else
-        r = m.r[2]
-        iszero(r) ? i : locate_fast(m.p[r],n,size(m),i)
+        r = @inbounds m.r[2]
+        iszero(r) ? i : locate_fast((@inbounds m.p[r]),n,s,i)
     end
     return Values{1,Int}((ii,))
 end
@@ -370,22 +419,22 @@ Base.getindex(m::QuotientTopology{N},::Val,i::Vararg{Int,N}) where N = getindex(
 Base.getindex(m::QuotientTopology{1},::Val,i::Int) = getindex(m,i)
 function Base.getindex(m::QuotientTopology{2},N::Val,i::Int,j::Int)
     s = size(m)
-    n1,n2 = s[1],s[2]
+    n1,n2 = @inbounds (s[1],s[2])
     isi,isj = (bounds(i,n1,N,Val(1)),bounds(j,n2,N,Val(2)))
     if isj && !isi
         if i < 2
-            r = m.r[1]
+            r = @inbounds m.r[1]
             !iszero(r) && (return location(m.p,m.q,r,s,i,j))
         else
-            r = m.r[2]
+            r = @inbounds m.r[2]
             !iszero(r) && (return location(m.p,m.q,r,n1,s,i,j))
         end
     elseif isi && !isj
         if j < 2
-            r = m.r[3]
+            r = @inbounds m.r[3]
             !iszero(r) && (return location(m.p,m.q,r,s,j,i))
         else
-            r = m.r[4]
+            r = @inbounds m.r[4]
             !iszero(r) && (return location(m.p,m.q,r,n2,s,j,i))
         end
     end
@@ -393,30 +442,30 @@ function Base.getindex(m::QuotientTopology{2},N::Val,i::Int,j::Int)
 end
 function Base.getindex(m::QuotientTopology{3},N::Val,i::Int,j::Int,k::Int)
     s = size(m)
-    n1,n2,n3 = s[1],s[2],s[3]
+    n1,n2,n3 = @inbounds (s[1],s[2],s[3])
     isi,isj,isk = (bounds(i,n1,N,Val(1)),bounds(j,n2,N,Val(2)),bounds(k,n3,N,Val(3)))
     if isj && isk && !isi
         if i < 2
-            r = m.r[1]
+            r = @inbounds m.r[1]
             !iszero(r) && (return location(m.p,m.q,r,s,i,j,k))
         else
-            r = m.r[2]
+            r = @inbounds m.r[2]
             !iszero(r) && (return location(m.p,m.q,r,n1,s,i,j,k))
         end
     elseif isi && isk && !isj
         if j < 2
-            r = m.r[3]
+            r = @inbounds m.r[3]
             !iszero(r) && (return location(m.p,m.q,r,s,j,i,k))
         else
-            r = m.r[4]
+            r = @inbounds m.r[4]
             !iszero(r) && (return location(m.p,m.q,r,n2,s,j,i,k))
         end
     elseif isi && isj && !isk
         if k < 2
-            r = m.r[5]
+            r = @inbounds m.r[5]
             !iszero(r) && (return location(m.p,m.q,r,s,k,i,j))
         else
-            r = m.r[6]
+            r = @inbounds m.r[6]
             !iszero(r) && (return location(m.p,m.q,r,n3,s,k,i,j))
         end
     end
@@ -424,38 +473,38 @@ function Base.getindex(m::QuotientTopology{3},N::Val,i::Int,j::Int,k::Int)
 end
 function Base.getindex(m::QuotientTopology{4},N::Val,i::Int,j::Int,k::Int,l::Int)
     s = size(m)
-    n1,n2,n3,n4 = s[1],s[2],s[3],s[4]
+    n1,n2,n3,n4 = @inbounds (s[1],s[2],s[3],s[4])
     isi,isj,isk,isl = (bounds(i,n1,N,Val(1)),bounds(j,n2,N,Val(2)),bounds(k,n3,N,Val(3)),bounds(l,n4,N,Val(4)))
     if isj && isk && isl && !isi
         if i < 2
-            r = m.r[1]
+            r = @inbounds m.r[1]
             !iszero(r) && (return location(m.p,m.q,r,s,i,j,k,l))
         else
-            r = m.r[2]
+            r = @inbounds m.r[2]
             !iszero(r) && (return location(m.p,m.q,r,n1,s,i,j,k,l))
         end
     elseif isi && isk && isl && !isj
         if j < 2
-            r = m.r[3]
+            r = @inbounds m.r[3]
             !iszero(r) && (return location(m.p,m.q,r,s,j,i,k,l))
         else
-            r = m.r[4]
+            r = @inbounds m.r[4]
             !iszero(r) && (return location(m.p,m.q,r,n2,s,j,i,k,l))
         end
     elseif isi && isj && isl && !isk
         if k < 2
-            r = m.r[5]
+            r = @inbounds m.r[5]
             !iszero(r) && (return location(m.p,m.q,r,s,k,i,j,l))
         else
-            r = m.r[6]
+            r = @inbounds m.r[6]
             !iszero(r) && (return location(m.p,m.q,r,n3,s,k,i,j,l))
         end
     elseif isi && isj && isk && !isl
         if l < 2
-            r = m.r[7]
+            r = @inbounds m.r[7]
             !iszero(r) && (return location(m.p,m.q,r,s,l,i,j,k))
         else
-            r = m.r[8]
+            r = @inbounds m.r[8]
             !iszero(r) && (return location(m.p,m.q,r,n4,s,l,i,j,k))
         end
     end
@@ -463,46 +512,46 @@ function Base.getindex(m::QuotientTopology{4},N::Val,i::Int,j::Int,k::Int,l::Int
 end
 function Base.getindex(m::QuotientTopology{5},N::Val,i::Int,j::Int,k::Int,l::Int,o::Int)
     s = size(m)
-    n1,n2,n3,n4,n5 = s[1],s[2],s[3],s[4],s[5]
+    n1,n2,n3,n4,n5 = @inbounds (s[1],s[2],s[3],s[4],s[5])
     isi,isj,isk,isl,iso = (bounds(i,n1,N,Val(1)),bounds(j,n2,N,Val(2)),bounds(k,n3,N,Val(3)),bounds(l,n4,N,Val(4)),bounds(o,n5,N,Val(5)))
     if isj && isk && isl && iso && !isi
         if i < 2
-            r = m.r[1]
+            r = @inbounds m.r[1]
             !iszero(r) && (return location(m.p,m.q,r,s,i,j,k,l,o))
         else
-            r = m.r[2]
+            r = @inbounds m.r[2]
             !iszero(r) && (return location(m.p,m.q,r,n1,s,i,j,k,l,o))
         end
     elseif isi && isk && isl && iso && !isj
         if j < 2
-            r = m.r[3]
+            r = @inbounds m.r[3]
             !iszero(r) && (return location(m.p,m.q,r,s,j,i,k,l,o))
         else
-            r = m.r[4]
+            r = @inbounds m.r[4]
             !iszero(r) && (return location(m.p,m.q,r,n2,s,j,i,k,l,o))
         end
     elseif isi && isj && isl && iso && !isk
         if k < 2
-            r = m.r[5]
+            r = @inbounds m.r[5]
             !iszero(r) && (return location(m.p,m.q,r,s,k,i,j,l,o))
         else
-            r = m.r[6]
+            r = @inbounds m.r[6]
             !iszero(r) && (return location(m.p,m.q,r,n3,s,k,i,j,l,o))
         end
     elseif isi && isj && isk && iso && !isl
         if l < 2
-            r = m.r[7]
+            r = @inbounds m.r[7]
             !iszero(r) && (return location(m.p,m.q,r,s,l,i,j,k,o))
         else
-            r = m.r[8]
+            r = @inbounds m.r[8]
             !iszero(r) && (return location(m.p,m.q,r,n4,s,l,i,j,k,o))
         end
     elseif isi && isj && isk && isl && !iso
         if o < 2
-            r = m.r[9]
+            r = @inbounds m.r[9]
             !iszero(r) && (return location(m.p,m.q,r,s,o,i,j,k,l))
         else
-            r = m.r[10]
+            r = @inbounds m.r[10]
             !iszero(r) && (return location(m.p,m.q,r,n4,s,o,i,j,k,l))
         end
     end
@@ -510,17 +559,20 @@ function Base.getindex(m::QuotientTopology{5},N::Val,i::Int,j::Int,k::Int,l::Int
 end
 
 function findface(m,r,i,vals)
-    if iszero(r[i]) || m.p[r[i]] ∉ r || m.q[r[i]][vals...] ≠ vals
+    ri = r[i]
+    if iszero(ri) || m.p[ri] ∉ r || m.q[ri][vals...] ≠ vals
         0
     else
-        m.p[r[i]]≠r[1] ? 2 : 1
+        m.p[ri]≠(@inbounds r[1]) ? 2 : 1
     end
 end
 function findface(m,r,i,vals,ex...)
-    if iszero(r[i]) || m.p[r[i]] ∉ r || exclude(m.q[r[i]],ex...)[vals...] ≠ vals
+    ri = r[i]
+    if iszero(ri) || m.p[ri] ∉ r || exclude(m.q[ri],ex...)[vals...] ≠ vals
         0
     else
-        findfirst(x->x==m.p[r[i]],r)
+        pri = m.p[ri]
+        findfirst(x->x==pri,r)
     end
 end
 
@@ -557,16 +609,27 @@ function subtopology(m::QuotientTopology,i::NTuple{N,Int},::Colon,j::NTuple{M,In
         findface(m,r,3,vals,N1),findface(m,r,4,vals,N1))
     p1z,p2z,p3z,p4z = iszero.((p1,p2,p3,p4))
     pz = !(p1z)+!(p2z)+!(p3z)+!(p4z)
-    a = Values{pz,Int}((p1z ? () : (p1,))...,(p2z ? () : (p2,))...,(p3z ? () : (p3,))...,(p4z ? () : (p4,))...)
+    vpz = if iszero(pz)
+        Values{0}
+    elseif isone(pz)
+        Values{1}
+    elseif pz==2
+        Values{2}
+    elseif pz==3
+        Values{3}
+    else
+        Values{4}
+    end
+    a = iszero(pz) ? Values{0,Int}() : vpz((p1z ? () : (p1,))...,(p2z ? () : (p2,))...,(p3z ? () : (p3,))...,(p4z ? () : (p4,))...)
     b = if iszero(pz)
-        Values{pz,Array{Values{1,Int},1}}()
-    else; Values{pz}(
+        Values{0,Array{Values{1,Int},1}}()
+    else; vpz(
         (p1z ? () : (ProductTopology(m.q[r[1]].v[M1-1]),))...,
         (p2z ? () : (ProductTopology(m.q[r[2]].v[M1-1]),))...,
         (p3z ? () : (ProductTopology(m.q[r[3]].v[N1]),))...,
         (p4z ? () : (ProductTopology(m.q[r[4]].v[N1]),))...)
     end
-    c = Values(p1z ? 0 : 1,p2z ? 0 : !(p1z)+!(p2z),p3z ? 0 : !(p1z)+!(p2z)+!(p3z),p4z ? 0 : pz)
+    c = Values{4,Int}(p1z ? 0 : 1,p2z ? 0 : !(p1z)+!(p2z),p3z ? 0 : !(p1z)+!(p2z)+!(p3z),p4z ? 0 : pz)
     QuotientTopology(a,b,c,Values(s[N1],s[M1]))
 end
 function subtopology(m::QuotientTopology,i::NTuple{N,Int},::Colon,j::NTuple{M,Int},::Colon,k::NTuple{L,Int},::Colon,l::NTuple{O,Int} where O) where {N,M,L}
@@ -794,7 +857,6 @@ metricextensor(c::Coordinate) = fiber(c)
 metrictensor(c) = InducedMetric()
 metrictensor(c::Coordinate) = TensorOperator(fiber(c)[1])
 
-
 Base.getindex(s::Coordinate,i::Int...) = getindex(s.v.first,i...)
 Base.getindex(s::Coordinate,i::Integer...) = getindex(s.v.first,i...)
 
@@ -837,6 +899,10 @@ export Section
 const Section = LocalTensor
 const ↦, domain, codomain = LocalTensor, base, fiber
 ↤(F,B) = B ↦ F
+
+localfiber(x) = x
+localfiber(x::LocalTensor) = fiber(x)
+localfiber(x::LocalSection) = fiber(x)
 
 @inline Base.:<<(a::LocalFiber,b::LocalFiber) = contraction(b,~a)
 @inline Base.:>>(a::LocalFiber,b::LocalFiber) = contraction(~a,b)
@@ -975,13 +1041,18 @@ function deletepointcloud!(P::Int)
     nothing
 end
 
+⊕(a::PointArray,b::AbstractVector{<:Real}) = PointArray(points(a)⊕b)
+cross(a::PointArray,b::AbstractVector{<:Real}) = a⊕b
+
 Base.size(m::PointArray) = size(m.dom)
 Base.firstindex(m::PointCloud) = 1
 Base.lastindex(m::PointCloud) = length(points(m))
 Base.length(m::PointCloud) = length(points(m))
-Base.resize!(m::PointCloud,i::Int) = (resize!(points(m),i),resize!(metricextensor(m),i))
+Base.resize!(m::PointCloud,i::Int) = ((resize!(points(m),i),resize!(metricextensor(m),i)); m)
 Base.broadcast(f,t::PointArray) = PointArray(f.(points(t)),f.(metricextensor(t)))
 Base.broadcast(f,t::PointCloud) = PointCloud(f.(points(t)),f.(metricextensor(t)))
+resize_lastdim!(m::Global,i) = m
+resize_lastdim!(m::PointArray,i) = ((resize_lastdim!(m.dom,i),resize_lastdim!(m.cod,i)); m)
 
 function (m::PointArray)(i::Vararg{Union{Int,Colon}})
     pa = points(m)(i...)
@@ -1084,6 +1155,9 @@ abstract type GlobalFiber{E,N} <: FiberBundle{E,N} end
 Base.@pure isfiberbundle(::GlobalFiber) = true
 Base.@pure isfiberbundle(::Any) = false
 
+globalfiber(x) = x
+globalfiber(x::GlobalFiber) = fiber(x)
+
 topology(m::GlobalFiber) = topology(immersion(m))
 vertices(m::GlobalFiber) = vertices(immersion(m))
 iscover(m::GlobalFiber) = iscover(immersion(m))
@@ -1094,8 +1168,8 @@ arcdomain(t::GlobalFiber) = unitdomain(t)*arclength(codomain(t))
 graph(t::GlobalFiber) = graph.(t)
 
 Base.size(m::GlobalFiber) = size(m.cod)
-Base.resize!(m::GlobalFiber,i) = (resize!(domain(m),i),resize!(codomain(m),i))
-
+Base.resize!(m::GlobalFiber,i) = ((resize!(domain(m),i),resize!(codomain(m),i)); m)
+resize_lastdim!(m::GlobalFiber,i) = ((resize_lastdim!(domain(m),i),resize_lastdim!(codomain(m),i)); m)
 # AbstractFrameBundle
 
 export AbstractFrameBundle, GridFrameBundle, SimplexFrameBundle, FacetFrameBundle
@@ -1152,7 +1226,12 @@ basetype(::Type{<:GridFrameBundle{C}}) where C = basetype(C)
 fibertype(m::GridFrameBundle) = fibertype(base(m))
 fibertype(::Type{<:GridFrameBundle{C}}) where C = fibertype(C)
 
-Base.resize!(m::GridFrameBundle,i) = resize!(base(m),i)
+⊕(a::GridFrameBundle,b::AbstractVector{<:Real}) = GridFrameBundle(base(a)⊕b,immersion(a) × length(b))
+cross(a::GridFrameBundle,b::AbstractVector{<:Real}) = a⊕b
+
+resize_lastdim!(m::GridFrameBundle,i) = (resize_lastdim!(base(m),i); m)
+resize(m::GridFrameBundle) = GridFrameBundle(m.id,m.dom,resize(m.cod,size(m.dom)[end]))
+Base.resize!(m::GridFrameBundle,i) = (resize!(base(m),i); m)
 Base.broadcast(f,t::GridFrameBundle) = GridFrameBundle(f.(base(t)))
 
 (m::GridFrameBundle)(i::ImmersedTopology) = GridFrameBundle(bundle(m),base(m),i)
