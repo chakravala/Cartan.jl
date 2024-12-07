@@ -12,7 +12,7 @@
 #   https://github.com/chakravala
 #   https://crucialflow.com
 
-export bound, boundabove, boundbelow, boundlog, isclosed
+export bound, boundabove, boundbelow, boundlog, isclosed, updatetopology
 export centraldiff, centraldiff_slow, centraldiff_fast
 export gradient, gradient_slow, gradient_fast, unitgradient
 export integral, integrate, ∫
@@ -37,6 +37,7 @@ boundlog(z,lim=10) = (x=abs(fiber(s)); x≤lim ? s : LocalTensor(base(s),T(fiber
 boundlog(t::TensorField,lim=10) = TensorField(base(t), boundlog.(codomain(t),lim))
 
 isclosed(t::IntervalMap) = norm(codomain(t)[end]-codomain(t)[1]) ≈ 0
+updatetopology(t::IntervalMap) = isclosed(t) ? TorusTopology(t) : t
 
 export Grid
 
@@ -256,7 +257,7 @@ for fun ∈ (:_slow,:_fast)
             end end end
             return d
         end
-        function $cdg(f::Grid{3},s::Tuple=size(f.v))
+        function $cdg(f::Grid{3},s::Tuple=size(f))
             d = Array{Chain{Submanifold(3),1,pointtype(f),3},3}(undef,s...)
             @threads for i ∈ OneTo(s[1]); for j ∈ OneTo(s[2]); for k ∈ OneTo(s[3])
                 d[i,j,k] = $cdg(f,s,i,j,k)
@@ -270,7 +271,7 @@ for fun ∈ (:_slow,:_fast)
             end end end end
             return d
         end
-        function $cdg(f::Grid{4},s::Tuple=size(f.v))
+        function $cdg(f::Grid{4},s::Tuple=size(f))
             d = Array{Chain{Submanifold(4),1,pointtype(f),4},4}(undef,s...)
             @threads for i ∈ OneTo(s[1]); for j ∈ OneTo(s[2]); for k ∈ OneTo(s[3]); for l ∈ OneTo(s[4])
                 d[i,j,k,l] = $cdg(f,s,i,j,k,l)
@@ -284,7 +285,7 @@ for fun ∈ (:_slow,:_fast)
             end end end end end
             return d
         end
-        function $cdg(f::Grid{5},s::Tuple=size(f.v))
+        function $cdg(f::Grid{5},s::Tuple=size(f))
             d = Array{Chain{Submanifold(5),1,pointtype(f),5},5}(undef,s...)
             @threads for i ∈ OneTo(s[1]); for j ∈ OneTo(s[2]); for k ∈ OneTo(s[3]); for l ∈ OneTo(s[4]); for o ∈ OneTo(s[5])
                 d[i,j,k,l,o] = $cdg(f,s,i,j,k,l,o)
@@ -782,6 +783,30 @@ end
 
 # differential geometry
 
+export 𝓛, bracket
+
+struct LieBracket end
+struct LieDerivative{X<:VectorField}
+    v::X
+end
+const 𝓛 = LieBracket()
+
+Base.getindex(::LieBracket,X::VectorField) = LieDerivative(X)
+Base.getindex(::LieBracket,X::VectorField,Y::VectorField...) = bracket(X,Y...)
+(::LieBracket)(X::VectorField,Y::VectorField...) = bracket(X,Y...)
+(::LieBracket)(X::VectorField) = LieDerivative(X)
+(X::LieDerivative)(Y::VectorField...) = bracket(X.v,Y...)
+(X::VectorField)(f::ScalarField) = X⋅gradient(f)
+(X::GradedVector)(f::ScalarField) = X⋅gradient(f)
+bracket(X,Y) = X(Y) - Y(X)
+bracket(X,Y,Z) = X(bracket(Y,Z)) + Y(bracket(Z,X)) + Z(bracket(X,Y))
+bracket(W,X,Y,Z) = W(bracket(X,Y,Z)) + X(bracket(W,Z,Y)) + Y(bracket(W,X,Z)) + Z(bracket(W,Y,X))
+bracket(V,W,X,Y,Z) = V(bracket(W,X,Y,Z)) + W(bracket(V,X,Z,Y)) + X(bracket(V,W,Y,Z)) + Y(bracket(V,W,Z,X)) + Z(bracket(V,W,X,Y))
+𝓛dot(x::Chain,y::Simplex{V}) where V = Chain{V}(Real.(x.⋅value(y)))
+function (X::VectorField)(Y::VectorField)
+    TensorField(base(X),𝓛dot.(fiber(X),fiber(gradient(Y))))
+end
+
 export arclength, arctime, totalarclength, trapz, cumtrapz, linecumtrapz, psum, pcumsum
 export centraldiff, tangent, tangent_fast, unittangent, speed, normal, unitnormal
 export curvenormal, unitcurvenormal, ribbon, tangentsurface, planecurve
@@ -826,6 +851,11 @@ area_slow(f::VectorField) = integral(normalnorm_slow(f))
 surfacearea_slow(f::VectorField) = integrate(normalnorm_slow(f))
 weingarten_slow(f::VectorField) = gradient(unitnormal_slow(f))
 gauss_slow(f::VectorField) = Real(abs(det(weingarten_slow(f))))
+
+area(f::PlaneCurve) = integral(f∧gradient(f))/2
+#volume(f::VectorField) = integral(f∧det(gradient(f)))/3
+sectorarea(f::PlaneCurve) = integrate(f∧gradient(f))/2
+sectorvolume(f::VectorField) = integrate(f∧det(gradient(f)))/3
 
 function speed(f::IntervalMap,d=centraldiffpoints(f),t=centraldifffiber(f,d))
     TensorField(domain(f), abs.(t))

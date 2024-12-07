@@ -42,11 +42,13 @@ function initmesh(r::R) where R<:AbstractVector
     p,SimplexTopology(bound,vertices(bound),n),ImmersedTopology(t)
 end
 
-initpoints(P::T) where T<:AbstractVector = Chain{varmanifold(2),1}.(1.0,P)
+initpoints(P::T) where T<:AbstractVector{<:Real} = Chain{varmanifold(2),1}.(1.0,P)
 initpoints(P::T) where T<:AbstractRange = Chain{varmanifold(2),1}.(1.0,P)
-@generated function initpoints(P,::Val{n}=Val(size(P,1))) where n
-    Expr(:.,:(Chain{$(varmanifold(n+1)),1}),
-         Expr(:tuple,1.0,[:(P[$k,:]) for k ∈ 1:n]...))
+initpoints(P::AbstractVector) = initpoint.(P)
+initpoints(P::AbstractMatrix) = initpoint.(P[:])
+@generated function initpoint(P::Chain{V,G,T,N} where {V,G,T}) where N
+    Expr(:call,:(Chain{$(varmanifold(N+1)),1}),
+         Expr(:tuple,1.0,[:(P[$k]) for k ∈ list(1,N)]...))
 end
 
 function initpointsdata(P,E,N::Val{n}=Val(size(P,1))) where n
