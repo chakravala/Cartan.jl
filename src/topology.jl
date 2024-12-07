@@ -246,7 +246,12 @@ HopfTopology(n::Values{3,Int}) = QuotientTopology(Values(2,1,4,3,6,5),Values(Pro
 KleinTopology(n::Values{2,Int}) = QuotientTopology(Values(2,1,4,3),Values(ProductTopology(n[2]:-1:1),ProductTopology(n[2]:-1:1),ProductTopology(1:1:n[1]),ProductTopology(1:1:n[1])),Values(1,2,3,4),n)
 ConeTopology(n::Values{2,Int}) = QuotientTopology(Values(1,4,3),Values(ProductTopology(CrossRange(n[2])),ProductTopology(n[1]),ProductTopology(n[1])),Values(1,0,2,3),n)
 DrumTopology(n::Values{2,Int}) = QuotientTopology(Values(1,2,4,3),Values(ProductTopology(CrossRange(n[2])),ProductTopology(n[2]),ProductTopology(n[1]),ProductTopology(n[1])),Values(1,2,3,4),n)
+SphereTopology(n::Values{1,Int}) = TorusTopology(n)
 SphereTopology(n::Values{2,Int}) = QuotientTopology(Values(1,2,4,3),Values(ProductTopology(CrossRange(n[2])),ProductTopology(CrossRange(n[2])),ProductTopology(n[1]),ProductTopology(n[1])),Values(1,2,3,4),n)
+SphereTopology(n::Values{3,Int}) = QuotientTopology(Values(1,2,3,4,6,5),Values(ProductTopology(OneTo(n[2]),CrossRange(n[3])),ProductTopology(OneTo(n[2]),CrossRange(n[3])),ProductTopology(OneTo(n[1]),CrossRange(n[3])),ProductTopology(OneTo(n[1]),CrossRange(n[3])),ProductTopology(n[1],n[2]),ProductTopology(n[1],n[2])),Values(1,2,3,4,5,6),n)
+SphereTopology(n::Values{4,Int}) = QuotientTopology(Values(1,2,3,4,5,6,8,7),Values(ProductTopology(OneTo(n[2]),OneTo(n[3]),CrossRange(n[4])),ProductTopology(OneTo(n[2]),OneTo(n[3]),CrossRange(n[4])),ProductTopology(OneTo(n[1]),OneTo(n[3]),CrossRange(n[4])),ProductTopology(OneTo(n[1]),OneTo(n[3]),CrossRange(n[4])),ProductTopology(OneTo(n[1]),OneTo(n[2]),CrossRange(n[4])),ProductTopology(OneTo(n[1]),OneTo(n[2]),CrossRange(n[4])),ProductTopology(n[1],n[2],n[3]),ProductTopology(n[1],n[2],n[3])),Values(1,2,3,4,5,6,7,8),n)
+SphereTopology(n::Values{5,Int}) = QuotientTopology(Values(1,2,3,4,5,6,7,8,10,9),Values(ProductTopology(OneTo(n[2]),OneTo(n[3]),OneTo(n[4]),CrossRange(n[5])),ProductTopology(OneTo(n[2]),OneTo(n[3]),OneTo(n[4]),CrossRange(n[5])),ProductTopology(OneTo(n[1]),OneTo(n[3]),OneTo(n[4]),CrossRange(n[5])),ProductTopology(OneTo(n[1]),OneTo(n[3]),OneTo(n[4]),CrossRange(n[5])),ProductTopology(OneTo(n[1]),OneTo(n[2]),OneTo(n[4]),CrossRange(n[5])),ProductTopology(OneTo(n[1]),OneTo(n[2]),OneTo(n[4]),CrossRange(n[5])),ProductTopology(OneTo(n[1]),OneTo(n[2]),OneTo(n[3]),CrossRange(n[5])),ProductTopology(OneTo(n[1]),OneTo(n[2]),OneTo(n[3]),CrossRange(n[5])),ProductTopology(n[1],n[2],n[3],n[4]),ProductTopology(n[1],n[2],n[3],n[4])),Values(1,2,3,4,5,6,7,8,9,10),n)
+GeographicTopology(n::Values{2,Int}) = QuotientTopology(Values(2,1,3,4),Values(ProductTopology(n[2]),ProductTopology(n[2]),ProductTopology(CrossRange(n[1])),ProductTopology(CrossRange(n[1]))),Values(1,2,3,4),n)
 
 OpenParameter(n::ProductTopology) = OpenParameter(n.v)
 OpenParameter(n::Values{1,Int}) = TensorField(GridFrameBundle(PointArray(0,LinRange(0,1,n[1])),OpenTopology(n)))
@@ -277,7 +282,12 @@ HopfParameter(n::Values{3,Int}) = TensorField(GridFrameBundle(PointArray((LinRan
 KleinParameter(n::Values{2,Int}) = TensorField(GridFrameBundle(PointArray(LinRange(0,2π,n[1])⊕LinRange(0,2π,n[2])),KleinTopology(n)))
 ConeParameter(n::Values{2,Int}) = TensorField(GridFrameBundle(PointArray(LinRange(0,1,n[1])⊕LinRange(0,2π,n[2])),ConeTopology(n)))
 DrumParameter(n::Values{2,Int}) = TensorField(GridFrameBundle(PointArray(LinRange(0,1,n[1])⊕LinRange(0,2π,n[2])),DrumTopology(n)))
+SphereParameter(n::Values{1,Int}) = TorusParameter(n)
 SphereParameter(n::Values{2,Int}) = TensorField(GridFrameBundle(PointArray(LinRange(0,π,n[1])⊕LinRange(0,2π,n[2])),SphereTopology(n)))
+SphereParameter(n::Values{3,Int}) = TensorField(GridFrameBundle(PointArray((LinRange(0,π,n[1])⊕LinRange(0,π,n[2]))⊕LinRange(0,2π,n[3])),SphereTopology(n)))
+SphereParameter(n::Values{4,Int}) = TensorField(GridFrameBundle(PointArray(((LinRange(0,π,n[1])⊕LinRange(0,π,n[2]))⊕LinRange(0,π,n[3]))⊕LinRange(0,2π,n[4])),SphereTopology(n)))
+SphereParameter(n::Values{5,Int}) = TensorField(GridFrameBundle(PointArray((((LinRange(0,π,n[1])⊕LinRange(0,π,n[2]))⊕LinRange(0,π,n[3]))⊕LinRange(0,π,n[4]))⊕LinRange(0,2π,n[5])),SphereTopology(n)))
+GeographicParameter(n::Values{2,Int}) = TensorField(GridFrameBundle(PointArray(LinRange(-π,π,n[1])⊕LinRange(-π/2,π/2,n[2])),GeographicTopology(n)))
 
 for mod ∈ (:Topology,:Parameter)
     for fun ∈ (:Hopf,)
@@ -300,7 +310,7 @@ for mod ∈ (:Topology,:Parameter)
             end
         end
     end
-    for (fun,(n,m)) ∈ ((:Ribbon,(60,20)),(:Wing,(60,20)),(:Mobius,(60,20)),(:Klein,(60,60)),(:Cone,(30,:(2n+1))),(:Drum,(30,:(2n))),(:Sphere,(30,:(2n+1))))
+    for (fun,(n,m)) ∈ ((:Ribbon,(60,20)),(:Wing,(60,20)),(:Mobius,(60,20)),(:Klein,(60,60)),(:Cone,(30,:(2n+1))),(:Drum,(30,:(2n))),(:Sphere,(30,:(2n+1))),(:Geographic,(:(2n+1),30)))
         for typ ∈ (Symbol(fun,mod),)
             @eval begin
                 export $typ
@@ -917,7 +927,7 @@ for type ∈ (:Coordinate,:LocalSection,:LocalTensor)
     for fun ∈ (:inv,:exp,:exp2,:exp10,:log,:log2,:log10,:sinh,:cosh,:abs,:sqrt,:cbrt,:cos,:sin,:tan,:cot,:sec,:csc,:asec,:acsc,:sech,:csch,:asech,:tanh,:coth,:asinh,:acosh,:atanh,:acoth,:asin,:acos,:atan,:acot,:sinc,:cosc,:cis,:abs2)
         @eval Base.$fun(s::$type) = $type(base(s), $fun(fiber(s),metricextensor(base(s))))
     end
-    for fun ∈ (:reverse,:involute,:clifford,:even,:odd,:scalar,:vector,:bivector,:volume,:value,:curl,:∂,:d,:complementleft,:realvalue,:imagvalue,:outermorphism)
+    for fun ∈ (:reverse,:involute,:clifford,:even,:odd,:scalar,:vector,:bivector,:volume,:value,:curl,:∂,:d,:complementleft,:realvalue,:imagvalue,:outermorphism,:Outermorphism,:DiagonalOperator,:TensorOperator)
         @eval Grassmann.$fun(s::$type) = $type(base(s), $fun(fiber(s)))
     end
     for fun ∈ (:⋆,:angle,:radius,:complementlefthodge,:pseudoabs,:pseudoabs2,:pseudoexp,:pseudolog,:pseudoinv,:pseudosqrt,:pseudocbrt,:pseudocos,:pseudosin,:pseudotan,:pseudocosh,:pseudosinh,:pseudotanh,:metric)
@@ -994,9 +1004,12 @@ PointArray(dom::PointArray,fun::Array) = PointArray(base(dom), fun)
 PointArray(dom::PointArray,fun::Function) = PointArray(base(dom), fun)
 PointArray(dom::AbstractArray,fun::Function) = PointArray(dom, fun.(dom))
 
+submetric(x::DiagonalOperator) = DiagonalOperator(getindex(x,1))
+submetric(x::Outermorphism) = TensorOperator(getindex(x,1))
+
 points(m::PointArray) = m.dom
 metricextensor(m::PointArray) = m.cod
-metrictensor(m::PointArray) = TensorOperator.(getindex.(metricextensor(m),1))
+metrictensor(m::PointArray) = submetric.(metricextensor(m))
 pointtype(m::PointArray) = basetype(m)
 pointtype(m::Type{<:PointArray}) = basetype(m)
 metrictype(m::PointArray) = fibertype(m)

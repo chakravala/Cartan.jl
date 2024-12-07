@@ -12,7 +12,7 @@
 #   https://github.com/chakravala
 #   https://crucialflow.com
 
-export bound, boundabove, boundbelow, boundlog, isclosed
+export bound, boundabove, boundbelow, boundlog, isclosed, updatetopology
 export centraldiff, centraldiff_slow, centraldiff_fast
 export gradient, gradient_slow, gradient_fast, unitgradient
 export integral, integrate, ∫
@@ -37,6 +37,7 @@ boundlog(z,lim=10) = (x=abs(fiber(s)); x≤lim ? s : LocalTensor(base(s),T(fiber
 boundlog(t::TensorField,lim=10) = TensorField(base(t), boundlog.(codomain(t),lim))
 
 isclosed(t::IntervalMap) = norm(codomain(t)[end]-codomain(t)[1]) ≈ 0
+updatetopology(t::IntervalMap) = isclosed(t) ? TorusTopology(t) : t
 
 export Grid
 
@@ -118,15 +119,15 @@ end=#
 
 @generated function dvec(t::TensorField{B,<:Chain{V,G} where {V,G}} where B)
     V = Manifold(fibertype(t)); N = mdims(V)
-    Expr(:.,:(Chain{$V,1}),Expr(:tuple,[:(gradient(getindex.(t,$i))) for i ∈ list(1,N)]...))
+    Expr(:call,:TensorField,:(base(t)),Expr(:.,:(Chain{$V,1}),Expr(:tuple,[:(fiber(gradient(getindex.(t,$i)))) for i ∈ list(1,N)]...)))
 end
 
 @generated function Grassmann.d(t::TensorField{B,<:Chain{V,G,<:Chain} where {V,G}} where B)
     V = Manifold(fibertype(t)); N = mdims(V)
-    Expr(:.,:(Chain{$V,1}),Expr(:tuple,[:(d(getindex.(t,$i))) for i ∈ list(1,N)]...))
+    Expr(:call,:TensorField,:(base(t)),Expr(:.,:(Chain{$V,1}),Expr(:tuple,[:(fiber(d(getindex.(t,$i)))) for i ∈ list(1,N)]...)))
 end
+Grassmann.d(t::DiagonalField{B,<:DiagonalOperator,N,<:AbstractFrameBundle} where{B,N}) = DiagonalOperator(dvec(value(t)))
 @generated function Grassmann.d(t::EndomorphismField{B,<:Endomorphism,N,<:AbstractFrameBundle} where {B,N})
-    fibertype(t) <: DiagonalOperator && (return :(DiagonalOperator.(dvec(value.(t)))))
     V = Manifold(fibertype(t)); N = mdims(V)
     syms = Symbol.(:x,list(1,N))
     Expr(:block,:(V = $V),
@@ -140,8 +141,8 @@ end
     syms = Symbol.(:x,list(1,N))
     Expr(:block,:(V = $V),
         :($(Expr(:tuple,syms...)) = $(Expr(:tuple,[:(-getindex.(t,$i)) for i ∈ list(1,N)]...))),
-        Expr(:.,:TensorOperator,Expr(:tuple,Expr(:.,:(Chain{V,1}),Expr(:tuple,[Expr(:.,:(Chain{V,1}),Expr(:tuple,
-        [:(d(getindex.($(syms[i]),$j))) for i ∈ list(1,N)]...)) for j ∈ list(1,N)]...)))))
+        Expr(:call,:TensorField,:(base(t)),Expr(:.,:TensorOperator,Expr(:tuple,Expr(:.,:(Chain{V,1}),Expr(:tuple,[Expr(:.,:(Chain{V,1}),Expr(:tuple,
+        [:(fiber(d(getindex.($(syms[i]),$j)))) for i ∈ list(1,N)]...)) for j ∈ list(1,N)]...))))))
 end
 
 for op ∈ (:(Base.:*),:(Base.:/),:(Grassmann.:∧),:(Grassmann.:∨))
@@ -256,7 +257,7 @@ for fun ∈ (:_slow,:_fast)
             end end end
             return d
         end
-        function $cdg(f::Grid{3},s::Tuple=size(f.v))
+        function $cdg(f::Grid{3},s::Tuple=size(f))
             d = Array{Chain{Submanifold(3),1,pointtype(f),3},3}(undef,s...)
             @threads for i ∈ OneTo(s[1]); for j ∈ OneTo(s[2]); for k ∈ OneTo(s[3])
                 d[i,j,k] = $cdg(f,s,i,j,k)
@@ -270,7 +271,7 @@ for fun ∈ (:_slow,:_fast)
             end end end end
             return d
         end
-        function $cdg(f::Grid{4},s::Tuple=size(f.v))
+        function $cdg(f::Grid{4},s::Tuple=size(f))
             d = Array{Chain{Submanifold(4),1,pointtype(f),4},4}(undef,s...)
             @threads for i ∈ OneTo(s[1]); for j ∈ OneTo(s[2]); for k ∈ OneTo(s[3]); for l ∈ OneTo(s[4])
                 d[i,j,k,l] = $cdg(f,s,i,j,k,l)
@@ -284,7 +285,7 @@ for fun ∈ (:_slow,:_fast)
             end end end end end
             return d
         end
-        function $cdg(f::Grid{5},s::Tuple=size(f.v))
+        function $cdg(f::Grid{5},s::Tuple=size(f))
             d = Array{Chain{Submanifold(5),1,pointtype(f),5},5}(undef,s...)
             @threads for i ∈ OneTo(s[1]); for j ∈ OneTo(s[2]); for k ∈ OneTo(s[3]); for l ∈ OneTo(s[4]); for o ∈ OneTo(s[5])
                 d[i,j,k,l,o] = $cdg(f,s,i,j,k,l,o)
@@ -782,6 +783,51 @@ end
 
 # differential geometry
 
+export 𝓛, Lie, LieBracket, LieDerivative, bracket, Connection, CovariantDerivative
+
+struct LieBracket end
+struct LieDerivative{X<:VectorField}
+    v::X
+end
+const 𝓛 = LieBracket()
+const Lie = LieBracket()
+
+Base.getindex(::LieBracket,X::VectorField) = LieDerivative(X)
+Base.getindex(::LieBracket,X::VectorField,Y::VectorField...) = bracket(X,Y...)
+(::LieBracket)(X::VectorField,Y::VectorField...) = bracket(X,Y...)
+(::LieBracket)(X::VectorField) = LieDerivative(X)
+(X::LieDerivative)(Y::VectorField...) = bracket(X.v,Y...)
+(X::LieDerivative)(f::ScalarField) = X.v(f)
+(X::VectorField)(f::ScalarField) = X⋅gradient(f)
+(X::GradedVector)(f::ScalarField) = X⋅gradient(f)
+LieBracket(X::VectorField,Y::VectorField...) = bracket(X,Y...)
+LieBracket(X::VectorField) = LieDerivative(X)
+bracket(X,Y) = X(Y) - Y(X)
+bracket(X,Y,Z) = X(bracket(Y,Z)) + Y(bracket(Z,X)) + Z(bracket(X,Y))
+bracket(W,X,Y,Z) = W(bracket(X,Y,Z)) + X(bracket(W,Z,Y)) + Y(bracket(W,X,Z)) + Z(bracket(W,Y,X))
+bracket(V,W,X,Y,Z) = V(bracket(W,X,Y,Z)) + W(bracket(V,X,Z,Y)) + X(bracket(V,W,Y,Z)) + Y(bracket(V,W,Z,X)) + Z(bracket(V,W,X,Y))
+𝓛dot(x::Chain,y::Simplex{V}) where V = Chain{V}(Real.(x.⋅value(y)))
+function (X::VectorField)(Y::VectorField)
+    TensorField(base(X),𝓛dot.(fiber(X),fiber(gradient(Y))))
+end
+
+struct Connection{T}
+    ω::T
+    Connection(ω::T) where T = new{T}(ω)
+end
+
+(∇::Connection)(X::VectorField) = CovariantDerivative(∇.ω⋅X,X)
+(∇::Connection)(X::VectorField,Y::VectorField) = X(Y)+((∇.ω⋅X)⋅Y)
+
+struct CovariantDerivative{T,X}
+    ωv::T
+    v::X
+    CovariantDerivative(ωv::T,v::X) where {T,X} = new{T,X}(ωv,v)
+end
+
+CovariantDerivative(∇::Connection,X) = ∇(X)
+(∇x::CovariantDerivative)(Y::VectorField) = ∇x.v(Y)+(∇x.ωv⋅Y)
+
 export arclength, arctime, totalarclength, trapz, cumtrapz, linecumtrapz, psum, pcumsum
 export centraldiff, tangent, tangent_fast, unittangent, speed, normal, unitnormal
 export curvenormal, unitcurvenormal, ribbon, tangentsurface, planecurve
@@ -826,6 +872,11 @@ area_slow(f::VectorField) = integral(normalnorm_slow(f))
 surfacearea_slow(f::VectorField) = integrate(normalnorm_slow(f))
 weingarten_slow(f::VectorField) = gradient(unitnormal_slow(f))
 gauss_slow(f::VectorField) = Real(abs(det(weingarten_slow(f))))
+
+area(f::PlaneCurve) = integral(f∧gradient(f))/2
+#volume(f::VectorField) = integral(f∧det(gradient(f)))/3
+sectorarea(f::PlaneCurve) = integrate(f∧gradient(f))/2
+sectorvolume(f::VectorField) = integrate(f∧det(gradient(f)))/3
 
 function speed(f::IntervalMap,d=centraldiffpoints(f),t=centraldifffiber(f,d))
     TensorField(domain(f), abs.(t))
@@ -948,36 +999,70 @@ function planecurve(κ::RealFunction,φ::Real=0.0)
     integral(Chain.(cos(int),sin(int)))
 end
 
-export surfacemetric, surfaceframe, firstkind, secondkind, geodesicsystem, applymetric
+export surfacemetric, surfacemetricdiag, surfaceframe
+export applymetric, firstkind, secondkind, geodesic
 
 surfacemetric(dom::ScalarField,f::Function) = surfacemetric(TensorField(dom,f))
 function surfacemetric(t::ScalarField)
-    g = gradient(t); V = Submanifold(MetricTensor([1 1; 1 1]))
+    g = gradient(t)
+    V = Submanifold(MetricTensor([1 1; 1 1]))
     dfdx,dfdy = getindex.(g,1),getindex.(g,2)
-    g1 = (1+dfdx*dfdx)*Λ(V).v1+(dfdx*dfdy)*Λ(V).v2
-    g2 = (1+dfdy*dfdy)*Λ(V).v2+(dfdx*dfdy)*Λ(V).v1;
-    GridFrameBundle(points(t), Outermorphism.(Chain{V}.(fiber(g1),fiber(g2))))
+    E,F,G = dfdx*dfdx,dfdx*dfdy,dfdy*dfdy
+    g1,g2 = (1+E)*Λ(V).v1+F*Λ(V).v2,(1+G)*Λ(V).v2+F*Λ(V).v1
+    EFG = Outermorphism.(Chain{V}.(fiber(g1),fiber(g2)))
+    GridFrameBundle(PointArray(points(t),EFG), immersion(t))
+end
+
+surfacemetricdiag(dom::ScalarField,f::Function) = surfacemetricdiag(TensorField(dom,f))
+function surfacemetricdiag(t::ScalarField)
+    g = gradient(t)
+    V = Submanifold(DiagonalForm(Values(1,1)))
+    dfdx,dfdy = getindex.(g,1),getindex.(g,2)
+    g1,g2 = fiber(1+dfdx*dfdx),fiber(1+dfdy*dfdy)
+    EG = outermorphism.(DiagonalOperator.(Chain{V}.(g1,g2)))
+    GridFrameBundle(PointArray(points(t),EG),immersion(t))
 end
 
 surfacemetric(dom,f::Function) = surfacemetric(TensorField(dom,f))
-function surfacemetric(t) # TensorField(M, torus.(points(M)))
-    g = gradient(t); V = Submanifold(MetricTensor([1 1; 1 1]))
+function surfacemetric(t)
+    g = gradient(t)
+    V = Submanifold(MetricTensor([1 1; 1 1]))
     dfdx,dfdy = getindex.(g,1),getindex.(g,2)
     E,F,G = Real(dfdx⋅dfdx),Real(dfdx⋅dfdy),Real(dfdy⋅dfdy)
-    g1 = E*Λ(V).v1+F*Λ(V).v2
-    g2 = G*Λ(V).v2+F*Λ(V).v1;
-    GridFrameBundle(points(t), Outermorphism.(Chain{V}.(fiber(g1),fiber(g2))))
+    g1,g2 = E*Λ(V).v1+F*Λ(V).v2,G*Λ(V).v2+F*Λ(V).v1
+    EFG = Outermorphism.(Chain{V}.(fiber(g1),fiber(g2)))
+    GridFrameBundle(PointArray(points(t),EFG),immersion(t))
+end
+
+surfacemetricdiag(dom,f::Function) = surfacemetricdiag(TensorField(dom,f))
+function surfacemetricdiag(t)
+    g = gradient(t)
+    V = Submanifold(DiagonalForm(Values(1,1)))
+    dfdx,dfdy = getindex.(g,1),getindex.(g,2)
+    g1,g2 = fiber(Real(dfdx⋅dfdx)),fiber(Real(dfdy⋅dfdy))
+    EG = outermorphism.(DiagonalOperator.(Chain{V}.(g1,g2)))
+    GridFrameBundle(PointArray(points(t),EG),immersion(t))
 end
 
 function surfaceframe(t)
-    g = getindex.(metricextensor(t),1); V = Submanifold(MetricTensor([1 1; 1 1]))
+    g = getindex.(metricextensor(t),1)
+    V = Submanifold(MetricTensor([1 1; 1 1]))
     E,F,G = getindex.(g,1,1),getindex.(g,1,2),getindex.(g,2,2)
     F2 = F.*F; mag,sig = sqrt.((E.*E).+F2), sign.(F2.-(E.*G))
     TensorOperator.(Chain.(Chain.(E,F)./mag,Chain.(F,.-E)./(sig.*mag)))
 end
+function surfaceframediag(t)
+    g = getindex.(metricextensor(t),1)
+    V = Submanifold(DiagonalForm(Values(1,1)))
+    E,G = getindex.(g,1,1),getindex.(g,2,2)
+    mag,sig = sqrt.(E.*E), sign.(.-(E.*G))
+    DiagonalOperator.(Chain.(E./mag,.-E./(sig.*mag)))
+end
 
 _firstkind(dg,k,i,j) = dg[k,j][i] + dg[i,k][j] - dg[i,j][k]
-firstkind(g::TensorField) = TensorField(base(g),TensorOperator.(firstkind.(d(g)/2)))
+firstkind(g::AbstractFrameBundle) = firstkind(metrictensorfield(g))
+firstkind(g::TensorField) = TensorField(base(g),firstkind.(d(g/2)))
+firstkind(dg::DiagonalOperator,i,j,k) = _firstkind(dg,k,i,j)
 @generated function firstkind(dg,i,j,k)
     Expr(:call,:+,[:(_firstkind(dg,$l,i,j)) for l ∈ list(1,mdims(fibertype(dg)))]...)
 end
@@ -988,12 +1073,14 @@ end
     Expr(:call,:Chain,[:(firstkind(dg,$i,j)) for i ∈ list(1,mdims(fibertype(dg)))]...)
 end
 @generated function firstkind(dg)
-    Expr(:call,:Chain,[:(firstkind(dg,$j)) for j ∈ list(1,mdims(fibertype(dg)))]...)
+    Expr(:call,:TensorOperator,Expr(:call,:Chain,[:(firstkind(dg,$j)) for j ∈ list(1,mdims(fibertype(dg)))]...))
 end
 
-secondkind(g) = TensorField(base(g),TensorOperator.(secondkind.(inv.(g),d(g)/2)))
+secondkind(g::AbstractFrameBundle) = secondkind(metrictensorfield(g))
+secondkind(g::TensorField) = TensorField(base(g),secondkind.(inv(g),d(g/2)))
+secondkind(ig::DiagonalOperator,dg,i,j,k) = ig[k,k]*_firstkind(dg,k,i,j)
 @generated function secondkind(ig,dg,i,j,k)
-    Expr(:call,:+,[:(ig[k,$l]*_firstkind(dg,$l,i,j)) for l ∈ list(1,mdims(fibertype(dg)))]...)
+    Expr(:call,:+,[:(ig[$l,k]*_firstkind(dg,$l,i,j)) for l ∈ list(1,mdims(fibertype(dg)))]...)
 end
 @generated function secondkind(ig,dg,i,j)
     Expr(:call,:Chain,[:(secondkind(ig,dg,i,j,$k)) for k ∈ list(1,mdims(fibertype(dg)))]...)
@@ -1002,13 +1089,12 @@ end
     Expr(:call,:Chain,[:(secondkind(ig,dg,$i,j)) for i ∈ list(1,mdims(fibertype(dg)))]...)
 end
 @generated function secondkind(ig,dg)
-    Expr(:call,:Chain,[:(secondkind(ig,dg,$j)) for j ∈ list(1,mdims(fibertype(dg)))]...)
+    Expr(:call,:TensorOperator,Expr(:call,:Chain,[:(secondkind(ig,dg,$j)) for j ∈ list(1,mdims(fibertype(dg)))]...))
 end
 
-geodesicsystem(x::Chain,Γ) = Chain(x,-geodesic(x,Γ))
-geodesicsystem(x::Chain,Γ,g) = Chain(applymetric(x,g),applymetric(-geodesic(x,Γ),g))
-geodesicsystem(x::Chain,Γ::TensorField) = geodesicsystem(x,Γ(x))
-geodesicsystem(x::Chain,Γ::TensorField,g::TensorField) = geodesicsystem(x,Γ(x),g(x))
+geodesic(Γ::TensorField) = x -> geodesic(x,Γ)
+geodesic(g::AbstractFrameBundle) = geodesic(secondkind(g))
+geodesic(x,Γ::TensorField) = (x2 = x[2]; Chain(x2,-geodesic(x2,Γ(x[1]))))
 @generated function geodesic(x::Chain{V,G,T,N} where {V,G,T},Γ) where N
     Expr(:call,:+,vcat([[:(Γ[$i,$j]*(x[$i]*x[$j])) for i ∈ list(1,N)] for j ∈ list(1,N)]...)...)
 end

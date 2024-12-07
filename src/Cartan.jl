@@ -27,7 +27,7 @@ module Cartan
 using SparseArrays, LinearAlgebra, Base.Threads, Grassmann, Requires
 import Grassmann: value, vector, valuetype, tangent, istangent, Derivation, radius, ⊕
 import Grassmann: realvalue, imagvalue, points, metrictensor, metricextensor
-import Grassmann: Values, Variables, FixedVector, list
+import Grassmann: Values, Variables, FixedVector, list, volume
 import Grassmann: Scalar, GradedVector, Bivector, Trivector
 import Base: @pure, OneTo, getindex
 import LinearAlgebra: cross
@@ -45,6 +45,7 @@ export RealFunction, ComplexMap, SpinorField, CliffordField
 export ScalarMap, GradedField, QuaternionField, PhasorField
 export GlobalFrame, DiagonalField, EndomorphismField, OutermorphismField
 export ParametricMap, RectangleMap, HyperrectangleMap, AbstractCurve
+export metrictensorfield, metricextensorfield
 export alteration, variation, modification
 
 # GlobalSection
@@ -111,23 +112,6 @@ const VectorField = GradedField{1}
 const BivectorField = GradedField{2}
 const TrivectorField = GradedField{3}
 
-struct Connection{T}
-    ∇::T
-    Connection(∇::T) where T = new{T}(∇)
-end
-
-(∇::Connection)(x::VectorField) = CovariantDerivative(∇.∇⋅x,x)
-(∇::Connection)(x::VectorField,y::VectorField) = (x⋅gradient(y))+((∇.∇⋅x)⋅y)
-
-struct CovariantDerivative{T,X}
-    ∇x::T
-    x::X
-    CovariantDerivative(∇x::T,x::X) where {T,X} = new{T,X}(∇x,x)
-end
-
-CovariantDerivative(∇::Connection,x) = ∇(x)
-(∇x::CovariantDerivative)(y::VectorField) = (∇x.x⋅gradient(y))+(∇x.∇x⋅y)
-
 for bundle ∈ (:TensorField,:GlobalSection)
     @eval begin
         $bundle(dom,fun::BitArray) = $bundle(dom, Float64.(fun))
@@ -156,6 +140,12 @@ coordinates(t::TensorField) = base(t)
 points(t::TensorField) = points(base(t))
 metricextensor(t::TensorField) = metricextensor(base(t))
 metrictensor(t::TensorField) = metrictensor(base(t))
+metricextensorfield(t::TensorField) = metricextensorfield(base(t))
+metrictensorfield(t::TensorField) = metrictensorfield(base(t))
+metricextensorfield(t::GridFrameBundle) = TensorField(GridFrameBundle(PointArray(points(t)),immersion(t)),metricextensor(t))
+metrictensorfield(t::GridFrameBundle) = TensorField(GridFrameBundle(PointArray(points(t)),immersion(t)),metrictensor(t))
+metricextensorfield(t::SimplexFrameBundle) = TensorField(SimplexFrameBundle(PointCloud(points(t)),immersion(t)),metricextensor(t))
+metrictensorfield(t::SimplexFrameBundle) = TensorField(SimplexFrameBundle(PointCloud(points(t)),immersion(t)),metrictensor(t))
 immersion(t::TensorField) = immersion(base(t))
 pointtype(m::TensorField) = pointtype(base(m))
 pointtype(m::Type{<:TensorField}) = pointtype(basetype(m))
@@ -252,7 +242,7 @@ find_gs(::Any, rest) = find_gs(rest)
 
 (m::TensorField{B,F,N,<:SimplexFrameBundle} where {B,F,N})(i::ImmersedTopology) = TensorField(PointCloud(m)(i),fiber(m)[vertices(i)])
 (m::TensorField{B,F,N,<:GridFrameBundle} where {B,F,N})(i::ImmersedTopology) = TensorField(base(m)(i),fiber(m))
-for fun ∈ (:Open,:Mirror,:Clamped,:Torus,:Ribbon,:Wing,:Mobius,:Klein,:Cone,:Drum,:Sphere,:Hopf)
+for fun ∈ (:Open,:Mirror,:Clamped,:Torus,:Ribbon,:Wing,:Mobius,:Klein,:Cone,:Drum,:Sphere,:Geographic,:Hopf)
     for top ∈ (Symbol(fun,:Topology),)
         @eval begin
             $top(m::TensorField{B,F,N,<:GridFrameBundle} where {B,F,N}) = TensorField($top(base(m)),fiber(m))
@@ -319,31 +309,31 @@ function parametric(t,m,d=diff(codomain(m))./diff(domain(m)))
     codomain(m)[i]+(t-p[i])*d[i]
 end
 
-(m::RectangleMap)(t::Real) = slice(m,t)
-slice(m::RectangleMap,i::Int,j::Int=2) = isone(j) ? m[i,:] : m[:,i]
-function slice(m::RectangleMap,t::AbstractFloat,j::Int=2)
+(m::RectangleMap)(t::Real) = leaf(m,t)
+leaf(m::RectangleMap,i::Int,j::Int=2) = isone(j) ? m[i,:] : m[:,i]
+function leaf(m::RectangleMap,t::AbstractFloat,j::Int=2)
     Q,p = isone(j),points(m).v[j]
     i = searchsortedfirst(p,t)-1
     TensorField(points(m).v[Q ? 2 : 1],linterp(t,p[i],p[i+1],Q ? m.cod[i,:] : m.cod[:,i],Q ? m.cod[i+1,:] : m.cod[:,i+1]))
 end
 
-(m::HyperrectangleMap)(t::Real,j::Int=3) = slice(m,t,j)
-function slice2(m::HyperrectangleMap,i::Int,j::Int,k::Int=3)
+(m::HyperrectangleMap)(t::Real,j::Int=3) = leaf(m,t,j)
+function leaf2(m::HyperrectangleMap,i::Int,j::Int,k::Int=3)
     isone(k) ? m[:,i,j] : k==2 ? m[i,:,j] : m[i,j,:]
 end
-function slice(m::HyperrectangleMap,i::Int,j::Int=3)
+function leaf(m::HyperrectangleMap,i::Int,j::Int=3)
     isone(j) ? m[i,:,:] : j==2 ? m[:,i,:] : m[:,:,i]
 end
 
-slice(m::TensorField{B,F,2,<:FiberProductBundle} where {B,F},i::Int) = TensorField(base(base(m)),fiber(m)[:,i])
+leaf(m::TensorField{B,F,2,<:FiberProductBundle} where {B,F},i::Int) = TensorField(base(base(m)),fiber(m)[:,i])
 function (m::TensorField{B,F,2,<:FiberProductBundle} where {B,F})(t::Real)
     k = 2; p = base(m).cod.v[1]
     i = searchsortedfirst(p,t)-1
     TensorField(base(base(m)),linterp(t,p[i],p[i+1],m.cod[:,i],m.cod[:,i+1]))
 end
 
-(m::TensorField)(t::TensorField) = TensorField(base(t),m.(fiber(t)))
-(m::GridFrameBundle)(t::TensorField) = GridFrameBundle(base(t),TensorField(base(m),fiber(m)).(fiber(t)))
+#(m::TensorField)(t::TensorField) = TensorField(base(t),m.(fiber(t)))
+#(m::GridFrameBundle)(t::TensorField) = GridFrameBundle(base(t),TensorField(base(m),fiber(m)).(fiber(t)))
 
 function (m::TensorField{B,F,N,<:SimplexFrameBundle} where {B,N})(t) where F
     j = findfirst(t,domain(m)); iszero(j) && (return zero(F))
@@ -567,10 +557,10 @@ end
 for fun ∈ (:-,:!,:~,:real,:imag,:conj,:deg2rad)
     @eval Base.$fun(t::TensorField) = TensorField(domain(t), $fun.(codomain(t)))
 end
-for fun ∈ (:exp,:exp2,:exp10,:log,:log2,:log10,:sinh,:cosh,:abs,:sqrt,:cbrt,:cos,:sin,:tan,:cot,:sec,:csc,:asec,:acsc,:sech,:csch,:asech,:tanh,:coth,:asinh,:acosh,:atanh,:acoth,:asin,:acos,:atan,:acot,:sinc,:cosc,:cis,:abs2)#:inv
+for fun ∈ (:exp,:exp2,:exp10,:log,:log2,:log10,:sinh,:cosh,:abs,:sqrt,:cbrt,:cos,:sin,:tan,:cot,:sec,:csc,:asec,:acsc,:sech,:csch,:asech,:tanh,:coth,:asinh,:acosh,:atanh,:acoth,:asin,:acos,:atan,:acot,:sinc,:cosc,:cis,:abs2,:inv)
     @eval Base.$fun(t::TensorField) = TensorField(domain(t), $fun.(codomain(t),ref(metricextensor(t))))
 end
-for fun ∈ (:reverse,:involute,:clifford,:even,:odd,:scalar,:vector,:bivector,:volume,:value,:complementleft)
+for fun ∈ (:reverse,:involute,:clifford,:even,:odd,:scalar,:vector,:bivector,:volume,:value,:complementleft,:realvalue,:imagvalue,:outermorphism,:Outermorphism,:DiagonalOperator,:TensorOperator)
     @eval Grassmann.$fun(t::TensorField) = TensorField(domain(t), $fun.(codomain(t)))
 end
 for fun ∈ (:⋆,:angle,:radius,:complementlefthodge,:pseudoabs,:pseudoabs2,:pseudoexp,:pseudolog,:pseudoinv,:pseudosqrt,:pseudocbrt,:pseudocos,:pseudosin,:pseudotan,:pseudocosh,:pseudosinh,:pseudotanh,:metric)
@@ -588,7 +578,7 @@ for fun ∈ (:cumsum,:cumprod)
 end
 
 Grassmann.signbit(::TensorField) = false
-Base.inv(t::TensorField) = TensorField(codomain(t), domain(t))
+#Base.inv(t::TensorField) = TensorField(codomain(t), domain(t))
 Base.diff(t::TensorField) = TensorField(diff(domain(t)), diff(codomain(t)))
 absvalue(t::TensorField) = TensorField(domain(t), value.(abs.(codomain(t))))
 LinearAlgebra.tr(t::TensorField) = TensorField(domain(t), tr.(codomain(t)))
@@ -605,22 +595,22 @@ checkdomain(a::GlobalFiber,b::GlobalFiber) = domain(a)≠domain(b) ? error("Glob
 
 Variation(dom,cod::TensorField) = TensorField(dom,cod.(dom))
 function Variation(cod::TensorField); p = points(cod).v[end]
-    TensorField(p,slice.(Ref(cod),1:length(p)))
+    TensorField(p,leaf.(Ref(cod),1:length(p)))
 end
 function Variation(cod::TensorField{B,F,2,<:FiberProductBundle} where {B,F})
     p = base(cod).cod.v[1]
-    TensorField(p,slice.(Ref(cod),1:length(p)))
+    TensorField(p,leaf.(Ref(cod),1:length(p)))
 end
 const variation = Variation
 
 alteration(dom,cod::TensorField) = TensorField(dom,cod.(dom))
 function alteration(cod::TensorField); p = points(cod).v[1]
-    TensorField(p,slice.(Ref(cod),1:length(p),1))
+    TensorField(p,leaf.(Ref(cod),1:length(p),1))
 end
 
 modification(dom,cod::TensorField) = TensorField(dom,cod.(dom))
 function modification(cod::TensorField); p = points(cod).v[2]
-    TensorField(p,slice.(Ref(cod),1:length(p),2))
+    TensorField(p,leaf.(Ref(cod),1:length(p),2))
 end
 
 include("diffgeo.jl")
@@ -629,6 +619,7 @@ include("element.jl")
 
 variation(v::TensorField,fun::Function,args...) = variation(v,0.0,fun,args...)
 variation(v::TensorField,fun::Function,fun!::Function,args...) = variation(v,0.0,fun,fun!,args...)
+variation(v::TensorField,fun::Function,fun!::Function,f::Function,args...) = variation(v,0.0,fun,fun!,f,args...)
 function variation(v::Variation,t,fun::Function,args...)
     for i ∈ 1:length(v)
         display(fun(v.cod[i],args...))
@@ -644,59 +635,61 @@ function variation(v::Variation,t,fun::Function,fun!::Function,args...)
 end
 function variation(v::TensorField,t,fun::Function,args...)
     for i ∈ 1:length(points(v).v[end])
-        display(fun(slice(v,i),args...))
+        display(fun(leaf(v,i),args...))
         sleep(t)
     end
 end
 function variation(v::TensorField,t,fun::Function,fun!::Function,args...)
-    display(fun(slice(v,1),args...))
+    display(fun(leaf(v,1),args...))
     for i ∈ 2:length(points(v).v[end])
-        fun!(slice(v,i),args...)
+        fun!(leaf(v,i),args...)
         sleep(t)
     end
 end
 function variation(v::TensorField{B,F,2,<:FiberProductBundle} where {B,F},t,fun::Function,args...)
     for i ∈ 1:length(base(v).cod.v[1])
-        display(fun(slice(v,i),args...))
+        display(fun(leaf(v,i),args...))
         sleep(t)
     end
 end
 function variation(v::TensorField{B,F,2,<:FiberProductBundle} where {B,F},t,fun::Function,fun!::Function,args...)
-    display(fun(slice(v,1),args...))
+    display(fun(leaf(v,1),args...))
     for i ∈ 2:length(base(v).cod.v[1])
-        fun!(slice(v,i),args...)
+        fun!(leaf(v,i),args...)
         sleep(t)
     end
 end
 
 alteration(v::TensorField,fun::Function,args...) = alteration(v,0.0,fun,args...)
 alteration(v::TensorField,fun::Function,fun!::Function,args...) = alteration(v,0.0,fun,fun!,args...)
+alteration(v::TensorField,fun::Function,fun!::Function,f::Function,args...) = alteration(v,0.0,fun,fun!,f,args...)
 function alteration(v::TensorField,t,fun::Function,args...)
     for i ∈ 1:length(points(v).v[1])
-        display(fun(slice(v,i,1),args...))
+        display(fun(leaf(v,i,1),args...))
         sleep(t)
     end
 end
 function alteration(v::TensorField,t,fun::Function,fun!::Function,args...)
-    display(fun(slice(v,1,1),args...))
+    display(fun(leaf(v,1,1),args...))
     for i ∈ 2:length(points(v).v[1])
-        fun!(slice(v,i,1),args...)
+        fun!(leaf(v,i,1),args...)
         sleep(t)
     end
 end
 
 modification(v::TensorField,fun::Function,args...) = modification(v,0.0,fun,args...)
 modification(v::TensorField,fun::Function,fun!::Function,args...) = modification(v,0.0,fun,fun!,args...)
+modification(v::TensorField,fun::Function,fun!::Function,f::Function,args...) = modification(v,0.0,fun,fun!,f,args...)
 function modification(v::TensorField,t,fun::Function,args...)
     for i ∈ 1:length(points(v).v[2])
-        display(fun(slice(v,i,2),args...))
+        display(fun(leaf(v,i,2),args...))
         sleep(t)
     end
 end
 function modification(v::TensorField,t,fun::Function,fun!::Function,args...)
-    display(fun(slice(v,1,2),args...))
+    display(fun(leaf(v,1,2),args...))
     for i ∈ 2:length(points(v).v[2])
-        fun!(slice(v,i,2),args...)
+        fun!(leaf(v,i,2),args...)
         sleep(t)
     end
 end
@@ -708,10 +701,10 @@ function __init__()
         for lines ∈ (:lines,:lines!,:linesegments,:linesegments!)
             @eval begin
                 Makie.$lines(t::ScalarMap;args...) = Makie.$lines(getindex.(domain(t),2),codomain(t);args...)
-                Makie.$lines(t::SpaceCurve;args...) = Makie.$lines(codomain(t);color=Real.(codomain(speed(t))),args...)
-                Makie.$lines(t::PlaneCurve;args...) = Makie.$lines(codomain(t);color=Real.(codomain(speed(t))),args...)
-                Makie.$lines(t::RealFunction;args...) = Makie.$lines(Real.(points(t)),Real.(codomain(t));color=Real.(codomain(speed(t))),args...)
-                Makie.$lines(t::ComplexMap{B,F,1};args...) where {B<:Coordinate{<:AbstractReal},F} = Makie.$lines(realvalue.(codomain(t)),imagvalue.(codomain(t));color=Real.(codomain(speed(t))),args...)
+                Makie.$lines(t::SpaceCurve,f::Function=speed;args...) = Makie.$lines(codomain(t);color=Real.(codomain(f(t))),args...)
+                Makie.$lines(t::PlaneCurve,f::Function=speed;args...) = Makie.$lines(codomain(t);color=Real.(codomain(f(t))),args...)
+                Makie.$lines(t::RealFunction,f::Function=speed;args...) = Makie.$lines(Real.(points(t)),Real.(codomain(t));color=Real.(codomain(f(t))),args...)
+                Makie.$lines(t::ComplexMap{B,F,1},f::Function=speed;args...) where {B<:Coordinate{<:AbstractReal},F} = Makie.$lines(realvalue.(codomain(t)),imagvalue.(codomain(t));color=Real.(codomain(f(t))),args...)
             end
         end
         #Makie.lines(t::TensorField{B,F,1};args...) where {B<:Coordinate{<:AbstractReal},F<:AbstractReal} = linegraph(t;args...)
@@ -730,16 +723,16 @@ function __init__()
                 Makie.lines!(x,Real.(getindex.(y,i));args...)
             end
         end
-        function Makie.lines(t::IntervalMap{B,<:Endomorphism};args...) where B<:Coordinate{<:AbstractReal}
-            display(Makie.lines(getindex.(t,1);args...))
+        function Makie.lines(t::IntervalMap{B,<:Endomorphism},f::Function=speed;args...) where B<:Coordinate{<:AbstractReal}
+            display(Makie.lines(getindex.(t,1),f;args...))
             for i ∈ 2:mdims(eltype(codomain(t)))
-                Makie.lines!(getindex.(t,i);args...)
+                Makie.lines!(getindex.(t,i),f;args...)
             end
         end
-        function Makie.lines!(t::IntervalMap{B,<:Endomorphism};args...) where B<:Coordinate{<:AbstractReal}
-            display(Makie.lines!(getindex.(t,1);args...))
+        function Makie.lines!(t::IntervalMap{B,<:Endomorphism},f::Function=speed;args...) where B<:Coordinate{<:AbstractReal}
+            display(Makie.lines!(getindex.(t,1),f;args...))
             for i ∈ 2:mdims(eltype(codomain(t)))
-                Makie.lines!(getindex.(t,i);args...)
+                Makie.lines!(getindex.(t,i),f;args...)
             end
         end
         function Makie.arrows(M::VectorField,t::TensorField{B,<:Endomorphism,N,<:GridFrameBundle} where B;args...) where N
@@ -777,15 +770,15 @@ function __init__()
         Makie.volumeslices(t::VolumeGrid;args...) = Makie.volumeslices(points(t).v...,Real.(codomain(t));args...)
         for fun ∈ (:surface,:surface!)
             @eval begin
-                Makie.$fun(t::SurfaceGrid;args...) = Makie.$fun(points(t).v...,Real.(codomain(t));color=Real.(abs.(codomain(gradient_fast(Real(t))))),args...)
+                Makie.$fun(t::SurfaceGrid,f::Function=gradient_fast;args...) = Makie.$fun(points(t).v...,Real.(codomain(t));color=Real.(abs.(codomain(f(Real(t))))),args...)
                 Makie.$fun(t::ComplexMap{B,<:AbstractComplex,2,<:RealSpace{2}} where B;args...) = Makie.$fun(points(t).v...,Real.(radius.(codomain(t)));color=Real.(angle.(codomain(t))),colormap=:twilight,args...)
-                function Makie.$fun(t::GradedField{G,B,F,2,<:RealSpace{2}} where G;args...) where {B,F<:Chain}
+                function Makie.$fun(t::GradedField{G,B,F,2,<:RealSpace{2}} where G,f::Function=gradient_fast;args...) where {B,F<:Chain}
                     x,y = points(t),value.(codomain(t))
                     yi = Real.(getindex.(y,1))
-                    display(Makie.$fun(x.v...,yi;color=Real.(abs.(codomain(gradient_fast(x→yi)))),args...))
+                    display(Makie.$fun(x.v...,yi;color=Real.(abs.(codomain(f(x→yi)))),args...))
                     for i ∈ 2:binomial(mdims(eltype(codomain(t))),grade(t))
                         yi = Real.(getindex.(y,i))
-                        Makie.$(funsym(fun))(x.v...,yi;color=Real.(abs.(codomain(gradient_fast(x→yi)))),args...)
+                        Makie.$(funsym(fun))(x.v...,yi;color=Real.(abs.(codomain(f(x→yi)))),args...)
                     end
                 end
             end
@@ -856,32 +849,41 @@ function __init__()
         #Makie.lines!(p::Vector{<:TensorTerm};args...) = Makie.lines!(value.(p);args...)
         #Makie.lines(p::Vector{<:Chain{V,G,T,1} where {V,G,T}};args...) = Makie.lines(getindex.(p,1);args...)
         #Makie.lines!(p::Vector{<:Chain{V,G,T,1} where {V,G,T}};args...) = Makie.lines!(getindex.(p,1);args...)
-        Makie.linesegments(e::SimplexFrameBundle;args...) = (p=points(e); Makie.linesegments(Grassmann.pointpair.(e[ImmersedTopology(e)],↓(Manifold(p)));args...))
-        Makie.linesegments!(e::SimplexFrameBundle;args...) = (p=points(e); Makie.linesegments!(Grassmann.pointpair.(e[ImmersedTopology(e)],↓(Manifold(p)));args...))
+        function Makie.linesegments(e::SimplexFrameBundle;args...)
+            mdims(immersion(e)) ≠ 2 && (return Makie.linesegments(PointCloud(e)(edges(e))))
+            p=points(e)
+            Makie.linesegments(Grassmann.pointpair.(e[ImmersedTopology(e)],↓(Manifold(p)));args...)
+        end
+        function Makie.linesegments!(e::SimplexFrameBundle;args...)
+            mdims(immersion(e)) ≠ 2 && (return Makie.linesegments!(PointCloud(e)(edges(e))))
+            p=points(e)
+            Makie.linesegments!(Grassmann.pointpair.(e[ImmersedTopology(e)],↓(Manifold(p)));args...)
+        end
         Makie.wireframe(t::SimplexFrameBundle;args...) = Makie.linesegments(t(edges(t));args...)
         Makie.wireframe!(t::SimplexFrameBundle;args...) = Makie.linesegments!(t(edges(t));args...)
         for fun ∈ (:mesh,:mesh!,:wireframe,:wireframe!)
             @eval Makie.$fun(M::GridFrameBundle;args...) = Makie.$fun(GeometryBasics.Mesh(M);args...)
         end
-        function linegraph(M::TensorField{B,<:Chain,2,<:GridFrameBundle} where B;args...)
-            variation(M,Makie.lines,Makie.lines!)
-            alteration(M,Makie.lines!,Makie.lines!)
+        function linegraph(M::TensorField{B,<:Chain,2,<:GridFrameBundle} where B,f::Function=speed;args...)
+            variation(M,Makie.lines,Makie.lines!,f;args...)
+            alteration(M,Makie.lines!,Makie.lines!,f;args...)
         end
-        function linegraph!(M::TensorField{B,<:Chain,2,<:GridFrameBundle} where B;args...)
-            variation(M,Makie.lines!,Makie.lines!)
-            alteration(M,Makie.lines!,Makie.lines!)
+        function linegraph!(M::TensorField{B,<:Chain,2,<:GridFrameBundle} where B,f::Function=speed;args...)
+            variation(M,Makie.lines!,Makie.lines!,f;args...)
+            alteration(M,Makie.lines!,Makie.lines!,f;args...)
         end
-        function linegraph(v::TensorField{B,<:Chain,3,<:GridFrameBundle} where B,args...)
-            display(Makie.lines(slice2(v,1,1,1),args...))
+        function linegraph(v::TensorField{B,<:Chain,3,<:GridFrameBundle} where B,f::Function=speed;args...)
+            display(Makie.lines(leaf2(v,1,1,1),f;args...))
             c = (2,3),(1,3),(1,2)
             for k ∈ (1,2,3)
                 for i ∈ 1:length(points(v).v[c[k][1]])
                     for j ∈ 1:length(points(v).v[c[k][2]])
-                        Makie.lines!(slice2(v,i,j,k),args...)
+                        Makie.lines!(leaf2(v,i,j,k),f;args...)
                     end
                 end
             end
         end
+        Makie.mesh(M::TensorField,f::Function;args...) = Makie.mesh(M,f(M);args...)
         function Makie.mesh(M::TensorField{B,<:Chain,2,<:GridFrameBundle} where B;args...)
             Makie.mesh(GridFrameBundle(fiber(M));args...)
         end
@@ -946,6 +948,16 @@ function __init__()
         Base.display(t::GradedField{G,B,<:TensorGraded,1,<:Interval} where {G,B}) = (display(typeof(t)); display(UnicodePlots.lineplot(t)))
         Base.display(t::SurfaceGrid) = (display(typeof(t)); display(UnicodePlots.heatmap(t)))
     end
+    @require Meshes = "eacbb407-ea5a-433e-ab97-5258b1ca43fa" begin
+        function initmesh(m::Meshes.SimpleMesh{N}) where N
+            c,f = Meshes.vertices(m),m.topology.connec
+            s = N+1; V = Submanifold(ℝ^s) # s
+            n = length(f[1].indices)
+            p = PointCloud([Chain{V,1}(Values{s,Float64}(1.0,k.coords...)) for k ∈ c])
+            t = SimplexTopology([Values{n,Int}(k.indices) for k ∈ f])
+            return (p,∂(t),t)
+        end
+    end
     @require GeometryBasics = "5c1252a2-5f33-56bf-86c9-59e7332b4326" begin
         Base.convert(::Type{GeometryBasics.Point},t::T) where T<:LocalFiber = GeometryBasics.Point(base(t))
         #GeometryBasics.Point(t::T) where T<:TensorAlgebra = convert(GeometryBasics.Point,t)
@@ -960,17 +972,104 @@ function __init__()
             s = size(eltype(c))[1]+1; V = varmanifold(s) # s
             n = size(eltype(f))[1]
             p = [Chain{V,1}(Values{s,Float64}(1.0,k...)) for k ∈ c]
-            M = s ≠ n ? p(list(s-n+1,s)) : p
             t = SimplexTopology([Values{n,Int}(k) for k ∈ f])
             return (p,∂(t),t)
         end
     end
+    @require Delaunay="07eb4e4e-0c6d-46ef-bc4e-83d5e5d860a9" begin
+        Delaunay.delaunay(p::PointCloud) = Delaunay.delaunay(points(p))
+        Delaunay.delaunay(p::Vector{<:Chain}) = initmesh(Delaunay.delaunay(submesh(p)))
+        initmesh(t::Delaunay.Triangulation) = initmeshdata(t.points',t.convex_hull',t.simplices')
+    end
+    @require QHull="a8468747-bd6f-53ef-9e5c-744dbc5c59e7" begin
+        QHull.chull(p::Vector{<:Chain},n=1:length(p)) = QHull.chull(PointCloud(p),n)
+        function QHull.chull(p::PointCloud,n=1:length(p))
+            T = QHull.chull(submesh(length(n)==length(p) ? p : p[n]))
+            p(SimplexTopology([Values(getindex.(Ref(n),k)) for k ∈ T.simplices]))
+        end
+        function initmesh(t::Chull)
+            p = PointCloud(initpoints(t.points'))
+            p(SimplexTopology(Values.(t.simplices)))
+        end
+    end
     @require MiniQhull="978d7f02-9e05-4691-894f-ae31a51d76ca" begin
-        MiniQhull.delaunay(p::Vector{<:Chain},n=1:length(p)) = MiniQhull.delaunay(PointCloud(p),n)
-        function MiniQhull.delaunay(p::PointCloud,n=1:length(p))
-            l = list(1,mdims(p))
-            T = MiniQhull.delaunay(Matrix(submesh(length(n)==length(p) ? p : p[n])'))
-            SimplexTopology([Values{4,Int}(getindex.(Ref(n),Int.(T[l,k]))) for k ∈ 1:size(T,2)],length(p))
+        MiniQhull.delaunay(p::Vector{<:Chain},args...) = MiniQhull.delaunay(PointCloud(p),1:length(p),args...)
+        MiniQhull.delaunay(p::Vector{<:Chain},n::AbstractVector,args...) = MiniQhull.delaunay(PointCloud(p),n,args...)
+        MiniQhull.delaunay(p::PointCloud,args...) = MiniQhull.delaunay(p,1:length(p),args...)
+        function MiniQhull.delaunay(p::PointCloud,n::AbstractVector,args...)
+            N,m = mdims(p),length(n)
+            l = list(1,N)
+            T = MiniQhull.delaunay(Matrix(submesh(m==length(p) ? p : p[n])'),args...)
+            SimplexTopology([Values{N,Int}(getindex.(Ref(n),Int.(T[l,k]))) for k ∈ 1:size(T,2)],m)
+        end
+    end
+    @require Triangulate = "f7e6ffb2-c36d-4f8f-a77e-16e897189344" begin
+        const triangle_point_cache = (Array{T,2} where T)[]
+        const triangle_simplex_cache = (Array{T,2} where T)[]
+        function triangle_point(p::Array{T,2} where T,B)
+            for k ∈ length(triangle_point_cache):B
+                push!(triangle_point_cache,Array{Any,2}(undef,0,0))
+            end
+            triangle_point_cache[B] = p
+        end
+        function triangle_simplex(p::Array{T,2} where T,B)
+            for k ∈ length(triangle_simplex_cache):B
+                push!(triangle_simplex_cache,Array{Any,2}(undef,0,0))
+            end
+            triangle_simplex_cache[B] = p
+        end
+        function triangle(p::PointCloud)
+            B = p.id
+            if length(triangle_point_cache)<B || isempty(triangle_point_cache[B])
+                triangle_point(array(p)'[2:end,:],B)
+            else
+                return triangle_point_cache[B]
+            end
+        end
+        function triangle(p::SimplexTopology)
+            B = p.id
+            if length(triangle_simplex_cache)<B || isempty(triangle_simplex_cache[B])
+                triangle_simplex(Cint.(array(p)'),B)
+            else
+                return triangle_simplex_cache[B]
+            end
+        end
+        triangle(p::Vector{<:Chain{V,1,T} where V}) where T = array(p)'[2:end,:]
+        triangle(p::Vector{<:Values}) = Cint.(array(p)')
+        function Triangulate.TriangulateIO(e::SimplexFrameBundle,h=nothing)
+            triin=Triangulate.TriangulateIO()
+            triin.pointlist=triangle(points(e))
+            triin.segmentlist=triangle(immersion(e))
+            !isnothing(h) && (triin.holelist=triangle(h))
+            return triin
+        end
+        function Triangulate.triangulate(i,e::SimplexFrameBundle;holes=nothing)
+            initmesh(Triangulate.triangulate(i,Triangulate.TriangulateIO(e,holes))[1])
+        end
+        initmesh(t::Triangulate.TriangulateIO) = initmeshdata(t.pointlist,t.segmentlist,t.trianglelist,Val(2))
+        #aran(area=0.001,angle=20) = "pa$(Printf.@sprintf("%.15f",area))q$(Printf.@sprintf("%.15f",angle))Q"
+    end
+    @require TetGen="c5d3f3f7-f850-59f6-8a2e-ffc6dc1317ea" begin
+        function TetGen.JLTetGenIO(mesh::SimplexFrameBundle;
+                marker = :markers, holes = TetGen.Point{3, Float64}[])
+            f = TetGen.TriangleFace{Cint}.(immersion(mesh))
+            kw_args = Any[:facets => TetGen.metafree(f),:holes => holes]
+            if hasproperty(f, marker)
+                push!(kw_args, :facetmarkers => getproperty(f, marker))
+            end
+            pm = points(mesh); V = Manifold(pm)
+            TetGen.JLTetGenIO(TetGen.Point.(↓(V).(pm)); kw_args...)
+        end
+        function initmesh(tio::TetGen.JLTetGenIO, command = "Qp")
+            r = TetGen.tetrahedralize(tio, command); V = Submanifold(ℝ^4)
+            p = [Chain{V,1}(Values{4,Float64}(1.0,k...)) for k ∈ r.points]
+            t = Values{4,Int}.(r.tetrahedra)
+            e = Values{3,Int}.(r.trifaces) # Values{2,Int}.(r.edges)
+            return PointCloud(p),SimplexTopology(e),SimplexTopology(t)
+        end
+        function TetGen.tetrahedralize(mesh::SimplexFrameBundle, command = "Qp";
+                marker = :markers, holes = TetGen.Point{3, Float64}[])
+            initmesh(TetGen.JLTetGenIO(mesh;marker=marker,holes=holes),command)
         end
     end
     @require MATLAB="10e44e05-a98a-55b3-a45b-ba969058deb6" begin
