@@ -39,37 +39,6 @@ boundlog(t::TensorField,lim=10) = TensorField(base(t), boundlog.(codomain(t),lim
 isclosed(t::IntervalMap) = norm(codomain(t)[end]-codomain(t)[1]) ≈ 0
 updatetopology(t::IntervalMap) = isclosed(t) ? TorusTopology(t) : t
 
-export Grid
-
-const Grid{N,C,PA,TA} = GridFrameBundle{C,N,PA,TA}
-Grid(v::A,t::I=OpenTopology(size(v))) where {N,T,A<:AbstractArray{T,N},I} = GridFrameBundle(0,PointArray(0,v),t)
-
-#=struct Grid{N,T,A<:AbstractArray{T,N},I<:ImmersedTopology}
-    v::A
-    t::I
-    Grid(v::A,t::I=OpenTopology(size(v))) where {N,T,A<:AbstractArray{T,N},I} = new{N,T,A,I}(v,t)
-end=#
-
-#Grid(v::A) where {N,T,A<:AbstractArray{T,N}} = Grid(v,Global{N}(InducedMetric()))
-#Grid(v::GridFrameBundle{<:Real}) = Grid(points(v))
-#Grid(v::GridFrameBundle) = Grid(points(v),fiber(metricextensor(v)))
-
-#=Base.size(m::Grid) = size(m.v)
-
-@generated function Base.getindex(g::Grid{M,T,A,<:OpenTopology} where {T,A},j::Int,::Val{N},i::Vararg{Int}) where {M,N}
-    :(Base.getindex(g.v,$([k≠N ? :(i[$k]) : :(i[$k]+j) for k ∈ 1:M]...)))
-end
-@generated function Base.getindex(g::Grid{M},j::Int,::Val{N},i::Vararg{Int}) where {M,N}
-    :(Base.getindex(g.v,Base.getindex(g.t,$([k≠N ? :(i[$k]) : :(i[$k]+j) for k ∈ 1:M]...))...))
-end=#
-Base.getindex(g::GridFrameBundle{C,M,<:FiberBundle,<:OpenTopology} where C,j::Int,n::Val,i::Vararg{Int}) where M = getpoint(g,j,n,i...)
-@generated function getpoint(g::GridFrameBundle{C,M,<:FiberBundle} where C,j::Int,::Val{N},i::Vararg{Int}) where {M,N}
-    :(Base.getindex(points(g),$([k≠N ? :(@inbounds i[$k]) : :(@inbounds i[$k]+j) for k ∈ 1:M]...)))
-end
-@generated function Base.getindex(g::GridFrameBundle{C,M} where C,j::Int,n::Val{N},i::Vararg{Int}) where {M,N}
-    :(Base.getindex(points(g),Base.getindex(immersion(g),n,$([k≠N ? :(@inbounds i[$k]) : :(@inbounds i[$k]+j) for k ∈ 1:M]...))...))
-end
-
 # centraldiff
 
 centraldiffdiff(f,dt,l) = centraldiff(centraldiff(f,dt,l),dt,l)
@@ -187,9 +156,9 @@ for fun ∈ (:_slow,:_fast)
     cd,grad = Symbol(:centraldiff,fun),Symbol(:gradient,fun)
     cdg,cdp,cdf = Symbol(cd,:_calc),Symbol(cd,:_points),Symbol(cd,:_fiber)
     @eval begin
-        $cdf(f,args...) = $cdg(Grid(codomain(f),immersion(f)),args...)
-        $cdp(f,args...) = $cdg(Grid(points(f),immersion(f)),args...)
-        $cdp(f::TensorField{B,F,Nf,<:RealSpace{Nf,P,<:InducedMetric} where P} where {B,F,Nf},n::Val{N},args...) where N = $cd(points(f).v[N],args...)
+        $cdf(f,args...) = $cdg(GridFrameBundle(0,PointArray(0,fiber(f)),immersion(f)),args...)
+        $cdp(f,args...) = $cdg(GridFrameBundle(0,PointArray(0,points(f)),immersion(f)),args...)
+        $cdp(f::TensorField{B,F,Nf,<:RealSpace{Nf,P,<:InducedMetric} where P} where {B,F,Nf},n::Val{N},args...) where N = $cd(points(f).v[N],subtopology(immersion(f),n),args...)
         function $grad(f::IntervalMap,d::AbstractVector=$cdp(f))
             TensorField(domain(f), $cdf(f,d))
         end
@@ -214,249 +183,258 @@ for fun ∈ (:_slow,:_fast)
             TensorField(domain(f), $cdf(f,n,d))
         end
         $grad(f::TensorField,n::Int,args...) = $grad(f,Val(n),args...)
-        $cd(f::AbstractArray,args...) = $cdg(Grid(f),args...)
-        function $cdg(f::Grid{1},dt::Real,s::Tuple=size(f))
+        $cd(f::AbstractArray,args...) = $cdg(GridFrameBundle(0,PointArray(0,f)),args...)
+        $cd(f::AbstractArray,q::QuotientTopology,args...) = $cdg(GridFrameBundle(0,PointArray(0,f),q),args...)
+        function $cdg(f::GridFrameBundle{1},dt::Real,s::Tuple=size(f))
             d = similar(points(f))
             @threads for i ∈ OneTo(s[1])
                 d[i] = $cdg(f,s,i)/$cdg(i,dt,l)
             end
             return d
         end
-        function $cdg(f::Grid{1},dt::Vector,s::Tuple=size(f))
+        function $cdg(f::GridFrameBundle{1},dt::Vector,s::Tuple=size(f))
             d = similar(points(f))
             @threads for i ∈ OneTo(s[1])
                 d[i] = $cdg(f,s,i)/dt[i]
             end
             return d
         end
-        function $cdg(f::Grid{1},s::Tuple=size(f))
+        function $cdg(f::GridFrameBundle{1},s::Tuple=size(f))
             d = similar(points(f))
             @threads for i ∈ OneTo(s[1])
                 d[i] = $cdg(f,s,i)
             end
             return d
         end
-        function $cdg(f::Grid{2},dt::AbstractMatrix,s::Tuple=size(f))
+        function $cdg(f::GridFrameBundle{2},dt::AbstractMatrix,s::Tuple=size(f))
             d = Array{Chain{Submanifold(2),1,pointtype(f),2},2}(undef,s...)
             @threads for i ∈ OneTo(s[1]); for j ∈ OneTo(s[2])
                 d[i,j] = Chain($cdg(f,s,i,j).v./dt[i,j].v)
             end end
             return d
         end
-        function $cdg(f::Grid{2},s::Tuple=size(f))
+        function $cdg(f::GridFrameBundle{2},s::Tuple=size(f))
             d = Array{Chain{Submanifold(2),1,pointtype(f),2},2}(undef,s...)
             @threads for i ∈ OneTo(s[1]); for j ∈ OneTo(s[2])
                 d[i,j] = $cdg(f,s,i,j)
             end end
             return d
         end
-        function $cdg(f::Grid{3},dt::AbstractArray{T,3} where T,s::Tuple=size(f))
+        function $cdg(f::GridFrameBundle{3},dt::AbstractArray{T,3} where T,s::Tuple=size(f))
             d = Array{Chain{Submanifold(3),1,pointtype(f),3},3}(undef,s...)
             @threads for i ∈ OneTo(s[1]); for j ∈ OneTo(s[2]); for k ∈ OneTo(s[3])
                 d[i,j,k] = Chain($cdg(f,s,i,j,k).v./dt[i,j,k].v)
             end end end
             return d
         end
-        function $cdg(f::Grid{3},s::Tuple=size(f))
+        function $cdg(f::GridFrameBundle{3},s::Tuple=size(f))
             d = Array{Chain{Submanifold(3),1,pointtype(f),3},3}(undef,s...)
             @threads for i ∈ OneTo(s[1]); for j ∈ OneTo(s[2]); for k ∈ OneTo(s[3])
                 d[i,j,k] = $cdg(f,s,i,j,k)
             end end end
             return d
         end
-        function $cdg(f::Grid{4},dt::AbstractArray{T,4} where T,s::Tuple=size(f))
+        function $cdg(f::GridFrameBundle{4},dt::AbstractArray{T,4} where T,s::Tuple=size(f))
             d = Array{Chain{Submanifold(4),1,pointtype(f),4},4}(undef,s...)
             @threads for i ∈ OneTo(s[1]); for j ∈ OneTo(s[2]); for k ∈ OneTo(s[3]); for l ∈ OneTo(s[4])
                 d[i,j,k,l] = Chain($cdg(f,s,i,j,k,l).v./dt[i,j,k,l].v)
             end end end end
             return d
         end
-        function $cdg(f::Grid{4},s::Tuple=size(f))
+        function $cdg(f::GridFrameBundle{4},s::Tuple=size(f))
             d = Array{Chain{Submanifold(4),1,pointtype(f),4},4}(undef,s...)
             @threads for i ∈ OneTo(s[1]); for j ∈ OneTo(s[2]); for k ∈ OneTo(s[3]); for l ∈ OneTo(s[4])
                 d[i,j,k,l] = $cdg(f,s,i,j,k,l)
             end end end end
             return d
         end
-        function $cdg(f::Grid{5},dt::AbstractArray{T,5} where T,s::Tuple=size(f))
+        function $cdg(f::GridFrameBundle{5},dt::AbstractArray{T,5} where T,s::Tuple=size(f))
             d = Array{Chain{Submanifold(5),1,pointtype(f),5},5}(undef,s...)
             @threads for i ∈ OneTo(s[1]); for j ∈ OneTo(s[2]); for k ∈ OneTo(s[3]); for l ∈ OneTo(s[4]); for o ∈ OneTo(s[5])
                 d[i,j,k,l,o] = Chain($cdg(f,s,i,j,k,l,o).v./dt[i,j,k,l,o].v)
             end end end end end
             return d
         end
-        function $cdg(f::Grid{5},s::Tuple=size(f))
+        function $cdg(f::GridFrameBundle{5},s::Tuple=size(f))
             d = Array{Chain{Submanifold(5),1,pointtype(f),5},5}(undef,s...)
             @threads for i ∈ OneTo(s[1]); for j ∈ OneTo(s[2]); for k ∈ OneTo(s[3]); for l ∈ OneTo(s[4]); for o ∈ OneTo(s[5])
                 d[i,j,k,l,o] = $cdg(f,s,i,j,k,l,o)
             end end end end end
             return d
         end
-        function $cdg(f::Grid{2},n::Val{1},dt::AbstractVector,s::Tuple=size(f))
+        function $cdg(f::GridFrameBundle{2},n::Val{1},dt::AbstractVector,s::Tuple=size(f))
             d = Array{pointtype(f),2}(undef,s...)
             @threads for i ∈ OneTo(s[1]); for j ∈ OneTo(s[2])
                 d[i,j] = $cdg(f,(@inbounds s[1]),n,i,j)/dt[i]
             end end
             return d
         end
-        function $cdg(f::Grid{2},n::Val{2},dt::AbstractVector,s::Tuple=size(f))
+        function $cdg(f::GridFrameBundle{2},n::Val{2},dt::AbstractVector,s::Tuple=size(f))
             d = Array{pointtype(f),2}(undef,s...)
             @threads for i ∈ OneTo(s[1]); for j ∈ OneTo(s[2])
                 d[i,j] = $cdg(f,(@inbounds s[2]),n,i,j)/dt[j]
             end end
             return d
         end
-        function $cdg(f::Grid{2},n::Val{N},dt::AbstractMatrix,s::Tuple=size(f)) where N
+        function $cdg(f::GridFrameBundle{2},n::Val{N},dt::AbstractMatrix,s::Tuple=size(f)) where N
             d = Array{pointtype(f),2}(undef,s...)
             @threads for i ∈ OneTo(s[1]); for j ∈ OneTo(s[2])
                 d[i,j] = $cdg(f,s[N],n,i,j)/dt[i,j]
             end end
             return d
         end
-        function $cdg(f::Grid{2},n::Val{N},s::Tuple=size(f)) where N
+        function $cdg(f::GridFrameBundle{2},n::Val{N},s::Tuple=size(f)) where N
             d = Array{pointtype(f),2}(undef,s...)
             @threads for i ∈ OneTo(s[1]); for j ∈ OneTo(s[2])
                 d[i,j] = $cdg(f,s[N],n,i,j)
             end end
             return d
         end
-        function $cdg(f::Grid{3},n::Val{1},dt::AbstractVector,s::Tuple=size(f))
+        function $cdg(f::GridFrameBundle{3},n::Val{1},dt::AbstractVector,s::Tuple=size(f))
             d = Array{pointtype(f),3}(undef,s...)
             @threads for i ∈ OneTo(s[1]); for j ∈ OneTo(s[2]); for k ∈ OneTo(s[3])
                 d[i,j,k] = $cdg(f,(@inbounds s[1]),n,i,j,k)/dt[i]
             end end end
             return d
         end
-        function $cdg(f::Grid{3},n::Val{2},dt::AbstractVector,s::Tuple=size(f))
+        function $cdg(f::GridFrameBundle{3},n::Val{2},dt::AbstractVector,s::Tuple=size(f))
             d = Array{pointtype(f),3}(undef,s...)
             @threads for i ∈ OneTo(s[1]); for j ∈ OneTo(s[2]); for k ∈ OneTo(s[3])
                 d[i,j,k] = $cdg(f,(@inbounds s[2]),n,i,j,k)/dt[j]
             end end end
             return d
         end
-        function $cdg(f::Grid{3},n::Val{3},dt::AbstractVector,s::Tuple=size(f))
+        function $cdg(f::GridFrameBundle{3},n::Val{3},dt::AbstractVector,s::Tuple=size(f))
             d = Array{pointtype(f),3}(undef,s...)
             @threads for i ∈ OneTo(s[1]); for j ∈ OneTo(s[2]); for k ∈ OneTo(s[3])
                 d[i,j,k] = $cdg(f,(@inbounds s[3]),n,i,j,k)/dt[k]
             end end end
             return d
         end
-        function $cdg(f::Grid{3},n::Val{N},dt::AbstractArray,s::Tuple=size(f)) where N
+        function $cdg(f::GridFrameBundle{3},n::Val{N},dt::AbstractArray,s::Tuple=size(f)) where N
             d = Array{pointtype(f),3}(undef,s...)
             @threads for i ∈ OneTo(s[1]); for j ∈ OneTo(s[2]); for k ∈ OneTo(s[3])
                 d[i,j,k] = $cdg(f,s[N],n,i,j,k)/dt[i,j,k]
             end end end
             return d
         end
-        function $cdg(f::Grid{3},n::Val{N},s::Tuple=size(f)) where N
+        function $cdg(f::GridFrameBundle{3},n::Val{N},s::Tuple=size(f)) where N
             d = Array{pointtype(f),3}(undef,s...)
             @threads for i ∈ OneTo(s[1]); for j ∈ OneTo(s[2]); for k ∈ OneTo(s[3])
                 d[i,j,k] = $cdg(f,s[N],n,i,j,k)
             end end end
             return d
         end
-        function $cdg(f::Grid{4},n::Val{1},dt::AbstractVector,s::Tuple=size(f))
+        function $cdg(f::GridFrameBundle{4},n::Val{1},dt::AbstractVector,s::Tuple=size(f))
             d = Array{pointtype(f),4}(undef,s...)
             @threads for i ∈ OneTo(s[1]); for j ∈ OneTo(s[2]); for k ∈ OneTo(s[3]); for l ∈ OneTo(s[4])
                 d[i,j,k,l] = $cdg(f,(@inbounds s[1]),n,i,j,k,l)/dt[i]
             end end end end
             return d
         end
-        function $cdg(f::Grid{4},n::Val{2},dt::AbstractVector,s::Tuple=size(f))
+        function $cdg(f::GridFrameBundle{4},n::Val{2},dt::AbstractVector,s::Tuple=size(f))
             d = Array{pointtype(f),4}(undef,s...)
             @threads for i ∈ OneTo(s[1]); for j ∈ OneTo(s[2]); for k ∈ OneTo(s[3]); for l ∈ OneTo(s[4])
                 d[i,j,k,l] = $cdg(f,(@inbounds s[2]),n,i,j,k,l)/dt[j]
             end end end end
             return d
         end
-        function $cdg(f::Grid{4},n::Val{3},dt::AbstractVector,s::Tuple=size(f))
+        function $cdg(f::GridFrameBundle{4},n::Val{3},dt::AbstractVector,s::Tuple=size(f))
             d = Array{pointtype(f),4}(undef,s...)
             @threads for i ∈ OneTo(s[1]); for j ∈ OneTo(s[2]); for k ∈ OneTo(s[3]); for l ∈ OneTo(s[4])
                 d[i,j,k,l] = $cdg(f,(@inbounds s[3]),n,i,j,k,l)/dt[k]
             end end end end
             return d
         end
-        function $cdg(f::Grid{4},n::Val{4},dt::AbstractVector,s::Tuple=size(f))
+        function $cdg(f::GridFrameBundle{4},n::Val{4},dt::AbstractVector,s::Tuple=size(f))
             d = Array{pointtype(f),4}(undef,s...)
             @threads for i ∈ OneTo(s[1]); for j ∈ OneTo(s[2]); for k ∈ OneTo(s[3]); for l ∈ OneTo(s[4])
                 d[i,j,k,l] = $cdg(f,(@inbounds s[4]),n,i,j,k,l)/dt[l]
             end end end end
             return d
         end
-        function $cdg(f::Grid{4},n::Val{N},dt::AbstractArray,s::Tuple=size(f)) where N
+        function $cdg(f::GridFrameBundle{4},n::Val{N},dt::AbstractArray,s::Tuple=size(f)) where N
             d = Array{pointtype(f),4}(undef,s...)
             @threads for i ∈ OneTo(s[1]); for j ∈ OneTo(s[2]); for k ∈ OneTo(s[3]); for l ∈ OneTo(s[4])
                 d[i,j,k,l] = $cdg(f,s[N],n,i,j,k,l)/dt[i,j,k,l]
             end end end end
             return d
         end
-        function $cdg(f::Grid{4},n::Val{N},s::Tuple=size(f)) where N
+        function $cdg(f::GridFrameBundle{4},n::Val{N},s::Tuple=size(f)) where N
             d = Array{pointtype(f),4}(undef,s...)
             @threads for i ∈ OneTo(s[1]); for j ∈ OneTo(s[2]); for k ∈ OneTo(s[3]); for l ∈ OneTo(s[4])
                 d[i,j,k,l] = $cdg(f,s[N],n,i,j,k,l)
             end end end end
             return d
         end
-        function $cdg(f::Grid{5},n::Val{1},dt::AbstractVector,s::Tuple=size(f))
+        function $cdg(f::GridFrameBundle{5},n::Val{1},dt::AbstractVector,s::Tuple=size(f))
             d = Array{pointtype(f),5}(undef,s...)
             @threads for i ∈ OneTo(s[1]); for j ∈ OneTo(s[2]); for k ∈ OneTo(s[3]); for l ∈ OneTo(s[4]); for o ∈ OneTo(s[5])
                 d[i,j,k,l,o] = $cdg(f,(@inbounds s[1]),n,i,j,k,l,o)/dt[i]
             end end end end end
             return d
         end
-        function $cdg(f::Grid{5},n::Val{2},dt::AbstractVector,s::Tuple=size(f))
+        function $cdg(f::GridFrameBundle{5},n::Val{2},dt::AbstractVector,s::Tuple=size(f))
             d = Array{pointtype(f),5}(undef,s...)
             @threads for i ∈ OneTo(s[1]); for j ∈ OneTo(s[2]); for k ∈ OneTo(s[3]); for l ∈ OneTo(s[4]); for o ∈ OneTo(s[5])
                 d[i,j,k,l,o] = $cdg(f,(@inbounds s[2]),n,i,j,k,l,o)/dt[j]
             end end end end end
             return d
         end
-        function $cdg(f::Grid{5},n::Val{3},dt::AbstractVector,s::Tuple=size(f))
+        function $cdg(f::GridFrameBundle{5},n::Val{3},dt::AbstractVector,s::Tuple=size(f))
             d = Array{pointtype(f),5}(undef,s...)
             @threads for i ∈ OneTo(s[1]); for j ∈ OneTo(s[2]); for k ∈ OneTo(s[3]); for l ∈ OneTo(s[4]); for o ∈ OneTo(s[5])
                 d[i,j,k,l,o] = $cdg(f,(@inbounds s[3]),n,i,j,k,l,o)/dt[k]
             end end end end end
             return d
         end
-        function $cdg(f::Grid{5},n::Val{4},dt::AbstractVector,s::Tuple=size(f))
+        function $cdg(f::GridFrameBundle{5},n::Val{4},dt::AbstractVector,s::Tuple=size(f))
             d = Array{pointtype(f),5}(undef,s...)
             @threads for i ∈ OneTo(s[1]); for j ∈ OneTo(s[2]); for k ∈ OneTo(s[3]); for l ∈ OneTo(s[4]); for o ∈ OneTo(s[5])
                 d[i,j,k,l,o] = $cdg(f,(@inbounds s[4]),n,i,j,k,l,o)/dt[l]
             end end end end end
             return d
         end
-        function $cdg(f::Grid{5},n::Val{5},dt::AbstractVector,s::Tuple=size(f))
+        function $cdg(f::GridFrameBundle{5},n::Val{5},dt::AbstractVector,s::Tuple=size(f))
             d = Array{pointtype(f),5}(undef,s...)
             @threads for i ∈ OneTo(s[1]); for j ∈ OneTo(s[2]); for k ∈ OneTo(s[3]); for l ∈ OneTo(s[4]); for o ∈ OneTo(s[5])
                 d[i,j,k,l,o] = $cdg(f,(@inbounds s[5]),n,i,j,k,l,o)/dt[o]
             end end end end end
             return d
         end
-        function $cdg(f::Grid{5},n::Val{N},dt::AbstractArray,s::Tuple=size(f)) where N
+        function $cdg(f::GridFrameBundle{5},n::Val{N},dt::AbstractArray,s::Tuple=size(f)) where N
             d = Array{pointtype(f),5}(undef,s...)
             @threads for i ∈ OneTo(s[1]); for j ∈ OneTo(s[2]); for k ∈ OneTo(s[3]); for l ∈ OneTo(s[4]); for o ∈ OneTo(s[5])
                 d[i,j,k,l,o] = $cdg(f,s[N],n,i,j,k,l,o)/dt[i,j,k,l,o]
             end end end end end
             return d
         end
-        function $cdg(f::Grid{5},n::Val{N},s::Tuple=size(f)) where N
+        function $cdg(f::GridFrameBundle{5},n::Val{N},s::Tuple=size(f)) where N
             d = Array{pointtype(f),5}(undef,s...)
             @threads for i ∈ OneTo(s[1]); for j ∈ OneTo(s[2]); for k ∈ OneTo(s[3]); for l ∈ OneTo(s[4]); for o ∈ OneTo(s[5])
                 d[i,j,k,l,o] = $cdg(f,s[N],n,i,j,k,l,o)
             end end end end end
             return d
         end
-        $cdg(f::Grid{1},s::Tuple,i::Int) = $cdg(f,s[1],Val(1),i)
-        @generated function $cdg(f::Grid{N},s::Tuple,i::Vararg{Int}) where N
+        $cdg(f::GridFrameBundle{1},s::Tuple,i::Int) = $cdg(f,s[1],Val(1),i)
+        @generated function $cdg(f::GridFrameBundle{N},s::Tuple,i::Vararg{Int}) where N
             :(Chain($([:($$cdg(f,s[$n],Val($n),i...)) for n ∈ list(1,N)]...)))
         end
         $cd(f::RealRegion) = ProductSpace($cd.(f.v))
-        $cd(f::GridFrameBundle{Coordinate{P,G},N,<:PointArray{P,G,N,<:RealRegion,<:Global{N,<:InducedMetric}},<:ProductTopology}) where {P,G,N} = ProductSpace($cd.(base(base(f)).v))
-        $cd(f::GridFrameBundle{Coordinate{P,G},N,<:PointArray{P,G,N,<:RealRegion,<:Global{N,<:InducedMetric}},<:OpenTopology}) where {P,G,N} = ProductSpace($cd.(base(base(f)).v))
-        $cd(f::GridFrameBundle{Coordinate{P,G},N,<:PointArray{P,G,N,<:RealRegion,<:Global{N,<:InducedMetric}}}) where {P,G,N} = sum.(value.($cdg(f)))
-        #$cd(f::GridFrameBundle{Coordinate{P,G},N,<:PointArray{P,G,N,<:RealRegion},<:ProductTopology}) where {P,G,N} = applymetric.($cd(base(base(f))),metricextensor(f))
-        $cd(f::GridFrameBundle{Coordinate{P,G},N,<:PointArray{P,G,N,<:RealRegion},<:OpenTopology}) where {P,G,N} = applymetric.($cd(base(base(f))),metricextensor(f))
-        $cd(f::GridFrameBundle{Coordinate{P,G},N,<:PointArray{P,G,N,<:RealRegion}}) where {P,G,N} = applymetric.(sum.(value.($cdg(f))),metricextensor(f))
+        $cd(f::GridFrameBundle{N,Coordinate{P,G},<:PointArray{P,G,N,<:RealRegion,<:Global{N,<:InducedMetric}},<:ProductTopology}) where {N,P,G} = ProductSpace($cd.(base(base(f)).v))
+        $cd(f::GridFrameBundle{N,Coordinate{P,G},<:PointArray{P,G,N,<:RealRegion,<:Global{N,<:InducedMetric}},<:OpenTopology}) where {N,P,G} = ProductSpace($cd.(base(base(f)).v))
+        $cd(f::GridFrameBundle{N,Coordinate{P,G},<:PointArray{P,G,N,<:RealRegion,<:Global{N,<:InducedMetric}}}) where {N,P,G} = sum.(value.($cdg(f)))
+        #$cd(f::GridFrameBundle{N,Coordinate{P,G},<:PointArray{P,G,N,<:RealRegion},<:ProductTopology}) where {N,P,G} = applymetric.($cd(base(base(f))),metricextensor(f))
+        $cd(f::GridFrameBundle{N,Coordinate{P,G},<:PointArray{P,G,N,<:RealRegion},<:OpenTopology}) where {N,P,G} = applymetric.($cd(base(base(f))),metricextensor(f))
+        $cd(f::GridFrameBundle{N,Coordinate{P,G},<:PointArray{P,G,N,<:RealRegion}}) where {N,P,G} = applymetric.(sum.(value.($cdg(f))),metricextensor(f))
+        $cd(f::AbstractRange,q::OpenTopology,s::Tuple=size(f)) = $cd(f,s)
+        function $cd(f::AbstractRange,q::QuotientTopology,s::Tuple=size(f))
+            d = Vector{eltype(f)}(undef,s[1])
+            @threads for i ∈ OneTo(s[1])
+                d[i] = $cdg(i,q,step(f),s[1])
+            end
+            return d
+        end
         function $cd(f::AbstractRange,s::Tuple=size(f))
             d = Vector{eltype(f)}(undef,s[1])
             @threads for i ∈ OneTo(s[1])
@@ -482,8 +460,7 @@ applymetric(f::Chain{V,G},g::Endomorphism{W,<:Simplex} where W) where {V,G} = ap
     Expr(:call,:(Chain{V}),[:(x[$k]/sqrt(g[$k,$k])) for k ∈ list(1,N)]...)
 end
 
-
-function centraldiff_slow_calc(f::Grid{M,T,PA,<:OpenTopology} where {M,T,PA},l::Int,n::Val{N},i::Vararg{Int}) where N #l=size(f)[N]
+function centraldiff_slow_calc(f::GridFrameBundle{M,T,PA,<:OpenTopology} where {M,T,PA},l::Int,n::Val{N},i::Vararg{Int}) where N #l=size(f)[N]
     if isone(i[N])
         18f[1,n,i...]-9f[2,n,i...]+2f[3,n,i...]-11points(f)[i...]
     elseif i[N]==l
@@ -496,35 +473,35 @@ function centraldiff_slow_calc(f::Grid{M,T,PA,<:OpenTopology} where {M,T,PA},l::
         f[-2,n,i...]+8(f[1,n,i...]-f[-1,n,i...])-f[2,n,i...]
     end
 end
-function Cartan.centraldiff_slow_calc(f::Grid,l::Int,n::Val{N},i::Vararg{Int}) where N #l=size(f)[N]
+function Cartan.centraldiff_slow_calc(f::GridFrameBundle,l::Int,n::Val{N},i::Vararg{Int}) where N #l=size(f)[N]
     if isone(i[N])
-        if iszero(f.cod.r[2N-1])
+        if iszero(immersion(f).r[2N-1])
             18f[1,n,i...]-9f[2,n,i...]+2f[3,n,i...]-11points(f)[i...]
-        elseif f.cod.p[2N-1]≠2N-1
+        elseif immersion(f).p[2N-1]≠2N-1
             f[-2,n,i...]+7(f[0,n,i...]-points(f)[i...])+8(f[1,n,i...]-f[-1,n,i...])-f[2,n,i...]
         else
             (-f[-2,n,i...])+7(-f[0,n,i...]-points(f)[i...])+8(f[1,n,i...]+f[-1,n,i...])-f[2,n,i...]
         end
     elseif i[N]==l
-        if iszero(f.cod.r[2N])
+        if iszero(immersion(f).r[2N])
             11points(f)[i...]-18f[-1,n,i...]+9f[-2,n,i...]-2f[-3,n,i...]
-        elseif f.cod.p[2N]≠2N
+        elseif immersion(f).p[2N]≠2N
             f[-2,n,i...]+8(f[1,n,i...]-f[-1,n,i...])+7(points(f)[i...]-f[0,n,i...])-f[2,n,i...]
         else
             f[-2,n,i...]+8(-f[1,n,i...]-f[-1,n,i...])+7(points(f)[i...]-f[0,n,i...])+f[2,n,i...]
         end
     elseif i[N]==2
-        if iszero(f.cod.r[2N-1])
+        if iszero(immersion(f).r[2N-1])
             6f[1,n,i...]-f[2,n,i...]-3points(f)[i...]-2f[-1,n,i...]
-        elseif f.cod.p[2N-1]≠2N-1
+        elseif immersion(f).p[2N-1]≠2N-1
             f[-2,n,i...]-f[-1,n,i...]+8f[1,n,i...]-7getpoint(f,-1,n,i...)-f[2,n,i...]
         else
             (-f[-2,n,i...])+f[-1,n,i...]+8f[1,n,i...]-7getpoint(f,-1,n,i...)-f[2,n,i...]
         end
     elseif i[N]==l-1
-        if iszero(f.cod.r[2N])
+        if iszero(immersion(f).r[2N])
             3points(f)[i...]-6f[-1,n,i...]+f[-2,n,i...]+2f[1,n,i...]
-        elseif f.cod.p[2N]≠2N
+        elseif immersion(f).p[2N]≠2N
             f[-2,n,i...]+7getpoint(f,1,n,i...)-8f[-1,n,i...]+f[1,n,i...]-f[2,n,i...]
         else
             f[-2,n,i...]+7getpoint(f,1,n,i...)-8f[-1,n,i...]-f[1,n,i...]+f[2,n,i...]
@@ -580,8 +557,15 @@ function centraldiff_slow_calc(i::Int,dt::Real,l::Int)
         12dt # (8-2)*2dt
     end
 end
+function centraldiff_slow_calc(i::Int,q::QuotientTopology,dt::Real,l::Int)
+    if (i∈(1,2) && iszero(q.r[1])) || (i∈(l-1,l) && iszero(q.r[2]))
+        6dt # (8-2)*dt
+    else
+        12dt # (8-2)*2dt
+    end
+end
 
-function centraldiff_fast_calc(f::Grid{M,T,PA,<:OpenTopology} where {M,T,PA},l::Int,n::Val{N},i::Vararg{Int}) where N
+function centraldiff_fast_calc(f::GridFrameBundle{M,T,PA,<:OpenTopology} where {M,T,PA},l::Int,n::Val{N},i::Vararg{Int}) where N
     if isone(i[N]) # 4f[1,k,i...]-f[2,k,i...]-3f.v[i...]
         18f[1,n,i...]-9f[2,n,i...]+2f[3,n,i...]-11points(f)[i...]
     elseif i[N]==l # 3f.v[i...]-4f[-1,k,i...]+f[-2,k,i...]
@@ -590,19 +574,19 @@ function centraldiff_fast_calc(f::Grid{M,T,PA,<:OpenTopology} where {M,T,PA},l::
         f[1,n,i...]-f[-1,n,i...]
     end
 end
-function Cartan.centraldiff_fast_calc(f::Grid,l::Int,n::Val{N},i::Vararg{Int}) where N
+function Cartan.centraldiff_fast_calc(f::GridFrameBundle,l::Int,n::Val{N},i::Vararg{Int}) where N
     if isone(i[N])
-        if iszero(f.cod.r[2N-1])
+        if iszero(immersion(f).r[2N-1])
             18f[1,n,i...]-9f[2,n,i...]+2f[3,n,i...]-11points(f)[i...]
-        elseif f.cod.p[2N-1]≠2N-1
+        elseif immersion(f).p[2N-1]≠2N-1
             (f[1,n,i...]-points(f)[i...])+(f[0,n,i...]-f[-1,n,i...])
         else # mirror
             (f[1,n,i...]-points(f)[i...])-(f[0,n,i...]-f[-1,n,i...])
         end
     elseif i[N]==l
-        if iszero(f.cod.r[2N])
+        if iszero(immersion(f).r[2N])
             11points(f)[i...]-18f[-1,n,i...]+9f[-2,n,i...]-2f[-3,n,i...]
-        elseif f.cod.p[2N]≠2N
+        elseif immersion(f).p[2N]≠2N
             (f[1,n,i...]-f[0,n,i...])+(points(f)[i...]-f[-1,n,i...])
         else # mirror
             (f[0,n,i...]-f[1,n,i...])+(points(f)[i...]-f[-1,n,i...])
@@ -617,6 +601,14 @@ centraldiff_fast_calc(::Val{1},i::Int,d1::Real,d2::Real,l::Int) = isone(i) ? d1+
 centraldiff_fast_calc(::Val{2},i::Int,d1::Real,d2::Real,l::Int) = i==l ? d1+d2 : 2dt
 centraldiff_fast_calc(i::Int,dt::Real,l::Int) = i∈(1,l) ? 6dt : 2dt
 #centraldiff_fast_calc(i::Int,dt::Real,l::Int) = 2dt
+function centraldiff_fast_calc(i::Int,q::QuotientTopology,dt::Real,l::Int)
+    if (isone(i) && iszero(q.r[1])) || (i==l && iszero(q.r[2]))
+        6dt
+    else
+        2dt
+    end
+end
+
 
 qnumber(n,q) = (q^n-1)/(q-1)
 qfactorial(n,q) = prod(cumsum([q^k for k ∈ 0:n-1]))
@@ -736,14 +728,14 @@ cumtrapz(f::IntervalMap,j::Val{1}) = cumtrapz(f)
 cumtrapz(f::ParametricMap,j::Int) = cumtrapz(f,Val(j))
 cumtrapz(f::ParametricMap,j::Val{J}) where J = TensorField(domain(f), cumtrapz2(codomain(f),j,diff(points(f).v[J])))
 cumtrapz(f::ParametricMap{B,F,N,<:AlignedSpace{N}} where {B,F,N},j::Val{J}) where J = TensorField(domain(f), cumtrapz1(codomain(f),j,step(points(f).v[J])))
-selectzeros(n,j) = :(zeros($([i≠j ? :(s[$i]) : 1 for i ∈ 1:n]...)))
-selectzeros2(n,j) = :(zeros($([i≠j ? i<j ? :(s[$i]) : :(s[$i]-1) : 1 for i ∈ 1:n]...)))
+selectzeros(n,j) = :(zeros(T,$([i≠j ? :(s[$i]) : 1 for i ∈ 1:n]...)))
+selectzeros2(n,j) = :(zeros(T,$([i≠j ? i<j ? :(s[$i]) : :(s[$i]-1) : 1 for i ∈ 1:n]...)))
 gencat(n,j=n,cat=n≠2 ? :cat : j≠2 ? :vcat : :hcat) = :($cat($(selectzeros2(n,j)),$(j≠1 ? gencat(n,j-1) : :i);$((cat≠:cat ? () : (Expr(:kw,:dims,j),))...)))
 gencumtrapz1(n,j,h=:h,f=:f) = :(($h/2)*cumsum($(select1(n,j,:(2:$(:end)),f)).+$(select1(n,j,:(1:$(:end)-1),f)),dims=$j))
-@generated function cumtrapz1(f::Array{T,N} where T,::Val{J},h::Real,s::Tuple=size(f)) where {N,J}
+@generated function cumtrapz1(f::Array{T,N},::Val{J},h::Real,s::Tuple=size(f)) where {T,N,J}
     :(cat($(selectzeros(N,J)),$(gencumtrapz1(N,J)),dims=$J))
 end
-@generated function cumtrapz1(f::Array{T,N} where T,h::D...) where {N,D<:Real}
+@generated function cumtrapz1(f::Array{T,N},h::D...) where {T,N,D<:Real}
     Expr(:block,:(s=size(f)),
          [:(i = $(gencumtrapz1(N,j,:(h[$j]),j≠1 ? :i : :f,))) for j ∈ 1:N]...,
         gencat(N))
@@ -763,14 +755,14 @@ for N ∈ 2:5
     @eval function cumtrapz(f::ParametricMap{B,F,$N,<:AlignedSpace{$N}} where {B,F})
         TensorField(domain(f), cumtrapz1(codomain(f),$([:(step(points(f).v[$j])) for j ∈ 1:N]...)))
     end
-    @eval function cumtrapz(m::ParametricMap{B,F,$N,T} where {B,F,T},D::AbstractVector=diff.(points(m).v))
+    @eval function cumtrapz(m::ParametricMap{B,F,$N,T} where {B,F},D::AbstractVector=diff.(points(m).v)) where T
         f = codomain(m)
         s,d = size(f),D./2
         $(Expr(:block,vcat([gencumtrapz2(N,j,:(d[$j])).args for j ∈ 1:N]...)...))
         TensorField(domain(m), $(gencat(N)))
     end
     for J ∈ 1:N
-        @eval function cumtrapz2(c::Array{T,$N} where T,::Val{$J})
+        @eval function cumtrapz2(c::Array{T,$N},::Val{$J}) where T
             s,d = size(f),D/2
             $(gencumtrapz2(N,J,:d,:f))
             cat($(selectzeros(N,J)),i,dims=$J)
@@ -783,31 +775,19 @@ end
 
 # differential geometry
 
-export 𝓛, Lie, LieBracket, LieDerivative, bracket, Connection, CovariantDerivative
+import Grassmann: 𝓛, Lie, LieBracket, LieDerivative, bracket
+export 𝓛, Lie, LieBracket, LieDerivative, bracket, Connection, CovariantDerivative, action
 
-struct LieBracket end
-struct LieDerivative{X<:VectorField}
-    v::X
-end
-const 𝓛 = LieBracket()
-const Lie = LieBracket()
-
-Base.getindex(::LieBracket,X::VectorField) = LieDerivative(X)
-Base.getindex(::LieBracket,X::VectorField,Y::VectorField...) = bracket(X,Y...)
-(::LieBracket)(X::VectorField,Y::VectorField...) = bracket(X,Y...)
-(::LieBracket)(X::VectorField) = LieDerivative(X)
-(X::LieDerivative)(Y::VectorField...) = bracket(X.v,Y...)
-(X::LieDerivative)(f::ScalarField) = X.v(f)
-(X::VectorField)(f::ScalarField) = X⋅gradient(f)
-(X::GradedVector)(f::ScalarField) = X⋅gradient(f)
-LieBracket(X::VectorField,Y::VectorField...) = bracket(X,Y...)
-LieBracket(X::VectorField) = LieDerivative(X)
-bracket(X,Y) = X(Y) - Y(X)
-bracket(X,Y,Z) = X(bracket(Y,Z)) + Y(bracket(Z,X)) + Z(bracket(X,Y))
-bracket(W,X,Y,Z) = W(bracket(X,Y,Z)) + X(bracket(W,Z,Y)) + Y(bracket(W,X,Z)) + Z(bracket(W,Y,X))
-bracket(V,W,X,Y,Z) = V(bracket(W,X,Y,Z)) + W(bracket(V,X,Z,Y)) + X(bracket(V,W,Y,Z)) + Y(bracket(V,W,Z,X)) + Z(bracket(V,W,X,Y))
+(X::LieDerivative)(f::ScalarField) = action(X.v,f)
+(X::VectorField{B,<:Chain{V,1,T,N} where T,N} where B)(Y::VectorField{B,<:Chain{V,1,T,N} where T,N} where B) where {V,N} = action(X,Y)
+(X::VectorField)(f::ScalarField) = action(X,f)
+(X::GradedVector)(f::ScalarField) = action(X,f)
+(X::ScalarField)(f::ScalarField) = action(X,f)
 𝓛dot(x::Chain,y::Simplex{V}) where V = Chain{V}(Real.(x.⋅value(y)))
-function (X::VectorField)(Y::VectorField)
+action(X::VectorField,f::ScalarField) = X⋅gradient(f)
+action(X::GradedVector,f::ScalarField) = X⋅gradient(f)
+action(X::ScalarField,f::ScalarField) = X⋅gradient(f)
+function action(X::VectorField,Y::VectorField)
     TensorField(base(X),𝓛dot.(fiber(X),fiber(gradient(Y))))
 end
 
@@ -830,10 +810,15 @@ CovariantDerivative(∇::Connection,X) = ∇(X)
 
 export arclength, arctime, totalarclength, trapz, cumtrapz, linecumtrapz, psum, pcumsum
 export centraldiff, tangent, tangent_fast, unittangent, speed, normal, unitnormal
-export curvenormal, unitcurvenormal, ribbon, tangentsurface, planecurve
-export normalnorm, area, surfacearea, weingarten, gauss
-export normalnorm_slow, area_slow, surfacearea_slow, weingarten_slow, gauss_slow
-export tangent_slow, normal_slow, unittangent_slow, unitnormal_slow
+export curvenormal, unitcurvenormal, ribbon, tangentsurface, planecurve, link, linkmap
+export normalnorm, area, surfacearea, weingarten, gausssign, jacobian
+export normalnorm_slow, area_slow, surfacearea_slow, weingarten_slow, gausssign_slow
+export gaussintrinsic, gaussextrinsic, gaussintrinsicnorm, gaussextrinsicnorm
+export gaussintrinsic_slow, gausseintrinsicnorm_slow, curvatures, meancurvature
+export gaussextrinsic_slow, gaussextrinsicnorm_slow, principals, principalaxes
+export tangent_slow, normal_slow, unittangent_slow, unitnormal_slow, jacobian_slow
+export sector, sectordet, sectorintegral, sectorintegrate, linkintegral, linknumber
+export sector_slow, sectordet_slow, sectorintegral_slow, sectorintegrate_slow
 
 # use graph for IntervalMap? or RealFunction!
 tangent(f::IntervalMap) = gradient(f)
@@ -846,6 +831,8 @@ unittangent(f::VectorField,n=tangent(f)) = TensorField(domain(f), codomain(n)./n
 unittangent(f::IntervalMap) = unitgradient(f)
 unitnormal(f) = ⋆unittangent(f)
 normalnorm(f) = Real(abs(normal(f)))
+jacobian(f::VectorField) = TensorOperator(gradient(f))
+weingarten(f::VectorField) = jacobian(unitnormal(f))
 
 tangent_slow(f::IntervalMap) = gradient_slow(f)
 tangent_slow(f::ScalarField) = tangent_slow(graph(f))
@@ -857,26 +844,70 @@ unittangent_slow(f::VectorField,n=tangent_slow(f)) = TensorField(domain(f), codo
 unittangent_slow(f::IntervalMap) = unitgradient_slow(f)
 unitnormal_slow(f) = ⋆unittangent_slow(f)
 normalnorm_slow(f) = Real(abs(normal_slow(f)))
+jacobian_slow(f::VectorField) = TensorOperator(gradient_slow(f))
+weingarten_slow(f::VectorField) = jacobian_slow(unitnormal_slow(f))
 
 ribbon(f::AbstractCurve,g::Vector{<:AbstractCurve}) = TensorField(points(f)⊕LinRange(0,1,length(g)+1),hcat(fiber(f),fiber.(g)...))
 ribbon(f::AbstractCurve,g::AbstractCurve,n::Int=100) = tangentsurface(f,g-f,n)
 tangentsurface(f::AbstractCurve,g::AbstractCurve,n::Int=100) = ribbon(f,Ref(f).+(LinRange(inv(n),1,n).*Ref(g)))
 tangentsurface(f::AbstractCurve,v::Real=1,n::Int=100) = tangentsurface(f,v*tangent(f),n)
 
+sector(f::Chain{V,G,<:Real},J::Chain{V,G,<:Real}) where {V,G} = Chain{V}(f,J)
+sector(f::Real,J::Chain{W,1,<:Real} where W) = Chain(f,value(J)...)
+sector(f::Chain{V,G},J::Chain{W,1,<:Chain{V,G}}) where {W,V,G} = Chain{V}(f,value(J)...)
+sector(f::TensorField,J::TensorField) = TensorField(base(f), sector.(fiber(f),fiber(J)))
+sector(f::RealFunction) = f
+sector(f::TensorField) = TensorOperator(sector(f,gradient(f)))
+sectordet(f::RealFunction) = f
+sectordet(f::PlaneCurve) = f∧gradient(f)
+sectordet(f::VectorField) = f∧det(gradient(f))
+sectorintegral(f::RealFunction) = integral(f)
+sectorintegral(f::TensorField) = integral(sectordet(f))/mdims(fibertype(f))
+sectorintegrate(f::RealFunction) = integrate(f)
+sectorintegrate(f::TensorField) = integrate(sectordet(f))/mdims(fibertype(f))
+sector_slow(f::RealFunction) = f
+sector_slow(f::TensorField) = TensorOperator(sector(f,gradient_slow(f)))
+sectordet_slow(f::RealFunction) = f
+sectordet_slow(f::PlaneCurve) = f∧gradient_slow(f)
+sectordet_slow(f::VectorField) = f∧det(gradient_slow(f))
+sectorintegral_slow(f::RealFunction) = integral(f)
+sectorintegral_slow(f::TensorField) = integral(sectordet_slow(f))/mdims(fibertype(f))
+sectorintegrate_slow(f::RealFunction) = integrate(f)
+sectorintegrate_slow(f::TensorField) = integrate(sectordet_slow(f))/mdims(fibertype(f))
+
 area(f::VectorField) = integral(normalnorm(f))
 surfacearea(f::VectorField) = integrate(normalnorm(f))
-weingarten(f::VectorField) = gradient(unitnormal(f))
-gauss(f::VectorField) = Real(abs(det(weingarten(f))))
+principals(f::VectorField) = eigvals(shape(f))
+principals(f::VectorField,i) = eigvals(shape(f),i)
+principalaxes(f::VectorField) = eigvecs(shape(f))
+principalaxes(f::VectorField,i) = eigvecs(shape(f),i)
+curvatures(f::VectorField) = eigpolys(shape(f))
+curvatures(f::VectorField,i) = eigpolys(shape(f),i)
+meancurvature(f::VectorField) = eigpolys(shape(f),Val(1))
+gausssign(f::VectorField) = sign(sectordet(unitnormal(f)))
+gaussextrinsicnorm(f::VectorField) = norm(gaussextrinsic(f))
+gaussintrinsicnorm(f::VectorField,N=normal(f)) = norm(gaussintrinsic(f,N))
+gaussextrinsic(f::VectorField) = sectordet(unitnormal(f))
+function gaussintrinsic(f::VectorField,N=normal(f))
+    n,T = Real(abs(N)),pointtype(f)
+    Chain{Manifold(T),mdims(T)}(Real(sectordet(N/n))/n)
+end
 
 area_slow(f::VectorField) = integral(normalnorm_slow(f))
 surfacearea_slow(f::VectorField) = integrate(normalnorm_slow(f))
-weingarten_slow(f::VectorField) = gradient(unitnormal_slow(f))
-gauss_slow(f::VectorField) = Real(abs(det(weingarten_slow(f))))
+gausssign_slow(f::VectorField) = sign(sectordet_slow(unitnormal_slow(f)))
+gaussextrinsicnorm_slow(f::VectorField) = norm(gaussextrinsic_slow(f))
+gaussintrinsicnorm_slow(f::VectorField,N=normal(f)) = norm(gaussintrinsic_slow(f,N))
+gaussextrinsic_slow(f::VectorField) = sectordet_slow(unitnormal_slow(f))
+function gaussintrinsic_slow(f::VectorField,N=normal_slow(f))
+    n,T = Real(abs(N)),pointtype(f)
+    Chain{Manifold(T),mdims(T)}(Real(sectordet_slow(N/n))/n)
+end
 
-area(f::PlaneCurve) = integral(f∧gradient(f))/2
-#volume(f::VectorField) = integral(f∧det(gradient(f)))/3
-sectorarea(f::PlaneCurve) = integrate(f∧gradient(f))/2
-sectorvolume(f::VectorField) = integrate(f∧det(gradient(f)))/3
+area(f::PlaneCurve) = sectorintegral(f)
+#volume(f::VectorField) = sectorintegral(f)
+sectorarea(f::PlaneCurve) = sectorintegrate(f)
+sectorvolume(f::VectorField) = sectorintegrate(f)
 
 function speed(f::IntervalMap,d=centraldiffpoints(f),t=centraldifffiber(f,d))
     TensorField(domain(f), abs.(t))
@@ -884,7 +915,7 @@ end
 function curvenormal(f::IntervalMap,d=centraldiffpoints(f),t=centraldifffiber(f,d))
     TensorField(domain(f), centraldiff(t,d))
 end
-function unitcurvenormal(f::IntervalMap,d=centraldiffpoints(f),t=centraldifffiiber(f,d),n=centraldiff(t,d))
+function unitcurvenormal(f::IntervalMap,d=centraldiffpoints(f),t=centraldifffiber(f,d),n=centraldiff(t,d))
     TensorField(domain(f), (n./abs.(n)))
 end
 
@@ -950,6 +981,17 @@ function wronskian(f::SpaceCurve,d=centraldiffpoints(f),t=centraldifffiber(f,d),
     TensorField(domain(f), f.cod.∧t.∧n)
 end
 
+function linkmap(f::SpaceCurve,g::SpaceCurve)
+    TensorField(base(f)×base(g),[fiber(g)[j]-fiber(f)[i] for i ∈ OneTo(length(f)), j ∈ OneTo(length(g))])
+end
+link(tf::Chain,tg::Chain,f::Chain,g::Chain) = (gf = g-f; ∧(gf,tf,tg)/norm(gf)^3)
+function link(f::SpaceCurve,g::SpaceCurve)
+    tf,tg = fiber(tangent(f)),fiber(tangent(g))
+    TensorField(base(f)×base(g),[link(tf[i],tg[j],fiber(f)[i],fiber(g)[j]) for i ∈ OneTo(length(f)), j ∈ OneTo(length(g))])
+end
+linkintegral(f::SpaceCurve,g::SpaceCurve) = integral(link(f,g))/4π
+linknumber(f::SpaceCurve,g::SpaceCurve) = integrate(link(f,g))/4π
+
 function frame(f::VectorField{<:Coordinate{<:Chain},<:Chain,2,<:RealSpace{2}})#,d=centraldiff(points(f)),t=centraldiff(codomain(f),d),n=centraldiff(t,d))
     Ψ = gradient(f)
     Ψu,Ψv = getindex.(Ψ,1),getindex.(Ψ,2)
@@ -999,64 +1041,115 @@ function planecurve(κ::RealFunction,φ::Real=0.0)
     integral(Chain.(cos(int),sin(int)))
 end
 
-export surfacemetric, surfacemetricdiag, surfaceframe
+export surfacemetric, surfacemetricdiag, surfaceframe, shape
+export firstform, firstformdiag, secondform, firstsecondform, thirdform
 export applymetric, firstkind, secondkind, geodesic
 
-surfacemetric(dom::ScalarField,f::Function) = surfacemetric(TensorField(dom,f))
-function surfacemetric(t::ScalarField)
-    g = gradient(t)
-    V = Submanifold(MetricTensor([1 1; 1 1]))
-    dfdx,dfdy = getindex.(g,1),getindex.(g,2)
-    E,F,G = dfdx*dfdx,dfdx*dfdy,dfdy*dfdy
-    g1,g2 = (1+E)*Λ(V).v1+F*Λ(V).v2,(1+G)*Λ(V).v2+F*Λ(V).v1
-    EFG = Outermorphism.(Chain{V}.(fiber(g1),fiber(g2)))
-    GridFrameBundle(PointArray(points(t),EFG), immersion(t))
+function EFG(V,dfdx,dfdy)
+    E,F,G = fiber(Real(dfdx⋅dfdx)),fiber(Real(dfdx⋅dfdy)),fiber(Real(dfdy⋅dfdy))
+    TensorOperator.(Chain{V}.(Chain{V}.(E,F),Chain{V}.(F,G)))
+end
+function EG(V,dfdx,dfdy)
+    DiagonalOperator.(Chain{V}.(fiber(Real(dfdx⋅dfdx)),fiber(Real(dfdy⋅dfdy))))
+end
+function LMN(V,n,ddfdx2,ddfdxdy,ddfdy2)
+    L,M,N = fiber(Real(ddfdx2⋅n)),fiber(Real(ddfdxdy⋅n)),fiber(Real(ddfdy2⋅n))
+    TensorOperator.(Chain{V}.(Chain{V}.(L,M),Chain{V}.(M,N)))
 end
 
-surfacemetricdiag(dom::ScalarField,f::Function) = surfacemetricdiag(TensorField(dom,f))
-function surfacemetricdiag(t::ScalarField)
-    g = gradient(t)
-    V = Submanifold(DiagonalForm(Values(1,1)))
+firstform(dom::ScalarField,f::Function) = firstform(TensorField(dom,f))
+function firstform(t::ScalarField,g=gradient(t),V=Submanifold(2))
     dfdx,dfdy = getindex.(g,1),getindex.(g,2)
-    g1,g2 = fiber(1+dfdx*dfdx),fiber(1+dfdy*dfdy)
-    EG = outermorphism.(DiagonalOperator.(Chain{V}.(g1,g2)))
-    GridFrameBundle(PointArray(points(t),EG),immersion(t))
+    E,F,G = fiber(dfdx*dfdx),fiber(dfdx*dfdy),fiber(dfdy*dfdy)
+    TensorField(base(t),TensorOperator.(Chain{V}.(Chain{V}.(E.+1,F),Chain{V}.(F,G.+1))))
+end
+
+firstformdiag(dom::ScalarField,f::Function) = firstformdiag(TensorField(dom,f))
+function firstformdiag(t::ScalarField,g=gradient(t),V=Submanifold(2))
+    dfdx,dfdy = getindex.(g,1),getindex.(g,2)
+    E1,G1 = fiber(1+dfdx*dfdx),fiber(1+dfdy*dfdy)
+    TensorField(base(t),DiagonalOperator.(Chain{V}.(E1,G1)))
+end
+
+firstform(dom,f::Function) = firstform(TensorField(dom,f))
+function firstform(t,g=gradient(t),V=Submanifold(2))
+    TensorField(base(t),EFG(V,getindex.(g,1),getindex.(g,2)))
+end
+
+firstformdiag(dom,f::Function) = firstformdiag(TensorField(dom,f))
+function firstformdiag(t,g=gradien(t),V=Submanifold(2))
+    TensorField(base(t),EG(V,getindex.(g,1),getindex.(g,2)))
+end
+
+secondform(dom,f::Function) = secondform(TensorField(dom,f))
+function secondform(t,g=gradient(t),V=Submanifold(2))
+    n = ⋆unittangent(t,det(g))
+    dfdx,dfdy = getindex.(g,1),getindex.(g,2)
+    ddfdx,ddfdy2 = gradient(dfdx),gradient(dfdy,Val(2))
+    ddfdx2,ddfdxdy = getindex.(ddfdx,1),getindex.(ddfdx,2)
+    TensorField(base(t),LMN(V,n,ddfdx2,ddfdxdy,ddfdy2))
+end
+
+firstsecondform(dom,f::Function) = firstsecondform(TensorField(dom,f))
+function firstsecondform(t,g=gradient(t),V=Submanifold(2))
+    n = ⋆unittangent(t,det(g))
+    dfdx,dfdy = getindex.(g,1),getindex.(g,2)
+    ddfdx,ddfdy2 = gradient(dfdx),gradient(dfdy,Val(2))
+    ddfdx2,ddfdxdy = getindex.(ddfdx,1),getindex.(ddfdx,2)
+    return (TensorField(base(t),EFG(V,dfdx,dfdy)),
+        TensorField(base(t),LMN(V,n,ddfdx2,ddfdxdy,ddfdy2)))
+end
+
+thirdform(dom,f::Function) = thirdform(TensorField(dom,f))
+thirdform(t,V=Submanifold(2)) = firstform(t,gradient(unitnormal(t)),V)
+
+shape(dom,f::Function) = shape(TensorField(dom,f))
+function shape(t,g=gradient(t),V=Submanifold(2))
+    EFG,LMN = firstsecondform(t,g,V)
+    return inv(EFG)⋅LMN
 end
 
 surfacemetric(dom,f::Function) = surfacemetric(TensorField(dom,f))
-function surfacemetric(t)
-    g = gradient(t)
+function surfacemetric(t::DiagonalField)
+    GridFrameBundle(PointArray(points(t),fiber(outermorphism(t))),immersion(t))
+end
+function surfacemetric(t::EndomorphismField)
+    GridFrameBundle(PointArray(points(t),fiber(Outermorphism(t))),immersion(t))
+end
+function surfacemetric(t,g=gradient(t))
     V = Submanifold(MetricTensor([1 1; 1 1]))
-    dfdx,dfdy = getindex.(g,1),getindex.(g,2)
-    E,F,G = Real(dfdx⋅dfdx),Real(dfdx⋅dfdy),Real(dfdy⋅dfdy)
-    g1,g2 = E*Λ(V).v1+F*Λ(V).v2,G*Λ(V).v2+F*Λ(V).v1
-    EFG = Outermorphism.(Chain{V}.(fiber(g1),fiber(g2)))
+    EFG = Outermorphism.(fiber(firstform(t,g,V)))
     GridFrameBundle(PointArray(points(t),EFG),immersion(t))
 end
 
 surfacemetricdiag(dom,f::Function) = surfacemetricdiag(TensorField(dom,f))
-function surfacemetricdiag(t)
-    g = gradient(t)
+surfacemetricdiag(t::DiagonalField) = surfacemetric(t)
+function surfacemetricdiag(t,g=gradient(t))
     V = Submanifold(DiagonalForm(Values(1,1)))
-    dfdx,dfdy = getindex.(g,1),getindex.(g,2)
-    g1,g2 = fiber(Real(dfdx⋅dfdx)),fiber(Real(dfdy⋅dfdy))
-    EG = outermorphism.(DiagonalOperator.(Chain{V}.(g1,g2)))
+    EG = outermorphism.(fiber(firstformdiag(t,g,V)))
     GridFrameBundle(PointArray(points(t),EG),immersion(t))
 end
 
-function surfaceframe(t)
-    g = getindex.(metricextensor(t),1)
-    V = Submanifold(MetricTensor([1 1; 1 1]))
-    E,F,G = getindex.(g,1,1),getindex.(g,1,2),getindex.(g,2,2)
-    F2 = F.*F; mag,sig = sqrt.((E.*E).+F2), sign.(F2.-(E.*G))
-    TensorOperator.(Chain.(Chain.(E,F)./mag,Chain.(F,.-E)./(sig.*mag)))
+surfaceframe(t::DiagonalField) = surfaceframediag(t)
+surfaceframe(t::AbstractFrameBundle) = surfaceframe(metrictensorfield(t))
+function surfaceframe(t::EndomorphismField)
+    surfaceframe(base(t),getindex.(t,1,1),getindex.(t,1,2),getindex.(t,2,2))
 end
-function surfaceframediag(t)
-    g = getindex.(metricextensor(t),1)
-    V = Submanifold(DiagonalForm(Values(1,1)))
-    E,G = getindex.(g,1,1),getindex.(g,2,2)
+function surfaceframe(t,g=gradient(t))
+    dx,dy = getindex.(g,1),getindex.(g,2)
+    surfaceframe(base(t),fiber(Real(dx⋅dx)),fiber(Real(dx⋅dy)),fiber(Real(dy⋅dy)))
+end
+function surfaceframe(b,E,F,G)
+    F2 = F.*F; mag,sig = sqrt.((E.*E).+F2), sign.(F2.-(E.*G))
+    TensorField(b,TensorOperator.(Chain.(Chain.(E,F)./mag,Chain.(F,.-E)./(sig.*mag))))
+end
+
+surfaceframediag(t) = surfaceframediag(firstformdiag(t))
+surfaceframediag(t::AbstractFrameBundle) = surfaceframediag(metrictensorfield(t))
+function surfaceframediag(t::DiagonalField)
+    E,G = getindex.(value.(fiber(g)),1),getindex.(value.(fiber(g)),2)
     mag,sig = sqrt.(E.*E), sign.(.-(E.*G))
-    DiagonalOperator.(Chain.(E./mag,.-E./(sig.*mag)))
+    TensorField(base(t),DiagonalOperator.(Chain.(E./mag,.-E./(sig.*mag))))
 end
 
 _firstkind(dg,k,i,j) = dg[k,j][i] + dg[i,k][j] - dg[i,j][k]
@@ -1092,8 +1185,9 @@ end
     Expr(:call,:TensorOperator,Expr(:call,:Chain,[:(secondkind(ig,dg,$j)) for j ∈ list(1,mdims(fibertype(dg)))]...))
 end
 
-geodesic(Γ::TensorField) = x -> geodesic(x,Γ)
+geodesic(Γ) = x -> geodesic(x,Γ)
 geodesic(g::AbstractFrameBundle) = geodesic(secondkind(g))
+geodesic(x,Γ::Function) = (x2 = x[2]; Chain(x2,-geodesic(x2,Γ(x[1]))))
 geodesic(x,Γ::TensorField) = (x2 = x[2]; Chain(x2,-geodesic(x2,Γ(x[1]))))
 @generated function geodesic(x::Chain{V,G,T,N} where {V,G,T},Γ) where N
     Expr(:call,:+,vcat([[:(Γ[$i,$j]*(x[$i]*x[$j])) for i ∈ list(1,N)] for j ∈ list(1,N)]...)...)
