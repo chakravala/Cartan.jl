@@ -12,7 +12,7 @@
 #   https://github.com/chakravala
 #   https://crucialflow.com
 
-export FiberProduct, FiberProductBundle, HomotopyBundle
+export FiberProduct, FiberProductBundle, HomotopyBundle, resample
 export LocalSection, GlobalFiber, LocalFiber, localfiber, globalfiber
 export base, fiber, domain, codomain, ↦, →, ←, ↤, basetype, fibertype, graph
 export ProductSpace, RealRegion, NumberLine, Rectangle, Hyperrectangle, ⧺, ⊕
@@ -45,6 +45,14 @@ Base.iterate(t::RealRegion) = (getindex(t,1),1)
 Base.iterate(t::RealRegion,state) = (s=state+1; s≤length(t) ? (getindex(t,s),s) : nothing)
 
 resize_lastdim!(m::ProductSpace,i) = (resize!(m.v[end],i); m)
+
+resample(m::OneTo,i::Int) = LinRange(1,m.stop,i)
+resample(m::UnitRange,i::Int) = LinRange(m.start,m.stop,i)
+resample(m::StepRange,i::Int) = LinRange(m.start,m.stop,i)
+resample(m::LinRange,i::Int) = LinRange(m.start,m.stop,i)
+resample(m::StepRangeLen,i::Int) = StepRangeLen(m.ref,(m.step*(m.len-1))/(i-1),i)
+resample(m::AbstractRange,i::NTuple{1,Int}) = resample(m,i...)
+resample(m::ProductSpace,i::NTuple) = ProductSpace(resample.(m.v,i))
 
 @generated Base.size(m::RealRegion{V}) where V = :(($([:(size(@inbounds m.v[$i])...) for i ∈ 1:mdims(V)]...),))
 @generated Base.getindex(m::RealRegion{V,T,N},i::Vararg{Int}) where {V,T,N} = :(Chain{V,1,T}(Values{N,T}($([:((@inbounds m.v[$j])[@inbounds i[$j]]) for j ∈ 1:N]...))))
@@ -182,6 +190,12 @@ resize(m::ProductTopology{1},i) = ProductTopology(@inbounds resize(m.v[1],i))
     Expr(:call,:ProductTopology,Expr(:call,:Values,[j≠N ? :(@inbounds m.v[$j]) : :(@inbounds resize(m.v[$j],i)) for j ∈ list(1,N)]...))
 end
 
+resample(m,i::Int...) = resample(m,i)
+resample(m::ProductTopology{1},i::NTuple{1}) = ProductTopology(@inbounds resize(m.v[1],i[1]))
+@generated function resample(m::ProductTopology{N},i::NTuple{N}) where N
+    Expr(:call,:ProductTopology,Expr(:call,:Values,[:(@inbounds resize(m.v[$j],i[$j])) for j ∈ list(1,N)]...))
+end
+
 @generated Base.size(m::ProductTopology{N}) where N = :(($([:(size(@inbounds m.v[$i])...) for i ∈ 1:N]...),))
 @generated Base.getindex(m::ProductTopology{N},i::Vararg{Int}) where N = :(Values{N,Int}($([:((@inbounds m.v[$j])[@inbounds i[$j]]) for j ∈ 1:N]...)))
 Base.getindex(m::ProductTopology{1},i::Int) = Values(((@inbounds m.v[1])[i],))
@@ -202,9 +216,28 @@ function Base._ind2sub(A::ProductTopology, ind)
     Base._ind2sub(axes(A), ind)
 end
 
-exclude(m::ProductTopology) = m
-exclude(m::ProductTopology{N},n::Int) where N = ProductTopology(m.v[vcat([i≠n ? Values((i,)) : Values{0,Int}() for i ∈ list(1,N)]...)])
-exclude(m::ProductTopology{N},n::Int...) where N = ProductTopology(m.v[vcat([i∉n ? Values((i,)) : Values{0,Int}() for i ∈ list(1,N)]...)])
+#exclude(m::ProductTopology{N},n::Int) where N = ProductTopology(m.v[vcat([i≠n ? Values((i,)) : Values{0,Int}() for i ∈ list(1,N)]...)])
+#exclude(m::ProductTopology{N},n::Int...) where N = ProductTopology(m.v[vcat([i∉n ? Values((i,)) : Values{0,Int}() for i ∈ list(1,N)]...)])
+@inline exclude(m::ProductTopology) = m
+@inline exclude(m::ProductTopology{2},::Val{1}) = ProductTopology(m.v[2])
+@inline exclude(m::ProductTopology{2},::Val{2}) = ProductTopology(m.v[1])
+@generated function exclude(m::ProductTopology{N},::Val{n}) where {N,n}
+    N==2 && (return :(ProductTopology(m.v[$n])))
+    vals = vcat([i≠n ? Values((i,)) : Values{0,Int}() for i ∈ list(1,N)]...)
+    :(ProductTopology(m.v[$vals]))
+end
+@generated function exclude(m::ProductTopology{N},::Val{n1},::Val{n2}) where {N,n1,n2}
+    vals = vcat([i∉(n1,n2) ? Values((i,)) : Values{0,Int}() for i ∈ list(1,N)]...)
+    :(ProductTopology(m.v[$vals]))
+end
+@generated function exclude(m::ProductTopology{N},::Val{n1},::Val{n2},::Val{n3}) where {N,n1,n2,n3}
+    vals = vcat([i∉(n1,n2,n3) ? Values((i,)) : Values{0,Int}() for i ∈ list(1,N)]...)
+    :(ProductTopology(m.v[$vals]))
+end
+@generated function exclude(m::ProductTopology{N},::Val{n1},::Val{n2},::Val{n3},::Val{n4}) where {N,n1,n2,n3,n4}
+    vals = vcat([i∉(n1,n2,n3,n4) ? Values((i,)) : Values{0,Int}() for i ∈ list(1,N)]...)
+    :(ProductTopology(m.v[$vals]))
+end
 
 cross(a::ProductTopology,b::ProductTopology) = ProductTopology(Values(a.v...,b.v...))
 cross(a::ProductTopology,b::AbstractVector{Int}) = ProductTopology(Values(a.v...,b))
@@ -217,8 +250,16 @@ struct QuotientTopology{N,L,M,O,LA<:ImmersedTopology{L,L}} <: ImmersedTopology{N
     q::Values{O,LA}
     r::Values{M,Int}
     s::Values{N,Int}
+    #t::Values{O,Int}
     #QuotientTopology(p::Values{O,Int},q::Values{O,LA},r::Values{M,Int},n::Values{N,Int}) where {O,L,LA<:ImmersedTopology{L,L},M,N} = QuotientTopology{N,L,M,O,LA}(p,q,r,n)
 end
+
+#QuotientTopology(p::Values{O,Int},q::Values{O,LA},r::Values{M,Int},n::Values{N,Int}) where {O,L,LA<:ImmersedTopology{L,L},M,N} = QuotientTopology{N,L,M,O,LA}(p,q,r,n,invert_q(Val(O),r))
+
+invert_q(s::Int,i::Int) = iszero(s) ? () : (i,)
+invert_q(::Val{M},s::Values{M,Int}) where M = s
+invert_q(::Val{0},s::Values{M,Int}) where M = Values{0,Int}()
+@generated invert_q(::Val{O},s::Values{M,Int}) where {O,M} = Expr(:call,:(Values{O,Int}),[:(invert_q((@inbounds s[$i]),$i)...) for i ∈ list(1,M)]...)
 
 const OpenTopology{N,L,M,LA} = QuotientTopology{N,L,M,0,LA}
 const CompactTopology{N,L,M,LA} = QuotientTopology{N,L,M,M,LA}
@@ -257,48 +298,57 @@ SphereTopology(n::Values{5,Int}) = QuotientTopology(Values(1,2,3,4,5,6,7,8,10,9)
 GeographicTopology(n::Values{2,Int}) = QuotientTopology(Values(2,1,3,4),Values(ProductTopology(n[2]),ProductTopology(n[2]),ProductTopology(CrossRange(n[1])),ProductTopology(CrossRange(n[1]))),Values(1,2,3,4),n)
 
 OpenParameter(n::ProductTopology) = OpenParameter(n.v)
-OpenParameter(n::Values{1,Int}) = TensorField(GridFrameBundle(PointArray(0,LinRange(0,1,n[1])),OpenTopology(n)))
-OpenParameter(n::Values{2,Int}) = TensorField(GridFrameBundle(PointArray(LinRange(0,1,n[1])⊕LinRange(0,1,n[2])),OpenTopology(n)))
-OpenParameter(n::Values{3,Int}) = TensorField(GridFrameBundle(PointArray((LinRange(0,1,n[1])⊕LinRange(0,1,n[2]))⊕LinRange(0,1,n[3])),OpenTopology(n)))
-OpenParameter(n::Values{4,Int}) = TensorField(GridFrameBundle(PointArray(((LinRange(0,1,n[1])⊕LinRange(0,1,n[2]))⊕LinRange(0,1,n[3]))⊕LinRange(0,1,n[4])),OpenTopology(n)))
-OpenParameter(n::Values{5,Int}) = TensorField(GridFrameBundle(PointArray((((LinRange(0,1,n[1])⊕LinRange(0,1,n[2]))⊕LinRange(0,1,n[3]))⊕LinRange(0,1,n[4]))⊕LinRange(0,1,n[5])),OpenTopology(n)))
-RibbonParameter(n::Values{2,Int}) = TensorField(GridFrameBundle(PointArray(LinRange(0,2π,n[1])⊕LinRange(-1,1,n[2])),RibbonTopology(n)))
-MobiusParameter(n::Values{2,Int}) = TensorField(GridFrameBundle(PointArray(LinRange(0,2π,n[1])⊕LinRange(-1,1,n[2])),MobiusTopology(n)))
-WingParameter(n::Values{2,Int}) = TensorField(GridFrameBundle(PointArray(LinRange(0,1,n[1])⊕LinRange(-1,1,n[2])),WingTopology(n)))
-MirrorParameter(n::Values{1,Int}) = TensorField(GridFrameBundle(PointArray(0,LinRange(0,2π,n[1])),MirrorTopology(n)))
-MirrorParameter(n::Values{2,Int}) = TensorField(GridFrameBundle(PointArray(LinRange(0,2π,n[1])⊕LinRange(0,1,n[2])),MirrorTopology(n)))
-MirrorParameter(n::Values{3,Int}) = TensorField(GridFrameBundle(PointArray((LinRange(0,2π,n[1])⊕LinRange(0,1,n[2]))⊕LinRange(0,1,n[3])),MirrorTopology(n)))
-MirrorParameter(n::Values{4,Int}) = TensorField(GridFrameBundle(PointArray(((LinRange(0,2π,n[1])⊕LinRange(0,1,n[2]))⊕LinRange(0,1,n[3]))⊕LinRange(0,1,n[4])),MirrorTopology(n)))
-MirrorParameter(n::Values{5,Int}) = TensorField(GridFrameBundle(PointArray((((LinRange(0,2π,n[1])⊕LinRange(0,1,n[2]))⊕LinRange(0,1,n[3]))⊕LinRange(0,1,n[4]))⊕LinRange(0,1,n[5])),MirrorTopology(n)))
-ClampedParameter(n::Values{1,Int}) = TensorField(GridFrameBundle(PointArray(0,LinRange(0,2π,n[1])),ClampedTopology(n)))
-ClampedParameter(n::Values{2,Int}) = TensorField(GridFrameBundle(PointArray(LinRange(0,2π,n[1])⊕LinRange(0,2π,n[2])),ClampedTopology(n)))
-ClampedParameter(n::Values{3,Int}) = TensorField(GridFrameBundle(PointArray((LinRange(0,2π,n[1])⊕LinRange(0,2π,n[2]))⊕LinRange(0,2π,n[3])),ClampedTopology(n)))
-ClampedParameter(n::Values{4,Int}) = TensorField(GridFrameBundle(PointArray(((LinRange(0,2π,n[1])⊕LinRange(0,2π,n[2]))⊕LinRange(0,2π,n[3]))⊕LinRange(0,2π,n[4])),ClampedTopology(n)))
-ClampedParameter(n::Values{5,Int}) = TensorField(GridFrameBundle(PointArray((((LinRange(0,2π,n[1])⊕LinRange(0,2π,n[2]))⊕LinRange(0,2π,n[3]))⊕LinRange(0,2π,n[4]))⊕LinRange(0,2π,n[5])),ClampedTopology(n)))
-TorusParameter(n::Values{1,Int}) = TensorField(GridFrameBundle(PointArray(0,LinRange(0,2π,n[1])),TorusTopology(n)))
-TorusParameter(n::Values{2,Int}) = TensorField(GridFrameBundle(PointArray(LinRange(0,2π,n[1])⊕LinRange(0,2π,n[2])),TorusTopology(n)))
-TorusParameter(n::Values{3,Int}) = TensorField(GridFrameBundle(PointArray((LinRange(0,2π,n[1])⊕LinRange(0,2π,n[2]))⊕LinRange(0,2π,n[3])),TorusTopology(n)))
-TorusParameter(n::Values{4,Int}) = TensorField(GridFrameBundle(PointArray(((LinRange(0,2π,n[1])⊕LinRange(0,2π,n[2]))⊕LinRange(0,2π,n[3]))⊕LinRange(0,2π,n[4])),TorusTopology(n)))
-TorusParameter(n::Values{5,Int}) = TensorField(GridFrameBundle(PointArray((((LinRange(0,2π,n[1])⊕LinRange(0,2π,n[2]))⊕LinRange(0,2π,n[3]))⊕LinRange(0,2π,n[4]))⊕LinRange(0,2π,n[5])),TorusTopology(n)))
-HopfParameter(n::Values{2,Int}) = TensorField(GridFrameBundle(PointArray(LinRange(0,2π,n[2])⊕LinRange(0,4π,n[3])),HopfTopology(n)))
-HopfParameter(n::Values{3,Int}) = TensorField(GridFrameBundle(PointArray((LinRange(7π/16/n[1],7π/16,n[1])⊕LinRange(0,2π,n[2]))⊕LinRange(0,4π,n[3])),HopfTopology(n)))
-KleinParameter(n::Values{2,Int}) = TensorField(GridFrameBundle(PointArray(LinRange(0,2π,n[1])⊕LinRange(0,2π,n[2])),KleinTopology(n)))
-ConeParameter(n::Values{2,Int}) = TensorField(GridFrameBundle(PointArray(LinRange(0,1,n[1])⊕LinRange(0,2π,n[2])),ConeTopology(n)))
-PolarParameter(n::Values{2,Int}) = TensorField(GridFrameBundle(PointArray(LinRange(0,1,n[1])⊕LinRange(0,2π,n[2])),PolarTopology(n)))
+OpenParameter(n::Values{1,Int}) = OpenTopology(PointArray(0,LinRange(0,1,n[1])))
+OpenParameter(n::Values{2,Int}) = OpenTopology(LinRange(0,1,n[1])⊕LinRange(0,1,n[2]))
+OpenParameter(n::Values{3,Int}) = OpenTopology(LinRange(0,1,n[1])⊕LinRange(0,1,n[2])⊕LinRange(0,1,n[3]))
+OpenParameter(n::Values{4,Int}) = OpenTopology(LinRange(0,1,n[1])⊕LinRange(0,1,n[2])⊕LinRange(0,1,n[3])⊕LinRange(0,1,n[4]))
+OpenParameter(n::Values{5,Int}) = OpenTopology(LinRange(0,1,n[1])⊕LinRange(0,1,n[2])⊕LinRange(0,1,n[3])⊕LinRange(0,1,n[4])⊕LinRange(0,1,n[5]))
+RibbonParameter(n::Values{2,Int}) = RibbonTopology(LinRange(0,2π,n[1])⊕LinRange(-1,1,n[2]))
+MobiusParameter(n::Values{2,Int}) = MobiusTopology(LinRange(0,2π,n[1])⊕LinRange(-1,1,n[2]))
+WingParameter(n::Values{2,Int}) = WingParameter(LinRange(0,1,n[1])⊕LinRange(-1,1,n[2]))
+MirrorParameter(n::Values{1,Int}) = MirrorTopology(PointArray(0,LinRange(0,2π,n[1])))
+MirrorParameter(n::Values{2,Int}) = MirrorTopology(LinRange(0,2π,n[1])⊕LinRange(0,1,n[2]))
+MirrorParameter(n::Values{3,Int}) = MirrorTopology(LinRange(0,2π,n[1])⊕LinRange(0,1,n[2])⊕LinRange(0,1,n[3]))
+MirrorParameter(n::Values{4,Int}) = MirrorTopology(LinRange(0,2π,n[1])⊕LinRange(0,1,n[2])⊕LinRange(0,1,n[3])⊕LinRange(0,1,n[4]))
+MirrorParameter(n::Values{5,Int}) = MirrorTopology(LinRange(0,2π,n[1])⊕LinRange(0,1,n[2])⊕LinRange(0,1,n[3])⊕LinRange(0,1,n[4])⊕LinRange(0,1,n[5]))
+ClampedParameter(n::Values{1,Int}) = ClampedTopology(PointArray(0,LinRange(0,2π,n[1])))
+ClampedParameter(n::Values{2,Int}) = ClampedTopology(LinRange(0,2π,n[1])⊕LinRange(0,2π,n[2]))
+ClampedParameter(n::Values{3,Int}) = ClampedTopology(LinRange(0,2π,n[1])⊕LinRange(0,2π,n[2])⊕LinRange(0,2π,n[3]))
+ClampedParameter(n::Values{4,Int}) = ClampedTopology(LinRange(0,2π,n[1])⊕LinRange(0,2π,n[2])⊕LinRange(0,2π,n[3])⊕LinRange(0,2π,n[4]))
+ClampedParameter(n::Values{5,Int}) = ClampedTopology(LinRange(0,2π,n[1])⊕LinRange(0,2π,n[2])⊕LinRange(0,2π,n[3])⊕LinRange(0,2π,n[4])⊕LinRange(0,2π,n[5]))
+TorusParameter(n::Values{1,Int}) = TorusTopology(PointArray(0,LinRange(0,2π,n[1])))
+TorusParameter(n::Values{2,Int}) = TorusTopology(LinRange(0,2π,n[1])⊕LinRange(0,2π,n[2]))
+TorusParameter(n::Values{3,Int}) = TorusTopology(LinRange(0,2π,n[1])⊕LinRange(0,2π,n[2])⊕LinRange(0,2π,n[3]))
+TorusParameter(n::Values{4,Int}) = TorusTopology(LinRange(0,2π,n[1])⊕LinRange(0,2π,n[2])⊕LinRange(0,2π,n[3])⊕LinRange(0,2π,n[4]))
+TorusParameter(n::Values{5,Int}) = TorusTopology(LinRange(0,2π,n[1])⊕LinRange(0,2π,n[2])⊕LinRange(0,2π,n[3])⊕LinRange(0,2π,n[4])⊕LinRange(0,2π,n[5]))
+HopfParameter(n::Values{2,Int}) = HopfTopology(LinRange(0,2π,n[2])⊕LinRange(0,4π,n[3]))
+HopfParameter(n::Values{3,Int}) = HopfTopology(LinRange(7π/16/n[1],7π/16,n[1])⊕LinRange(0,2π,n[2])⊕LinRange(0,4π,n[3]))
+KleinParameter(n::Values{2,Int}) = KleinTopology(LinRange(0,2π,n[1])⊕LinRange(0,2π,n[2]))
+ConeParameter(n::Values{2,Int}) = ConeTopology(LinRange(0,1,n[1])⊕LinRange(0,2π,n[2]))
+PolarParameter(n::Values{2,Int}) = PolarTopology(LinRange(0,1,n[1])⊕LinRange(0,2π,n[2]))
 SphereParameter(n::Values{1,Int}) = TorusParameter(n)
-SphereParameter(n::Values{2,Int}) = TensorField(GridFrameBundle(PointArray(LinRange(0,π,n[1])⊕LinRange(0,2π,n[2])),SphereTopology(n)))
-SphereParameter(n::Values{3,Int}) = TensorField(GridFrameBundle(PointArray((LinRange(0,π,n[1])⊕LinRange(0,π,n[2]))⊕LinRange(0,2π,n[3])),SphereTopology(n)))
-SphereParameter(n::Values{4,Int}) = TensorField(GridFrameBundle(PointArray(((LinRange(0,π,n[1])⊕LinRange(0,π,n[2]))⊕LinRange(0,π,n[3]))⊕LinRange(0,2π,n[4])),SphereTopology(n)))
-SphereParameter(n::Values{5,Int}) = TensorField(GridFrameBundle(PointArray((((LinRange(0,π,n[1])⊕LinRange(0,π,n[2]))⊕LinRange(0,π,n[3]))⊕LinRange(0,π,n[4]))⊕LinRange(0,2π,n[5])),SphereTopology(n)))
-GeographicParameter(n::Values{2,Int}) = TensorField(GridFrameBundle(PointArray(LinRange(-π,π,n[1])⊕LinRange(-π/2,π/2,n[2])),GeographicTopology(n)))
+SphereParameter(n::Values{2,Int}) = SphereTopology(LinRange(0,π,n[1])⊕LinRange(0,2π,n[2]))
+SphereParameter(n::Values{3,Int}) = SphereTopology(LinRange(0,π,n[1])⊕LinRange(0,π,n[2])⊕LinRange(0,2π,n[3]))
+SphereParameter(n::Values{4,Int}) = SphereTopology(LinRange(0,π,n[1])⊕LinRange(0,π,n[2])⊕LinRange(0,π,n[3])⊕LinRange(0,2π,n[4]))
+SphereParameter(n::Values{5,Int}) = SphereTopology(LinRange(0,π,n[1])⊕LinRange(0,π,n[2])⊕LinRange(0,π,n[3])⊕LinRange(0,π,n[4])⊕LinRange(0,2π,n[5]))
+GeographicParameter(n::Values{2,Int}) = GeographicTopology(LinRange(-π,π,n[1])⊕LinRange(-π/2,π/2,n[2]))
 
+for fun ∈ (:Open,:Ribbon,:Mobius,:Wing,:Mirror,:Clamped,:Torus,:Hopf,:Klein,:Cone,:Polar,:Sphere,:Geographic)
+    for typ ∈ (Symbol(fun,:Topology),Symbol(fun,:Parameter))
+        @eval begin
+            export $typ
+            $typ(p::ProductSpace) = $typ(PointArray(p))
+            $typ(p::Values{N,<:AbstractVector} where N) = $typ(ProductSpace(p))
+            $typ(p::T...) where T<:AbstractVector = $typ(ProductSpace(Values(p)))
+            $typ(n::NTuple) = $typ(Values(n))
+        end
+    end
+end
 for mod ∈ (:Topology,:Parameter)
     for fun ∈ (:Hopf,)
         for typ ∈ (Symbol(fun,mod),)
             @eval begin
-                export $typ
                 $typ(n::Int...) = $typ(Values(n...))
-                $typ(n::NTuple) = $typ(Values(n))
                 $typ() = $typ(Values(7,60,61))
             end
         end
@@ -306,19 +356,15 @@ for mod ∈ (:Topology,:Parameter)
     for fun ∈ (:Open,:Mirror,:Clamped,:Torus)
         for typ ∈ (Symbol(fun,mod),)
             @eval begin
-                export $typ
                 $typ() = $typ(60,60)
                 $typ(n::Int...) = $typ(Values(n...))
-                $typ(n::NTuple) = $typ(Values(n))
             end
         end
     end
-    for (fun,(n,m)) ∈ ((:Ribbon,(60,20)),(:Wing,(60,20)),(:Mobius,(60,20)),(:Klein,(60,60)),(:Cone,(30,:(2n+1))),(:Polar,(30,:(2n))),(:Sphere,(30,:(2n+1))),(:Geographic,(:(2n+1),30)))
+    for (fun,n,m) ∈ ((:Ribbon,60,20),(:Wing,60,20),(:Mobius,60,20),(:Klein,60,60),(:Cone,30,:(2n+1)),(:Polar,30,:(2n)),(:Sphere,30,:(2n+1)),(:Geographic,61,:(n÷2)))
         for typ ∈ (Symbol(fun,mod),)
             @eval begin
-                export $typ
                 $typ(n=$n,m=$m) = $typ(Values(n,m))
-                $typ(n::NTuple{2,Int}) = $typ(Values(n))
             end
         end
     end
@@ -407,11 +453,26 @@ end
          :(m.r),
          Expr(:call,:Values,[j≠N ? :(@inbounds m.s[$j]) : :i for j ∈ list(1,N)]...))
 end
-@generated function resize(m::CompactTopology{N,L,M,O},i) where {N,L,M,O}
+@generated function resize(m::QuotientTopology{N,L,O,O},i) where {N,L,O}
     Expr(:call,:QuotientTopology,:(m.p),
          Expr(:call,:Values,[j∉(O-1,O) ? :(@inbounds resize(m.q[$j],i)) : :(@inbounds m.q[$j]) for j ∈ list(1,O)]...),
          :(m.r),
          Expr(:call,:Values,[j≠N ? :(@inbounds m.s[$j]) : :i for j ∈ list(1,N)]...))
+end
+
+resample(m::QuotientTopology{N,L,M,0},i::NTuple{N}) where {N,L,M} = QuotientTopology(m.p,m.q,m.r,Values(i))
+@generated function resample(m::QuotientTopology{N,L,O,O},i::NTuple{N}) where {N,L,O}
+    Expr(:block,:(perms = $(reverse(Values{L}.(Values{N}(Grassmann.combo(N,L)))))),
+        Expr(:call,:QuotientTopology,:(m.p),
+            Expr(:call,:Values,Expr(:tuple,[:(@inbounds resample(m.q[$j],i[perms[$((j+1)÷2)]])) for j ∈ list(1,O)]...)),
+            :(m.r),Expr(:call,:Values,:i)))
+end
+@generated function resample(m::QuotientTopology{N,L,M,O},i::NTuple{N}) where {N,L,M,O}
+    Expr(:block,:(t = invert_q($(Val(O)),m.r)),
+        :(perms = $(reverse(Values{L}.(Values{N}(Grassmann.combo(N,L)))))),
+        Expr(:call,:QuotientTopology,:(m.p),
+            Expr(:call,:Values,Expr(:tuple,[:(@inbounds resample(m.q[$j],i[perms[t[$((j+1)÷2)]]])) for j ∈ list(1,O)]...)),
+            :(m.r),Expr(:call,:Values,:i)))
 end
 
 @pure Base.eltype(::Type{<:QuotientTopology{N}}) where N = Values{N,Int}
@@ -644,21 +705,11 @@ function subtopology(m::QuotientTopology,i::NTuple{N,Int},::Colon,j::NTuple{M,In
     N1,M1,s = N+1,N+M+2,size(m)
     r,vals = m.r[Values(2N1-1,2N1,2M1-1,2M1)],Values(i...,j...,k...)
     (p1,p2,p3,p4) = (
-        findface(m,r,1,vals,M1-1),findface(m,r,2,vals,M1-1),
-        findface(m,r,3,vals,N1),findface(m,r,4,vals,N1))
+        findface(m,r,1,vals,Val(M1-1)),findface(m,r,2,vals,Val(M1-1)),
+        findface(m,r,3,vals,Val(N1)),findface(m,r,4,vals,Val(N1)))
     p1z,p2z,p3z,p4z = iszero.((p1,p2,p3,p4))
     pz = !(p1z)+!(p2z)+!(p3z)+!(p4z)
-    vpz = if iszero(pz)
-        Values{0}
-    elseif isone(pz)
-        Values{1}
-    elseif pz==2
-        Values{2}
-    elseif pz==3
-        Values{3}
-    else
-        Values{4}
-    end
+    vpz = iszero(pz) ? Values{0} : isone(pz) ? Values{1} : pz==2 ? Values{2} : pz==3 ? Values{3} : Values{4}
     a = iszero(pz) ? Values{0,Int}() : vpz((p1z ? () : (p1,))...,(p2z ? () : (p2,))...,(p3z ? () : (p3,))...,(p4z ? () : (p4,))...)
     b = if iszero(pz)
         Values{0,Array{Values{1,Int},1}}()
@@ -669,21 +720,23 @@ function subtopology(m::QuotientTopology,i::NTuple{N,Int},::Colon,j::NTuple{M,In
         (p4z ? () : (ProductTopology(m.q[r[4]].v[N1]),))...)
     end
     c = Values{4,Int}(p1z ? 0 : 1,p2z ? 0 : !(p1z)+!(p2z),p3z ? 0 : !(p1z)+!(p2z)+!(p3z),p4z ? 0 : pz)
+    #e = iszero(pz) ? Values{0,Int} : vpz((p1z ? () : (1,))...,(p2z ? () : (!(p1z)+!(p2z),))...,(p3z ? () : (!(p1z)+!(p2z)+!(p3z),))...,(p4z ? () : (pz,))...)
     QuotientTopology(a,b,c,Values(s[N1],s[M1]))
 end
 function subtopology(m::QuotientTopology,i::NTuple{N,Int},::Colon,j::NTuple{M,Int},::Colon,k::NTuple{L,Int},::Colon,l::NTuple{O,Int} where O) where {N,M,L}
     N1,M1,L1,s = N+1,N+M+2,N+M+L+3,size(m)
     r,vals = m.r[Values(2N1-1,2N1,2M1-1,2M1,2L1-1,2L1)],Values(i...,j...,k...,l...)
     (p1,p2,p3,p4,p5,p6) = (
-        findface(m,r,1,vals,M1-1,L1-1),findface(m,r,2,vals,M1-1,L1-1),
-        findface(m,r,3,vals,N1,L1-1),findface(m,r,4,vals,N1,L1-1),
-        findface(m,r,5,vals,N1,M1),findface(m,r,6,vals,N1,M1))
+        findface(m,r,1,vals,Val(M1-1),Val(L1-1)),findface(m,r,2,vals,Val(M1-1),Val(L1-1)),
+        findface(m,r,3,vals,Val(N1),Val(L1-1)),findface(m,r,4,vals,Val(N1),Val(L1-1)),
+        findface(m,r,5,vals,Val(N1),Val(M1)),findface(m,r,6,vals,Val(N1),Val(M1)))
     p1z,p2z,p3z,p4z,p5z,p6z = iszero.((p1,p2,p3,p4,p5,p6))
     pz = !(p1z)+!(p2z)+!(p3z)+!(p4z)+!(p5z)+!(p6z)
-    a = Values{pz,Int}((p1z ? () : (p1,))...,(p2z ? () : (p2,))...,(p3z ? () : (p3,))...,(p4z ? () : (p4,))...,(p5z ? () : (p5,))...,(p6z ? () : (p6,))...)
+    vpz = iszero(pz) ? Values{0} : isone(pz) ? Values{1} : pz==2 ? Values{2} : pz==3 ? Values{3} : pz==4 ? Values{4} : pz==5 ? Values{5} : Values{6}
+    a = iszero(pz) ? Values{0,Int}() : vpz((p1z ? () : (p1,))...,(p2z ? () : (p2,))...,(p3z ? () : (p3,))...,(p4z ? () : (p4,))...,(p5z ? () : (p5,))...,(p6z ? () : (p6,))...)
     b = if iszero(pz)
-        Values{pz,Array{Values{2,Int},2}}()
-    else; Values{pz}(
+        Values{0,Array{Values{2,Int},2}}()
+    else; vpz(
         (p1z ? () : (ProductTopology(m.q[r[1]].v[Values(M1-1,L1-1)]),))...,
         (p2z ? () : (ProductTopology(m.q[r[2]].v[Values(M1-1,L1-1)]),))...,
         (p3z ? () : (ProductTopology(m.q[r[3]].v[Values(N1,L1-1)]),))...,
@@ -692,22 +745,24 @@ function subtopology(m::QuotientTopology,i::NTuple{N,Int},::Colon,j::NTuple{M,In
         (p6z ? () : (ProductTopology(m.q[r[6]].v[Values(N1,M1)]),))...)
     end
     c = Values(p1z ? 0 : 1,p2z ? 0 : !(p1z)+!(p2z),p3z ? 0 : !(p1z)+!(p2z)+!(p3z),p4z ? 0 : !(p1z)+!(p2z)+!(p3z)+!(p4z),p5z ? 0 : !(p1z)+!(p2z)+!(p3z)+!(p4z)+!(p5z),p6z ? 0 : pz)
+    #e = iszero(pz) ? Values{0,Int} : vpz((p1z ? () : (1,))...,(p2z ? () : (!(p1z)+!(p2z),))...,(p3z ? () : (!(p1z)+!(p2z)+!(p3z),))...,(p4z ? () : (!(p1z)+!(p2z)+!(p3z)+!(p4z),))...,(p5z ? () : (!(p1z)+!(p2z)+!(p3z)+!(p4z)+!(p5z),))...,(p6z ? () : (pz,))...)
     QuotientTopology(a,b,c,Values(s[N1],s[M1],s[L1]))
 end
 function subtopology(m::QuotientTopology,i::NTuple{N,Int},::Colon,j::NTuple{M,Int},::Colon,k::NTuple{L,Int},::Colon,l::NTuple{O,Int},::Colon,h::NTuple{H,Int} where H) where {N,M,L,O}
     N1,M1,L1,O1,s = N+1,N+M+2,N+M+L+3,N+M+L+O+4,size(m)
     r,vals = m.r[Values(2N1-1,2N1,2M1-1,2M1,2L1-1,2L1,2O1-1,2O1)],Values(i...,j...,k...,l...,h...)
     (p1,p2,p3,p4,p5,p6,p7,p8) = (
-        findface(m,r,1,vals,M1-1,L1-1,O1-1),findface(m,r,2,vals,M1-1,L1-1,O1-1),
-        findface(m,r,3,vals,N1,L1-1,O1-1),findface(m,r,4,vals,N1,L1-1,O1-1),
-        findface(m,r,5,vals,N1,M1,O1-1),findface(m,r,6,vals,N1,M1,O1-1),
-        findface(m,r,7,vals,N1,M1,L1),findface(m,r,8,vals,N1,M1,L1))
+        findface(m,r,1,vals,Val(M1-1),Val(L1-1),Val(O1-1)),findface(m,r,2,vals,Val(M1-1),Val(L1-1),Val(O1-1)),
+        findface(m,r,3,vals,Val(N1),Val(L1-1),Val(O1-1)),findface(m,r,4,vals,Val(N1),Val(L1-1),Val(O1-1)),
+        findface(m,r,5,vals,Val(N1),Val(M1),Val(O1-1)),findface(m,r,6,vals,Val(N1),Val(M1),Val(O1-1)),
+        findface(m,r,7,vals,Val(N1),Val(M1),Val(L1)),findface(m,r,8,vals,Val(N1),Val(M1),Val(L1)))
     p1z,p2z,p3z,p4z,p5z,p6z,p7z,p8z = iszero.((p1,p2,p3,p4,p5,p6,p7,p8))
     pz = !(p1z)+!(p2z)+!(p3z)+!(p4z)+!(p5z)+!(p6z)+!(p7z)+!(p8z)
-    a = Values{pz,Int}((p1z ? () : (p1,))...,(p2z ? () : (p2,))...,(p3z ? () : (p3,))...,(p4z ? () : (p4,))...,(p5z ? () : (p5,))...,(p6z ? () : (p6,))...,(p7z ? () : (p7,))...,(p8z ? () : (p8,))...)
+    vpz = iszero(pz) ? Values{0} : isone(pz) ? Values{1} : pz==2 ? Values{2} : pz==3 ? Values{3} : pz==4 ? Values{4} : pz==5 ? Values{5} : pz==6 ? Values{6} : pz==7 ? Values{7} : Values{8}
+    a = iszero(pz) ? Values{0,Int}() : vpz((p1z ? () : (p1,))...,(p2z ? () : (p2,))...,(p3z ? () : (p3,))...,(p4z ? () : (p4,))...,(p5z ? () : (p5,))...,(p6z ? () : (p6,))...,(p7z ? () : (p7,))...,(p8z ? () : (p8,))...)
     b = if iszero(pz)
-        Values{pz,Array{Values{3,Int},3}}()
-    else; Values{pz}(
+        Values{0,Array{Values{3,Int},3}}()
+    else; vpz(
         (p1z ? () : (ProductTopology(m.q[r[1]].v[Values(M1-1,L1-1,O1-1)]),))...,
         (p2z ? () : (ProductTopology(m.q[r[2]].v[Values(M1-1,L1-1,O1-1)]),))...,
         (p3z ? () : (ProductTopology(m.q[r[3]].v[Values(N1,L1-1,O1-1)]),))...,
@@ -718,6 +773,7 @@ function subtopology(m::QuotientTopology,i::NTuple{N,Int},::Colon,j::NTuple{M,In
         (p8z ? () : (ProductTopology(m.q[r[8]].v[Values(N1,M1,L1)]),))...)
     end
     c = Values(p1z ? 0 : 1,p2z ? 0 : !(p1z)+!(p2z),p3z ? 0 : !(p1z)+!(p2z)+!(p3z),p4z ? 0 : !(p1z)+!(p2z)+!(p3z)+!(p4z),p5z ? 0 : !(p1z)+!(p2z)+!(p3z)+!(p4z)+!(p5z),p6z ? 0 : !(p1z)+!(p2z)+!(p3z)+!(p4z)+!(p5z)+!(p6z),p7z ? 0 : !(p1z)+!(p2z)+!(p3z)+!(p4z)+!(p5z)+!(p6z)+!(p7z),p8z ? 0 : pz)
+    #e = iszero(pz) ? Values{0,Int} : vpz((p1z ? () : (1,))...,(p2z ? () : (!(p1z)+!(p2z),))...,(p3z ? () : (!(p1z)+!(p2z)+!(p3z),))...,(p4z ? () : (!(p1z)+!(p2z)+!(p3z)+!(p4z),))...,(p5z ? () : (!(p1z)+!(p2z)+!(p3z)+!(p4z)+!(p5z),))...,(p6z ? () : (!(p1z)+!(p2z)+!(p3z)+!(p4z)+!(p5z)+!(p6z),))...,(p7z ? () : (!(p1z)+!(p2z)+!(p3z)+!(p4z)+!(p5z)+!(p6z)+!(p7z),))...,(p8z ? () : (pz,))...)
     QuotientTopology(a,b,c,Values(s[N1],s[M1],s[L1],s[O1]))
 end
 
@@ -836,6 +892,7 @@ Base.show(io::IO, ::MIME"text/plain", t::Global) = show(io,t)
 ref(itr::InducedMetric) = Ref(itr)
 ref(itr::Global) = Ref(itr.v)
 ref(itr) = itr
+refmetric(x) = ref(metricextensor(x))
 
 # LocalFiber
 
@@ -943,6 +1000,7 @@ localfiber(x) = x
 localfiber(x::LocalTensor) = fiber(x)
 localfiber(x::LocalSection) = fiber(x)
 
+(m::TensorNested)(x::LocalTensor) = LocalTensor(base(x),m(fiber(x)))
 @inline Base.:<<(a::LocalFiber,b::LocalFiber) = contraction(b,~a)
 @inline Base.:>>(a::LocalFiber,b::LocalFiber) = contraction(~a,b)
 @inline Base.:<(a::LocalFiber,b::LocalFiber) = contraction(b,a)
@@ -951,6 +1009,9 @@ Base.inv(a::LocalTensor{B,<:Real} where B) = LocalTensor(base(a), inv(fiber(a)))
 Base.inv(a::LocalTensor{B,<:Complex} where B) = LocalTensor(base(a), inv(fiber(a)))
 Base.:/(a::LocalTensor,b::LocalTensor{B,<:Real} where B) = LocalTensor(base(a), fiber(a)/fiber(b))
 Base.:/(a::LocalTensor,b::LocalTensor{B,<:Complex} where B) = LocalTensor(base(a), fiber(a)/fiber(b))
+LinearAlgebra.:×(a::LocalTensor{R},b::LocalTensor{R}) where R = TensorField(base(a), ⋆(fiber(a)∧fiber(b),metricextensor(base(a))))
+Grassmann.compound(t::LocalTensor,i::Val) = LocalTensor(base(t), compound(fiber(t),i))
+Grassmann.compound(t::LocalTensor,i::Int) = LocalTensor(base(t), compound(fiber(t),i))
 Grassmann.eigen(t::LocalTensor,i::Val) = LocalTensor(base(t), eigen(fiber(t),i))
 Grassmann.eigen(t::LocalTensor,i::Int) = LocalTensor(base(t), eigen(fiber(t),i))
 Grassmann.eigvals(t::LocalTensor,i::Val) = LocalTensor(base(t), eigvals(fiber(t),i))
@@ -962,13 +1023,13 @@ for type ∈ (:Coordinate,:LocalSection,:LocalTensor)
     for tensor ∈ (:Single,:Couple,:PseudoCouple,:Chain,:Spinor,:AntiSpinor,:Multivector,:DiagonalOperator,:TensorOperator,:Outermorphism)
         @eval (T::Type{<:$tensor})(s::$type) = $type(base(s), T(fiber(s)))
     end
-    for fun ∈ (:-,:!,:~,:real,:imag,:conj,:deg2rad)
+    for fun ∈ (:-,:!,:~,:real,:imag,:conj,:deg2rad,:transpose)
         @eval Base.$fun(s::$type) = $type(base(s), $fun(fiber(s)))
     end
     for fun ∈ (:inv,:exp,:exp2,:exp10,:log,:log2,:log10,:sinh,:cosh,:abs,:sqrt,:cbrt,:cos,:sin,:tan,:cot,:sec,:csc,:asec,:acsc,:sech,:csch,:asech,:tanh,:coth,:asinh,:acosh,:atanh,:acoth,:asin,:acos,:atan,:acot,:sinc,:cosc,:cis,:abs2)
         @eval Base.$fun(s::$type) = $type(base(s), $fun(fiber(s),metricextensor(base(s))))
     end
-    for fun ∈ (:reverse,:involute,:clifford,:even,:odd,:scalar,:vector,:bivector,:volume,:value,:curl,:∂,:d,:complementleft,:realvalue,:imagvalue,:outermorphism,:Outermorphism,:DiagonalOperator,:TensorOperator,:eigen,:eigvecs,:eigvals,:eigvalsreal,:eigvalscomplex,:eigvecsreal,:eigvecscomplex,:eigpolys)
+    for fun ∈ (:reverse,:involute,:clifford,:even,:odd,:scalar,:vector,:bivector,:volume,:value,:curl,:∂,:d,:complementleft,:realvalue,:imagvalue,:outermorphism,:Outermorphism,:DiagonalOperator,:TensorOperator,:eigen,:eigvecs,:eigvals,:eigvalsreal,:eigvalscomplex,:eigvecsreal,:eigvecscomplex,:eigpolys,:∧)
         @eval Grassmann.$fun(s::$type) = $type(base(s), $fun(fiber(s)))
     end
     for fun ∈ (:⋆,:angle,:radius,:complementlefthodge,:pseudoabs,:pseudoabs2,:pseudoexp,:pseudolog,:pseudoinv,:pseudosqrt,:pseudocbrt,:pseudocos,:pseudosin,:pseudotan,:pseudocosh,:pseudosinh,:pseudotanh,:metric,:unit)
@@ -1059,6 +1120,7 @@ basetype(::PointArray{B}) where B = B
 basetype(::Type{<:PointArray{B}}) where B = B
 fibertype(::PointArray{B,F} where B) where F = F
 fibertype(::Type{<:PointArray{B,F} where B}) where F = F
+isinduced(::Array) = false
 isinduced(::Global) = false
 isinduced(::Global{N,<:InducedMetric} where N) = true
 isinduced(p::PointArray) = isinduced(metricextensor(p))
@@ -1284,6 +1346,7 @@ GridFrameBundle(dom::AbstractArray,fun::Function) = GridFrameBundle(dom, fun.(do
 
 isopen(t::GridFrameBundle) = isopen(immersion(t))
 iscompact(t::GridFrameBundle) = iscompact(immersion(t))
+isinduced(t::GridFrameBundle) = isinduced(base(t))
 bundle(m::GridFrameBundle) = m.id
 basetype(m::GridFrameBundle) = basetype(base(m))
 basetype(::Type{<:GridFrameBundle{N,C} where N}) where C = basetype(C)
@@ -1294,6 +1357,17 @@ fibertype(::Type{<:GridFrameBundle{N,C} where N}) where C = fibertype(C)
 ⊕(a::GridFrameBundle,b::AbstractVector{<:Real}) = GridFrameBundle(base(a)⊕b,immersion(a) × length(b))
 cross(a::GridFrameBundle,b::GridFrameBundle) = a⊕b
 cross(a::GridFrameBundle,b::AbstractVector{<:Real}) = a⊕b
+
+function resample(m::GridFrameBundle,i::NTuple)
+    rp,rq = resample(points(m),i),resample(immersion(m),i)
+    gid = iszero(m.id) ? 0 : (global grid_id+=1)
+    pid = iszero(base(m).id) ? 0 : (global point_id+=1)
+    if isinduced(m)
+        GridFrameBundle(gid,PointArray(pid,rp),rq)
+    else
+        GridFrameBundle(gid,PointArray(pid,rp,m.(rp)),rq)
+    end
+end
 
 resize_lastdim!(m::GridFrameBundle,i) = (resize_lastdim!(base(m),i); m)
 resize(m::GridFrameBundle) = GridFrameBundle(m.id,base(m),resize(immersion(m),size(base(m))[end]))
@@ -1327,11 +1401,11 @@ function Base.similar(bc::Broadcast.Broadcasted{Broadcast.ArrayStyle{GridFrameBu
     # Use the data type to create the output
     GridFrameBundle(similar(Array{pointtype(ElType),N}, ax), similar(Array{metrictype(ElType),N}, ax))
 end
-function Base.similar(bc::Broadcast.Broadcasted{Broadcast.ArrayStyle{GridFrameBundle{N,C,PA}}}, ::Type{ElType}) where {N,C,PA,ElType}
+#=function Base.similar(bc::Broadcast.Broadcasted{Broadcast.ArrayStyle{GridFrameBundle{N,C,PA}}}, ::Type{ElType}) where {N,C,PA,ElType}
     t = find_gf(bc)
     # Use the data type to create the output
     GridFrameBundle(similar(Array{ElType,N}, axes(bc)), metricextensor(t))
-end
+end=#
 
 "`A = find_gf(As)` returns the first GridFrameBundle among the arguments."
 find_gf(bc::Base.Broadcast.Broadcasted) = find_gf(bc.args)
@@ -1339,7 +1413,7 @@ find_gf(bc::Base.Broadcast.Extruded) = find_gf(bc.x)
 find_gf(args::Tuple) = find_gf(find_gf(args[1]), Base.tail(args))
 find_gf(x) = x
 find_gf(::Tuple{}) = nothing
-find_gf(a::GridFrameBundle, rest) = a
+find_gf(a::AbstractFrameBundle, rest) = a
 find_gf(::Any, rest) = find_gf(rest)
 
 # SimplexFrameBundle
@@ -1364,6 +1438,8 @@ basetype(::Type{<:SimplexFrameBundle{P}}) where P = pointtype(P)
 fibertype(::SimplexFrameBundle{P}) where P = metrictype(P)
 fibertype(::Type{<:SimplexFrameBundle{P}}) where P = metrictype(P)
 Base.size(m::SimplexFrameBundle) = size(vertices(m))
+
+isinduced(t::SimplexFrameBundle) = isinduced(base(t))
 
 Base.broadcast(f,t::SimplexFrameBundle) = SimplexFrameBundle(f.(PointCloud(t)),ImmersedTopology(t))
 

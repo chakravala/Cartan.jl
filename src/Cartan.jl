@@ -27,7 +27,7 @@ module Cartan
 using SparseArrays, LinearAlgebra, Base.Threads, Grassmann, Requires
 import Grassmann: value, vector, valuetype, tangent, istangent, Derivation, radius, ⊕
 import Grassmann: realvalue, imagvalue, points, metrictensor, metricextensor
-import Grassmann: Values, Variables, FixedVector, list, volume
+import Grassmann: Values, Variables, FixedVector, list, volume, compound
 import Grassmann: Scalar, GradedVector, Bivector, Trivector
 import Base: @pure, OneTo, getindex
 import LinearAlgebra: cross
@@ -163,6 +163,11 @@ Grassmann.grade(::GradedField{G}) where G = G
 resize(t::TensorField) = TensorField(resize(domain(t)),codomain(t))
 resize(t::GlobalSection) = GlobalSection(resize(domain(t)),codomain(t))
 
+function resample(t::TensorField,i::NTuple)
+    rg = resample(base(t),i)
+    TensorField(rg,t.(points(rg)))
+end
+
 @pure Base.eltype(::Type{<:TensorField{B,F}}) where {B,F} = LocalTensor{B,F}
 Base.getindex(m::TensorField,i::Vararg{Int}) = LocalTensor(getindex(domain(m),i...), getindex(codomain(m),i...))
 Base.getindex(m::TensorField,i::Vararg{Union{Int,Colon}}) = TensorField(domain(m)(i...), getindex(codomain(m),i...))
@@ -173,6 +178,10 @@ Base.setindex!(m::TensorField{B,Fm} where Fm,s::TensorField,::Colon,::Colon,i::I
 Base.setindex!(m::TensorField{B,Fm} where Fm,s::TensorField,::Colon,::Colon,::Colon,i::Int) where B = setindex!(codomain(m),codomain(s),:,:,:,i)
 Base.setindex!(m::TensorField{B,Fm} where Fm,s::TensorField,::Colon,::Colon,::Colon,::Colon,i::Int) where B = setindex!(codomain(m),codomain(s),:,:,:,:,i)
 function Base.setindex!(m::TensorField{B,F,N,<:IntervalRange} where {B,F,N},s::LocalTensor,i::Vararg{Int})
+    setindex!(codomain(m),fiber(s),i...)
+    return s
+end
+function Base.setindex!(m::TensorField{B,F,N,<:AlignedSpace} where {B,F,N},s::LocalTensor,i::Vararg{Int})
     setindex!(codomain(m),fiber(s),i...)
     return s
 end
@@ -221,6 +230,11 @@ function Base.similar(bc::Broadcast.Broadcasted{Broadcast.ArrayStyle{GlobalSecti
     # Use the domain field of t to create the output
     GlobalSection(domain(t), similar(Array{fibertype(ElType),N}, axes(bc)))
 end
+function Base.similar(bc::Broadcast.Broadcasted{Broadcast.ArrayStyle{<:AbstractFrameBundle{P,N}}}, ::Type{ElType}) where {N,P,ElType}
+    t = find_gf(bc)
+    # Use the data type to create the output
+    TensorField(t,similar(Array{ElType,N}, axes(bc)))
+end
 
 "`A = find_tf(As)` returns the first TensorField among the arguments."
 find_tf(bc::Base.Broadcast.Broadcasted) = find_tf(bc.args)
@@ -247,8 +261,17 @@ for fun ∈ (:Open,:Mirror,:Clamped,:Torus,:Ribbon,:Wing,:Mobius,:Klein,:Cone,:P
         @eval begin
             $top(m::TensorField{B,F,N,<:GridFrameBundle} where {B,F,N}) = TensorField($top(base(m)),fiber(m))
             $top(m::GridFrameBundle) = m($top(size(m)))
+            $top(p::PointArray) = TensorField(GridFrameBundle(p,$top(size(p))))
+            $(Symbol(fun,:Parameter))(p::PointArray) = $top(p)
         end
     end
+end
+
+spacing(x::AbstractVector) = sum(norm.(diff(fiber(x))))/(length(x)-1)
+spacing(x::AbstractArray{T,N}) where {T,N} = minimum(spacing.(Ref(x),list(1,N)))
+function spacing(x::AbstractArray,i)
+    n = norm.(diff(fiber(x),dims=i))
+    sum(n)/length(n)
 end
 
 linterp(x,x1,x2,f1,f2) = f1 + (f2-f1)*(x-x1)/(x2-x1)
@@ -277,6 +300,13 @@ reposition_odd(p,x,t) = @inbounds (iseven(p) ? x[end]-x[1]+t : 2x[1]-t)
 reposition_even(p,x,t) = @inbounds (isodd(p) ? x[1]-x[end]+t : 2x[end]-t)
 @inline reposition(i1,i2,p1,p2,x,t) = i1 ? reposition_odd(p1,x,t) : i2 ? reposition_even(p2,x,t) : eltype(x)(t)
 
+function searchpoints(p,t)
+    i = searchsortedfirst(p,t)-1
+    i01 = iszero(i)
+    i01 && t==(@inbounds p[1]) ? (i+1,false) : (i,i01)
+end
+
+(m::TensorField)(s::Coordinate) = m(base(s))
 (m::TensorField)(s::LocalTensor) = LocalTensor(base(s), m(fiber(s)))
 (m::Grid{1})(t::Chain) = linterp(m,t)
 (m::Grid{1})(t::AbstractFloat) = linterp(m,t)
@@ -285,7 +315,7 @@ reposition_even(p,x,t) = @inbounds (isodd(p) ? x[1]-x[end]+t : 2x[end]-t)
 function linterp(m,t)
     p,f,t1 = points(m),fiber(m),(@inbounds t[1])
     isnan(t1) && (return zero(fibertype(m))/0)
-    i = searchsortedfirst(p,@inbounds t1)-1
+    i,i0 = searchpoints(p,t1)
     if !isopen(m)
         q = immersion(m)
         if iszero(i)
@@ -311,7 +341,7 @@ end
 end=#
 function parametric(t,m,d=diff(codomain(m))./diff(domain(m)))
     p = points(m)
-    i = searchsortedfirst(p,t)-1
+    i,i0 = searchpoints(p,t)
     codomain(m)[i]+(t-p[i])*d[i]
 end
 
@@ -319,7 +349,7 @@ end
 leaf(m::RectangleMap,i::Int,j::Int=2) = isone(j) ? m[i,:] : m[:,i]
 function leaf(m::RectangleMap,t::AbstractFloat,j::Int=2)
     Q,p = isone(j),points(m).v[j]
-    i = searchsortedfirst(p,t)-1
+    i,i0 = searchpoints(p,t)
     TensorField(points(m).v[Q ? 2 : 1],linterp(t,p[i],p[i+1],Q ? m.cod[i,:] : m.cod[:,i],Q ? m.cod[i+1,:] : m.cod[:,i+1]))
 end
 
@@ -334,14 +364,15 @@ end
 leaf(m::TensorField{B,F,2,<:FiberProductBundle} where {B,F},i::Int) = TensorField(base(base(m)),fiber(m)[:,i])
 function (m::TensorField{B,F,2,<:FiberProductBundle} where {B,F})(t::Real)
     k = 2; p = base(m).cod.v[1]
-    i = searchsortedfirst(p,t)-1
+    i,i0 = searchpoints(p,t)
     TensorField(base(base(m)),linterp(t,p[i],p[i+1],m.cod[:,i],m.cod[:,i+1]))
 end
 
 #(m::TensorField)(t::TensorField) = TensorField(base(t),m.(fiber(t)))
 #(m::GridFrameBundle)(t::TensorField) = GridFrameBundle(PointArray(points(t),m.(fiber(t))),immersion(m))
 (X::VectorField{B,F,N} where {B,F})(Y::VectorField{B,<:Chain{V,1,T,N} where {V,T},1} where B) where N = TensorField(base(Y),X.(fiber(Y)))
-(m::GridFrameBundle{N})(t::VectorField{B,<:Chain{V,1,T,N} where {V,T},1} where B) where N = GridFrameBundle(PointArray(points(t),m.(fiber(t))),immersion(m))
+(m::GridFrameBundle{N})(t::VectorField{B,<:Chain{V,1,T,N} where {V,T},1} where B) where N = TensorField(GridFrameBundle(PointArray(points(t),m.(fiber(t))),immersion(t)),fiber(t))
+#(m::GridFrameBundle{N})(t::VectorField{B,<:Chain{V,1,T,N} where {V,T},1} where B) where N = GridFrameBundle(PointArray(points(t),m.(fiber(t))),immersion(t))
 
 (m::SimplexFrameBundle)(t::Chain) = sinterp(m,t)
 (m::TensorField{B,F,N,<:SimplexFrameBundle} where {B,F,N})(t::Chain) = sinterp(m,t)
@@ -359,12 +390,12 @@ end
 function bilinterp(m,t::Chain{V,G,T,2} where {G,T}) where V
     x,y,f,t1,t2 = @inbounds (points(m).v[1],points(m).v[2],fiber(m),t[1],t[2])
     (isnan(t1) || isnan(t2)) && (return zero(fibertype(m))/0)
-    i,j = searchsortedfirst(x,t1)-1,searchsortedfirst(y,t2)-1
+    (i,i01),(j,j01) = searchpoints(x,t1),searchpoints(y,t2)
     if !isopen(m)
         q = immersion(m)
-        i01,i02,iq1,iq2,j01,j02,jq1,jq2 = @inbounds (
-            iszero(i),i==length(x),iszero(q.r[1]),iszero(q.r[2]),
-            iszero(j),j==length(y),iszero(q.r[3]),iszero(q.r[4]))
+        i02,iq1,iq2,j02,jq1,jq2 = @inbounds (
+            i==length(x),iszero(q.r[1]),iszero(q.r[2]),
+            j==length(y),iszero(q.r[3]),iszero(q.r[4]))
         if (i01 && iq1) || (i02 && iq2) || (j01 && jq1) || (j02 && jq2)
             return zero(fibertype(m))
         else
@@ -377,7 +408,7 @@ function bilinterp(m,t::Chain{V,G,T,2} where {G,T}) where V
                     (@inbounds reposition(j1,j2,q.p[3],q.p[4],y,t2))))
             end
         end
-    elseif iszero(i) || iszero(j) || i==length(x) || j==length(y)
+    elseif i01 || j01 || i==length(x) || j==length(y)
         # elseif condition creates 1 allocation, as opposed to 0 ???
         return zero(fibertype(m))
     end
@@ -395,16 +426,13 @@ end
 function trilinterp(m,t::Chain{V,G,T,3} where {G,T}) where V
     x,y,z,f,t1,t2,t3 = @inbounds (points(m).v[1],points(m).v[2],points(m).v[3],fiber(m),t[1],t[2],t[3])
     (isnan(t1) || isnan(t2) || isnan(t3)) && (return zero(fibertype(m))/0)
-    i,j,k = (
-        searchsortedfirst(x,t1)-1,
-        searchsortedfirst(y,t2)-1,
-        searchsortedfirst(z,t3)-1)
+    (i,i01),(j,j01),(k,k01) = (searchpoints(x,t1),searchpoints(y,t2),searchpoints(z,t3))
     if !isopen(m)
         q = immersion(m)
-        i01,i02,iq1,iq2,j01,j02,jq1,jq2,k01,k02,kq1,kq2 = @inbounds (
-            iszero(i),i==length(x),iszero(q.r[1]),iszero(q.r[2]),
-            iszero(j),j==length(y),iszero(q.r[3]),iszero(q.r[4]),
-            iszero(k),k==length(z),iszero(q.r[5]),iszero(q.r[6]))
+        i02,iq1,iq2,j02,jq1,jq2,k02,kq1,kq2 = @inbounds (
+            i==length(x),iszero(q.r[1]),iszero(q.r[2]),
+            j==length(y),iszero(q.r[3]),iszero(q.r[4]),
+            k==length(z),iszero(q.r[5]),iszero(q.r[6]))
         if (i01 && iq1) || (i02 && iq2) || (j01 && jq1) || (j02 && jq2) || (k01 && kq1) || (k02 && kq2)
             return zero(fibertype(m))
         else
@@ -419,7 +447,7 @@ function trilinterp(m,t::Chain{V,G,T,3} where {G,T}) where V
                     (@inbounds reposition(k1,k2,q.p[5],q.p[6],z,t3))))
             end
         end
-    elseif iszero(i) || iszero(j) || iszero(k) || i==length(x) || j==length(y) || k==length(z)
+    elseif i01 || j01 || k01 || i==length(x) || j==length(y) || k==length(z)
         # elseif condition creates 1 allocation, as opposed to 0 ???
         return zero(fibertype(m))
     end
@@ -442,18 +470,14 @@ end
 function (m)(t::Chain{V,G,T,4} where {G,T}) where V
     x,y,z,w,f,t1,t2,t3,t4 = @inbounds (points(m).v[1],points(m).v[2],points(m).v[3],points(m).v[4],fiber(m),t[1],t[2],t[3],t[4])
     (isnan(t1) || isnan(t2) || isnan(t3) ||isnan(t4)) && (return zero(fibertype(m))/0)
-    i,j,k,l = (
-        searchsortedfirst(x,t1)-1,
-        searchsortedfirst(y,t2)-1,
-        searchsortedfirst(z,t3)-1,
-        searchsortedfirst(w,t4)-1)
+    (i,i01),(j,j01),(k,k01),(l,l01) = (searchpoints(x,t1),searchpoints(y,t2),searchpoints(z,t3),searchpoints(w,t4))
     if !isopen(m)
         q = immersion(m)
-        i01,i02,iq1,iq2,j01,j02,jq1,jq2,k01,k02,kq1,kq2,l01,l02,lq1,lq2 = @inbounds (
-            iszero(i),i==length(x),iszero(q.r[1]),iszero(q.r[2]),
-            iszero(j),j==length(y),iszero(q.r[3]),iszero(q.r[4]),
-            iszero(k),k==length(z),iszero(q.r[5]),iszero(q.r[6]),
-            iszero(l),l==length(w),iszero(q.r[7]),iszero(q.r[8]))
+        i02,iq1,iq2,j02,jq1,jq2,k02,kq1,kq2,l02,lq1,lq2 = @inbounds (
+            i==length(x),iszero(q.r[1]),iszero(q.r[2]),
+            j==length(y),iszero(q.r[3]),iszero(q.r[4]),
+            k==length(z),iszero(q.r[5]),iszero(q.r[6]),
+            l==length(w),iszero(q.r[7]),iszero(q.r[8]))
         if (i01 && iq1) || (i02 && iq2) || (j01 && jq1) || (j02 && jq2) || (k01 && kq1) || (k02 && kq2) || (l01 && lq1) || (l02 && lq2)
             return zero(fibertype(m))
         else
@@ -470,7 +494,7 @@ function (m)(t::Chain{V,G,T,4} where {G,T}) where V
                     (@inbounds reposition(l1,l2,q.p[7],q.p[8],w,t4))))
             end
         end
-    elseif iszero(i) || iszero(j) || iszero(k) || iszero(l) || i==length(x) || j==length(y) || k==length(z) || l==length(w)
+    elseif i01 || j01 || k01 || l01 || i==length(x) || j==length(y) || k==length(z) || l==length(w)
         # elseif condition creates 1 allocation, as opposed to 0 ???
         return zero(fibertype(m))
     end
@@ -503,20 +527,15 @@ end
 function quintlinterp(m,t::Chain{V,G,T,5} where {G,T}) where V
     x,y,z,w,v,f,t1,t2,t3,t4,t5 = @inbounds (points(m).v[1],points(m).v[2],points(m).v[3],points(m).v[4],points(m).v[5],fiber(m),t[1],t[2],t[3],t[4],t[5])
     (isnan(t1) || isnan(t2) || isnan(t3) || isnan(t4) || isnan(t5)) && (return zero(fibertype(m))/0)
-    i,j,k,l,o = (
-        searchsortedfirst(x,t1)-1,
-        searchsortedfirst(y,t2)-1,
-        searchsortedfirst(z,t3)-1,
-        searchsortedfirst(w,t4)-1,
-        searchsortedfirst(v,t5)-1)
+    (i,i01),(j,j01),(k,k01),(l,l01),(o,o01) = (searchpoints(x,t1),searchpoints(y,t2),searchpoints(z,t3),searchpoints(w,t4),searchpoints(v,t5))
     if !isopen(m)
         q = immersion(m)
-        i01,i02,iq1,iq2,j01,j02,jq1,jq2,k01,k02,kq1,kq2,l01,l02,lq1,lq2,o01,o02,oq1,oq2 = @inbounds (
-            iszero(i),i==length(x),iszero(q.r[1]),iszero(q.r[2]),
-            iszero(j),j==length(y),iszero(q.r[3]),iszero(q.r[4]),
-            iszero(k),k==length(z),iszero(q.r[5]),iszero(q.r[6]),
-            iszero(l),l==length(w),iszero(q.r[7]),iszero(q.r[8]),
-            iszero(o),o==length(v),iszero(q.r[9]),iszero(q.r[10]))
+        i02,iq1,iq2,j02,jq1,jq2,k02,kq1,kq2,l02,lq1,lq2,o02,oq1,oq2 = @inbounds (
+            i==length(x),iszero(q.r[1]),iszero(q.r[2]),
+            j==length(y),iszero(q.r[3]),iszero(q.r[4]),
+            k==length(z),iszero(q.r[5]),iszero(q.r[6]),
+            l==length(w),iszero(q.r[7]),iszero(q.r[8]),
+            o==length(v),iszero(q.r[9]),iszero(q.r[10]))
         if (i01 && iq1) || (i02 && iq2) || (j01 && jq1) || (j02 && jq2) || (k01 && kq1) || (k02 && kq2) || (l01 && lq1) || (l02 && lq2) || (o01 && oq1) || (o02 && oq2)
             return zero(fibertype(m))
         else
@@ -535,7 +554,7 @@ function quintlinterp(m,t::Chain{V,G,T,5} where {G,T}) where V
                     (@inbounds reposition(o1,o2,q.p[9],q.p[10],v,t5))))
             end
         end
-    elseif iszero(i) || iszero(j) || iszero(k) || iszero(l) || iszero(o) || i==length(x) || j==length(y) || k==length(z) || l==length(w) || o==length(v)
+    elseif i01 || j01 || k01 || l01 || o01 || i==length(x) || j==length(y) || k==length(z) || l==length(w) || o==length(v)
         # elseif condition creates 1 allocation, as opposed to 0 ???
         return zero(fibertype(m))
     end
@@ -572,14 +591,27 @@ for op ∈ (:+,:-,:&,:∧,:∨)
         end
     end
 end
+(m::TensorNested)(t::TensorField) = TensorField(base(t), m.(fiber(t)))
+(m::TensorField{B,<:TensorNested} where B)(t::TensorField) = m⋅t
 @inline Base.:<<(a::GlobalFiber,b::GlobalFiber) = contraction(b,~a)
 @inline Base.:>>(a::GlobalFiber,b::GlobalFiber) = contraction(~a,b)
 @inline Base.:<(a::GlobalFiber,b::GlobalFiber) = contraction(b,a)
 Base.sign(a::TensorField) = TensorField(base(a), sign.(fiber(Real(a))))
 Base.inv(a::TensorField{B,<:Real} where B) = TensorField(base(a), inv.(fiber(a)))
 Base.inv(a::TensorField{B,<:Complex} where B) = TensorField(base(a), inv.(fiber(a)))
+Base.:*(a::TensorField{B,<:Real} where B,b::TensorField{B,<:Real} where B) = TensorField(base(a), fiber(a).*fiber(b))
+Base.:*(a::TensorField{B,<:Complex} where B,b::TensorField{B,<:Complex} where B) = TensorField(base(a), fiber(a).*fiber(b))
+Base.:*(a::TensorField{B,<:Real} where B,b::TensorField{B,<:Complex} where B) = TensorField(base(a), fiber(a).*fiber(b))
+Base.:*(a::TensorField{B,<:Complex} where B,b::TensorField{B,<:Real} where B) = TensorField(base(a), fiber(a).*fiber(b))
+Base.:*(a::TensorField{B,<:Real} where B,b::TensorField) = TensorField(base(a), fiber(a).*fiber(b))
+Base.:*(a::TensorField{B,<:Complex} where B,b::TensorField) = TensorField(base(a), fiber(a).*fiber(b))
+Base.:*(a::TensorField,b::TensorField{B,<:Real} where B) = TensorField(base(a), fiber(a).*fiber(b))
+Base.:*(a::TensorField,b::TensorField{B,<:Complex} where B) = TensorField(base(a), fiber(a).*fiber(b))
 Base.:/(a::TensorField,b::TensorField{B,<:Real} where B) = TensorField(base(a), fiber(a)./fiber(b))
 Base.:/(a::TensorField,b::TensorField{B,<:Complex} where B) = TensorField(base(a), fiber(a)./fiber(b))
+LinearAlgebra.:×(a::TensorField{R},b::TensorField{R}) where R = TensorField(base(a), .⋆(fiber(a).∧fiber(b),refmetric(base(a))))
+Grassmann.compound(t::TensorField,i::Val) = TensorField(base(t), compound.(fiber(t),i))
+Grassmann.compound(t::TensorField,i::Int) = TensorField(base(t), compound.(fiber(t),Val(i)))
 Grassmann.eigen(t::TensorField,i::Val) = TensorField(base(t), eigen.(fiber(t),i))
 Grassmann.eigen(t::TensorField,i::Int) = TensorField(base(t), eigen.(fiber(t),Val(i)))
 Grassmann.eigvals(t::TensorField,i::Val) = TensorField(base(t), eigvals.(fiber(t),i))
@@ -591,19 +623,19 @@ for type ∈ (:TensorField,)
     for (op,mop) ∈ ((:*,:wedgedot_metric),(:wedgedot,:wedgedot_metric),(:veedot,:veedot_metric),(:⋅,:contraction_metric),(:contraction,:contraction_metric),(:>,:contraction_metric),(:⊘,:⊘),(:>>>,:>>>),(:/,:/),(:^,:^))
         let bop = op ∈ (:*,:>,:>>>,:/,:^) ? :(Base.$op) : :(Grassmann.$op)
         @eval begin
-            $bop(a::$type{R},b::$type{R}) where R = $type(base(a),Grassmann.$mop.(fiber(a),fiber(b),ref(metricextensor(base(a)))))
+            $bop(a::$type{R},b::$type{R}) where R = $type(base(a),Grassmann.$mop.(fiber(a),fiber(b),refmetric(base(a))))
             $bop(a::Number,b::$type) = $type(base(b), Grassmann.$op.(a,fiber(b)))
-            $bop(a::$type,b::Number) = $type(base(a), Grassmann.$op.(fiber(a),b,$((op≠:^ ? () : (:(ref(metricextensor(base(a)))),))...)))
+            $bop(a::$type,b::Number) = $type(base(a), Grassmann.$op.(fiber(a),b,$((op≠:^ ? () : (:(refmetric(base(a))),))...)))
         end end
     end
 end
-for fun ∈ (:-,:!,:~,:real,:imag,:conj,:deg2rad)
+for fun ∈ (:-,:!,:~,:real,:imag,:conj,:deg2rad,:transpose)
     @eval Base.$fun(t::TensorField) = TensorField(domain(t), $fun.(codomain(t)))
 end
 for fun ∈ (:exp,:exp2,:exp10,:log,:log2,:log10,:sinh,:cosh,:abs,:sqrt,:cbrt,:cos,:sin,:tan,:cot,:sec,:csc,:asec,:acsc,:sech,:csch,:asech,:tanh,:coth,:asinh,:acosh,:atanh,:acoth,:asin,:acos,:atan,:acot,:sinc,:cosc,:cis,:abs2,:inv)
     @eval Base.$fun(t::TensorField) = TensorField(domain(t), $fun.(codomain(t),ref(metricextensor(t))))
 end
-for fun ∈ (:reverse,:involute,:clifford,:even,:odd,:scalar,:vector,:bivector,:volume,:value,:complementleft,:realvalue,:imagvalue,:outermorphism,:Outermorphism,:DiagonalOperator,:TensorOperator,:eigen,:eigvecs,:eigvals,:eigvalsreal,:eigvalscomplex,:eigvecsreal,:eigvecscomplex,:eigpolys)
+for fun ∈ (:reverse,:clifford,:even,:odd,:scalar,:vector,:bivector,:volume,:value,:complementleft,:realvalue,:imagvalue,:outermorphism,:Outermorphism,:DiagonalOperator,:TensorOperator,:eigen,:eigvecs,:eigvals,:eigvalsreal,:eigvalscomplex,:eigvecsreal,:eigvecscomplex,:eigpolys,:∧)
     @eval Grassmann.$fun(t::TensorField) = TensorField(domain(t), $fun.(codomain(t)))
 end
 for fun ∈ (:⋆,:angle,:radius,:complementlefthodge,:pseudoabs,:pseudoabs2,:pseudoexp,:pseudolog,:pseudoinv,:pseudosqrt,:pseudocbrt,:pseudocos,:pseudosin,:pseudotan,:pseudocosh,:pseudosinh,:pseudotanh,:metric,:unit)
@@ -778,11 +810,48 @@ function __init__()
                 Makie.lines!(getindex.(t,i),f;args...)
             end
         end
+        export scaledarrows, scaledarrows!
+        for fun ∈ (:arrows,:arrows!)
+            @eval begin
+                function $(Symbol(:scaled,fun))(M::VectorField,t::VectorField;args...)
+                    kwargs = if haskey(args,:gridsize)
+                        wargs = Dict(args)
+                        delete!(wargs,:gridsize)
+                        return $(Symbol(:scaled,fun))(resample(M,args[:gridsize]),resample(t,args[:gridsize]);(;wargs...)...)
+                    elseif haskey(args,:arcgridsize)
+                        wargs = Dict(args)
+                        delete!(wargs,:arcgridsize)
+                        aM = arcresample(M,args[:arcgridsize])
+                        return $(Symbol(:scaled,fun))(aM,TensorField(base(aM),t.(points(aM)));(;wargs...)...)
+                    else
+                        args
+                    end
+                    s = spacing(M)/(sum(fiber(norm(t)))/length(t))
+                    Makie.$fun(M,t;lengthscale=s/3,arrowsize=s/17,kwargs...)
+                end
+                function $(Symbol(:scaled,fun))(M::VectorField,t::TensorField{B,<:TensorOperator} where B;args...)
+                    kwargs = if haskey(args,:gridsize)
+                        wargs = Dict(args)
+                        delete!(wargs,:gridsize)
+                        return $(Symbol(:scaled,fun))(resample(M,args[:gridsize]),resample(t,args[:gridsize]);(;wargs...)...)
+                    elseif haskey(args,:arcgridsize)
+                        wargs = Dict(args)
+                        delete!(wargs,:arcgridsize)
+                        aM = arcresample(M,args[:arcgridsize])
+                        return $(Symbol(:scaled,fun))(aM,TensorField(base(aM),t.(points(aM)));(;wargs...)...)
+                    else
+                        args
+                    end
+                    s = spacing(M)/maximum(value(sum(map.(norm,fiber(value(t))))/length(t)))
+                    Makie.$fun(M,t;lengthscale=s/3,arrowsize=s/17,kwargs...)
+                end
+            end
+        end
         function Makie.arrows(M::VectorField,t::TensorField{B,<:TensorOperator,N,<:GridFrameBundle} where B;args...) where N
             Makie.arrows(TensorField(fiber(M),fiber(t));args...)
         end
         function Makie.arrows!(M::VectorField,t::TensorField{B,<:TensorOperator,N,<:GridFrameBundle} where B;args...) where N
-            Makie.arrows!(TensorField(fiber(M),fiber(t)))
+            Makie.arrows!(TensorField(fiber(M),fiber(t));args...)
         end
         function Makie.arrows(t::VectorField{<:Coordinate{<:Chain},<:TensorOperator,2,<:RealSpace{2}};args...)
             display(Makie.arrows(getindex.(t,1);args...))
@@ -964,6 +1033,7 @@ function __init__()
             end
         end
         Makie.mesh(M::TensorField,f::Function;args...) = Makie.mesh(M,f(M);args...)
+        Makie.mesh!(M::TensorField,f::Function;args...) = Makie.mesh!(M,f(M);args...)
         function Makie.mesh(M::TensorField{B,<:Chain,2,<:GridFrameBundle} where B;args...)
             Makie.mesh(GridFrameBundle(fiber(M));args...)
         end
