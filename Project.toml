@@ -1,18 +1,20 @@
 name = "Cartan"
 uuid = "e24af43f-9fd5-4672-9264-a75f3ae40eb2"
 authors = ["Michael Reed"]
-version = "0.3.6"
+version = "0.3.7"
 
 [deps]
 Requires = "ae029012-a4dd-5104-9daa-d747884805df"
 Grassmann = "4df31cd9-4c27-5bea-88d0-e6a7146666d8"
 SparseArrays = "2f01184e-e22b-5df5-ae63-d93ebab69eaf"
+ElasticArrays = "fdbdab4c-e67f-52f5-8c3f-e7b388dad3d4"
 LinearAlgebra = "37e2e46d-f89d-539d-b4ee-838fcccc9c8e"
 
 [compat]
 julia = "1"
 Requires = "1"
 Grassmann = "0.8"
+ElasticArrays = "1"
 
 [extras]
 Test = "8dfed614-e22c-5e08-85e1-65c5234f0b40"

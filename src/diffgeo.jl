@@ -72,9 +72,8 @@ secondstructure(ω) = d(ω)+ω∧ω
 
 Grassmann.curl(t::TensorField) = ⋆d(t)
 Grassmann.d(t::TensorField) = TensorField(fromany(∇(t)∧Chain(t)))
-Grassmann.d(t::GlobalSection) = gradient(t)
 Grassmann.∂(t::TensorField) = TensorField(fromany(Chain(t)⋅∇(t)))
-Grassmann.d(t::ScalarField{B,<:AbstractReal,N,<:AbstractFrameBundle} where {B,N}) = gradient(t)
+Grassmann.d(t::ScalarField{B,<:AbstractReal,N,<:AbstractFrameBundle,<:AbstractArray} where {B,N}) = gradient(t)
 #Grassmann.∂(t::ScalarField) = gradient(t)
 #Grassmann.∂(t::VectorField) = TensorField(domain(t), sum.(value.(codomain(t))))
 #=function Grassmann.∂(t::VectorField{G,B,<:Chain{V},N,T} where {B,N,T}) where {G,V}
@@ -95,8 +94,8 @@ end
     V = Manifold(fibertype(t)); N = mdims(V)
     Expr(:call,:TensorField,:(base(t)),Expr(:.,:(Chain{$V,1}),Expr(:tuple,[:(fiber(d(getindex.(t,$i)))) for i ∈ list(1,N)]...)))
 end
-Grassmann.d(t::DiagonalField{B,<:DiagonalOperator,N,<:AbstractFrameBundle} where{B,N}) = DiagonalOperator(dvec(value(t)))
-@generated function Grassmann.d(t::EndomorphismField{B,<:Endomorphism,N,<:AbstractFrameBundle} where {B,N})
+Grassmann.d(t::DiagonalField{B,<:DiagonalOperator,N,<:AbstractFrameBundle,<:AbstractArray} where{B,N}) = DiagonalOperator(dvec(value(t)))
+@generated function Grassmann.d(t::EndomorphismField{B,<:Endomorphism,N,<:AbstractFrameBundle,<:AbstractArray} where {B,N})
     V = Manifold(fibertype(t)); N = mdims(V)
     syms = Symbol.(:x,list(1,N))
     Expr(:block,:(V = $V),
@@ -156,8 +155,8 @@ for fun ∈ (:_slow,:_fast)
     cd,grad = Symbol(:centraldiff,fun),Symbol(:gradient,fun)
     cdg,cdp,cdf = Symbol(cd,:_calc),Symbol(cd,:_points),Symbol(cd,:_fiber)
     @eval begin
-        $cdf(f,args...) = $cdg(GridFrameBundle(0,PointArray(0,fiber(f)),immersion(f)),args...)
-        $cdp(f,args...) = $cdg(GridFrameBundle(0,PointArray(0,points(f)),immersion(f)),args...)
+        $cdf(f,args...) = $cdg(GridFrameBundle(PointArray(0,fiber(f)),immersion(f)),args...)
+        $cdp(f,args...) = $cdg(GridFrameBundle(PointArray(0,points(f)),immersion(f)),args...)
         $cdp(f::TensorField{B,F,Nf,<:RealSpace{Nf,P,<:InducedMetric} where P} where {B,F,Nf},n::Val{N},args...) where N = $cd(points(f).v[N],subtopology(immersion(f),n),args...)
         function $grad(f::IntervalMap,d::AbstractVector=$cdp(f))
             TensorField(domain(f), $cdf(f,d))
@@ -183,8 +182,8 @@ for fun ∈ (:_slow,:_fast)
             TensorField(domain(f), $cdf(f,n,d))
         end
         $grad(f::TensorField,n::Int,args...) = $grad(f,Val(n),args...)
-        $cd(f::AbstractArray,args...) = $cdg(GridFrameBundle(0,PointArray(0,f)),args...)
-        $cd(f::AbstractArray,q::QuotientTopology,args...) = $cdg(GridFrameBundle(0,PointArray(0,f),q),args...)
+        $cd(f::AbstractArray,args...) = $cdg(GridFrameBundle(PointArray(0,f)),args...)
+        $cd(f::AbstractArray,q::QuotientTopology,args...) = $cdg(GridFrameBundle(PointArray(0,f),q),args...)
         function $cdg(f::GridFrameBundle{1},dt::Real,s::Tuple=size(f))
             d = similar(points(f))
             @threads for i ∈ OneTo(s[1])
@@ -192,7 +191,7 @@ for fun ∈ (:_slow,:_fast)
             end
             return d
         end
-        function $cdg(f::GridFrameBundle{1},dt::Vector,s::Tuple=size(f))
+        function $cdg(f::GridFrameBundle{1},dt::DenseVector,s::Tuple=size(f))
             d = similar(points(f))
             @threads for i ∈ OneTo(s[1])
                 d[i] = $cdg(f,s,i)/dt[i]
@@ -421,11 +420,11 @@ for fun ∈ (:_slow,:_fast)
             :(Chain($([:($$cdg(f,s[$n],Val($n),i...)) for n ∈ list(1,N)]...)))
         end
         $cd(f::RealRegion) = ProductSpace($cd.(f.v))
-        $cd(f::GridFrameBundle{N,Coordinate{P,G},<:PointArray{P,G,N,<:RealRegion,<:Global{N,<:InducedMetric}},<:ProductTopology}) where {N,P,G} = ProductSpace($cd.(base(base(f)).v))
-        $cd(f::GridFrameBundle{N,Coordinate{P,G},<:PointArray{P,G,N,<:RealRegion,<:Global{N,<:InducedMetric}},<:OpenTopology}) where {N,P,G} = ProductSpace($cd.(base(base(f)).v))
+        $cd(f::GridFrameBundle{N,Coordinate{P,G},<:PointArray{P,G,N,<:RealRegion,<:Global{N,<:InducedMetric}},<:ProductTopology}) where {N,P,G} = ProductSpace($cd.(points(f).v))
+        $cd(f::GridFrameBundle{N,Coordinate{P,G},<:PointArray{P,G,N,<:RealRegion,<:Global{N,<:InducedMetric}},<:OpenTopology}) where {N,P,G} = ProductSpace($cd.(points(f).v))
         $cd(f::GridFrameBundle{N,Coordinate{P,G},<:PointArray{P,G,N,<:RealRegion,<:Global{N,<:InducedMetric}}}) where {N,P,G} = sum.(value.($cdg(f)))
-        #$cd(f::GridFrameBundle{N,Coordinate{P,G},<:PointArray{P,G,N,<:RealRegion},<:ProductTopology}) where {N,P,G} = applymetric.($cd(base(base(f))),metricextensor(f))
-        $cd(f::GridFrameBundle{N,Coordinate{P,G},<:PointArray{P,G,N,<:RealRegion},<:OpenTopology}) where {N,P,G} = applymetric.($cd(base(base(f))),metricextensor(f))
+        #$cd(f::GridFrameBundle{N,Coordinate{P,G},<:PointArray{P,G,N,<:RealRegion},<:ProductTopology}) where {N,P,G} = applymetric.($cd(points(f)),metricextensor(f))
+        $cd(f::GridFrameBundle{N,Coordinate{P,G},<:PointArray{P,G,N,<:RealRegion},<:OpenTopology}) where {N,P,G} = applymetric.($cd(points(f)),metricextensor(f))
         $cd(f::GridFrameBundle{N,Coordinate{P,G},<:PointArray{P,G,N,<:RealRegion}}) where {N,P,G} = applymetric.(sum.(value.($cdg(f))),metricextensor(f))
         $cd(f::AbstractRange,q::OpenTopology,s::Tuple=size(f)) = $cd(f,s)
         function $cd(f::AbstractRange,q::QuotientTopology,s::Tuple=size(f))
@@ -649,19 +648,19 @@ end
 
 integrate(args...) = trapz(args...)
 
-arclength(f::Vector) = sum(value.(abs.(diff(f))))
+arclength(f::DenseVector) = sum(value.(abs.(diff(f))))
 trapz(f::IntervalMap,d::AbstractVector=diff(points(f))) = sum((d/2).*(f.cod[2:end]+f.cod[1:end-1]))
-trapz1(f::Vector,h::Real) = h*((f[1]+f[end])/2+sum(f[2:end-1]))
+trapz1(f::DenseVector,h::Real) = h*((f[1]+f[end])/2+sum(f[2:end-1]))
 trapz(f::IntervalMap,j::Int) = trapz(f,Val(j))
 trapz(f::IntervalMap,j::Val{1}) = trapz(f)
 trapz(f::ParametricMap,j::Int) = trapz(f,Val(j))
 trapz(f::ParametricMap,j::Val{J}) where J = remove(domain(f),j) → trapz2(codomain(f),j,diff(points(f).v[J]))
 trapz(f::ParametricMap{B,F,N,<:AlignedSpace} where {B,F,N},j::Val{J}) where J = remove(domain(f),j) → trapz1(codomain(f),j,step(points(f).v[J]))
 gentrapz1(n,j,h=:h,f=:f) = :($h*(($(select1(n,j,1))+$(select1(n,j,:(size(f)[$j]))))/2+$(select1(n,j,1,:(sum($(select1(n,j,:(2:$(:end)-1),f)),dims=$j))))))
-@generated function trapz1(f::Array{T,N} where T,::Val{J},h::Real,s::Tuple=size(f)) where {N,J}
+@generated function trapz1(f::DenseArray{T,N} where T,::Val{J},h::Real,s::Tuple=size(f)) where {N,J}
     gentrapz1(N,J)
 end
-@generated function trapz1(f::Array{T,N} where T,h::D...) where {N,D<:Real}
+@generated function trapz1(f::DenseArray{T,N} where T,h::D...) where {N,D<:Real}
     Expr(:block,:(s=size(f)),
          [:(i = $(gentrapz1(j,j,:(h[$j]),j≠N ? :i : :f,))) for j ∈ N:-1:1]...)
 end
@@ -688,7 +687,7 @@ for N ∈ 2:5
         $(Expr(:block,vcat([gentrapz2(j,j,j≠N ? :f : :c).args for j ∈ N:-1:1]...)...))
     end
     for J ∈ 1:N
-        @eval function trapz2(c::Array{T,$N} where T,j::Val{$J},D)
+        @eval function trapz2(c::DenseArray{T,$N} where T,j::Val{$J},D)
             f,s,d = similar(c),size(c),D/2
             $(gentrapz2(N,J,:c,:d))
         end
@@ -731,7 +730,7 @@ function cumtrapz(f::IntervalMap,d::AbstractVector=diff(points(f)))
     pushfirst!(i,zero(eltype(i)))
     TensorField(domain(f), i)
 end
-function cumtrapz1(f::Vector,h::Real)
+function cumtrapz1(f::DenseVector,h::Real)
     i = (h/2)*cumsum(f[2:end]+f[1:end-1])
     pushfirst!(i,zero(eltype(i)))
     return i
@@ -745,10 +744,10 @@ selectzeros(n,j) = :(zeros(T,$([i≠j ? :(s[$i]) : 1 for i ∈ 1:n]...)))
 selectzeros2(n,j) = :(zeros(T,$([i≠j ? i<j ? :(s[$i]) : :(s[$i]-1) : 1 for i ∈ 1:n]...)))
 gencat(n,j=n,cat=n≠2 ? :cat : j≠2 ? :vcat : :hcat) = :($cat($(selectzeros2(n,j)),$(j≠1 ? gencat(n,j-1) : :i);$((cat≠:cat ? () : (Expr(:kw,:dims,j),))...)))
 gencumtrapz1(n,j,h=:h,f=:f) = :(($h/2)*cumsum($(select1(n,j,:(2:$(:end)),f)).+$(select1(n,j,:(1:$(:end)-1),f)),dims=$j))
-@generated function cumtrapz1(f::Array{T,N},::Val{J},h::Real,s::Tuple=size(f)) where {T,N,J}
+@generated function cumtrapz1(f::DenseArray{T,N},::Val{J},h::Real,s::Tuple=size(f)) where {T,N,J}
     :(cat($(selectzeros(N,J)),$(gencumtrapz1(N,J)),dims=$J))
 end
-@generated function cumtrapz1(f::Array{T,N},h::D...) where {T,N,D<:Real}
+@generated function cumtrapz1(f::DenseArray{T,N},h::D...) where {T,N,D<:Real}
     Expr(:block,:(s=size(f)),
          [:(i = $(gencumtrapz1(N,j,:(h[$j]),j≠1 ? :i : :f,))) for j ∈ 1:N]...,
         gencat(N))
@@ -775,7 +774,7 @@ for N ∈ 2:5
         TensorField(domain(m), $(gencat(N)))
     end
     for J ∈ 1:N
-        @eval function cumtrapz2(c::Array{T,$N},::Val{$J}) where T
+        @eval function cumtrapz2(c::DenseArray{T,$N},::Val{$J}) where T
             s,d = size(f),D/2
             $(gencumtrapz2(N,J,:d,:f))
             cat($(selectzeros(N,J)),i,dims=$J)
