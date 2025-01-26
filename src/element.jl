@@ -32,6 +32,17 @@ using Base.Threads
 @inline callable(c::F) where F<:Function = c
 @inline callable(c) = x->c
 
+(m::SimplexFrameBundle)(t::Chain) = sinterp(m,t)
+(m::TensorField{B,F,N,<:SimplexFrameBundle} where {B,F,N})(t::Chain) = sinterp(m,t)
+function sinterp(m,t::Chain)
+    V = Manifold(pointtype(m))
+    pt = Chain{V}(value(t))
+    j = findfirst(pt,base(m))
+    iszero(j) && (return zero(fibertype(m)))
+    i = immersion(m)[j]
+    Chain{V}(fiber(m)[i])⋅(Chain{V}(points(m)[i])\pt)
+end
+
 edgelength(v) = value(abs(v[2]-v[1]))
 function Grassmann.volumes(t::SimplexFrameBundle)
     if mdims(immersion(t))≠2
