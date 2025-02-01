@@ -50,8 +50,8 @@ end
 
 (m::TensorField)(s::Coordinate) = m(base(s))
 (m::TensorField)(s::LocalTensor) = LocalTensor(base(s), m(fiber(s)))
-(m::Grid{1})(t::Chain) = linterp(m,t)
-(m::Grid{1})(t::AbstractFloat) = linterp(m,t)
+(m::GridBundle{1})(t::Chain) = linterp(m,t)
+(m::GridBundle{1})(t::AbstractFloat) = linterp(m,t)
 (m::IntervalMap)(t::Chain) = linterp(m,t)
 (m::IntervalMap)(t::AbstractFloat) = linterp(m,t)
 function linterp(m,t)
@@ -111,13 +111,13 @@ function (m::TensorField{B,F,2,<:FiberProductBundle} where {B,F})(t::Real)
 end
 
 #(m::TensorField)(t::TensorField) = TensorField(base(t),m.(fiber(t)))
-#(m::GridFrameBundle)(t::TensorField) = GridFrameBundle(PointArray(points(t),m.(fiber(t))),immersion(m))
+#(m::GridBundle)(t::TensorField) = GridBundle(PointArray(points(t),m.(fiber(t))),immersion(m))
 (X::VectorField{B,F,N} where {B,F})(Y::VectorField{B,<:Chain{V,1,T,N} where {V,T},1} where B) where N = TensorField(base(Y),X.(fiber(Y)))
-(m::GridFrameBundle{N})(t::VectorField{B,<:Chain{V,1,T,N} where {V,T},1} where B) where N = TensorField(GridFrameBundle(PointArray(points(t),m.(fiber(t))),immersion(t)),fiber(t))
-#(m::GridFrameBundle{N})(t::VectorField{B,<:Chain{V,1,T,N} where {V,T},1} where B) where N = GridFrameBundle(PointArray(points(t),m.(fiber(t))),immersion(t))
+(m::GridBundle{N})(t::VectorField{B,<:Chain{V,1,T,N} where {V,T},1} where B) where N = TensorField(GridBundle(PointArray(points(t),m.(fiber(t))),immersion(t)),fiber(t))
+#(m::GridBundle{N})(t::VectorField{B,<:Chain{V,1,T,N} where {V,T},1} where B) where N = GridBundle(PointArray(points(t),m.(fiber(t))),immersion(t))
 
-(m::Grid{2})(t::Chain) = bilinterp(m,t)
-(m::Grid{2})(x::AbstractFloat,y::AbstractFloat) = bilinterp(m,Chain(x,y))
+(m::GridBundle{2})(t::Chain) = bilinterp(m,t)
+(m::GridBundle{2})(x::AbstractFloat,y::AbstractFloat) = bilinterp(m,Chain(x,y))
 (m::TensorField{B,F,N,<:RealSpace{2}} where {B,F,N})(t::Chain) = bilinterp(m,t)
 (m::TensorField{B,F,N,<:RealSpace{2}} where {B,F,N})(x,y) = bilinterp(m,Chain(x,y))
 function bilinterp(m,t::Chain{V,G,T,2} where {G,T}) where V
@@ -152,8 +152,8 @@ function bilinterp(m,t::Chain{V,G,T,2} where {G,T}) where V
         f[i,j],f[i+1,j],f[i,j+1],f[i+1,j+1])
 end
 
-(m::Grid{3})(t::Chain) = trilinterp(m,t)
-(m::Grid{3})(x::AbstractFloat,y::AbstractFloat,z::AbstractFloat) = trilinterp(m,Chain(x,y,z))
+(m::GridBundle{3})(t::Chain) = trilinterp(m,t)
+(m::GridBundle{3})(x::AbstractFloat,y::AbstractFloat,z::AbstractFloat) = trilinterp(m,Chain(x,y,z))
 (m::TensorField{B,F,N,<:RealSpace{3}} where {B,F,N})(t::Chain) = trilinterp(m,t)
 (m::TensorField{B,F,N,<:RealSpace{3}} where {B,F,N})(x,y,z) = trilinterp(m,Chain(x,y,z))
 function trilinterp(m,t::Chain{V,G,T,3} where {G,T}) where V
@@ -196,8 +196,8 @@ function trilinterp(m,t::Chain{V,G,T,3} where {G,T}) where V
         f[i,j,k+1],f[i+1,j,k+1],f[i,j+1,k+1],f[i+1,j+1,k+1])
 end
 
-(m::Grid{4})(t::Chain) = quadlinterp(m,t)
-(m::Grid{4})(x::AbstractFloat,y::AbstractFloat,z::AbstractFloat,w::AbstractFloat) = quadlinterp(m,Chain(x,y,z,w))
+(m::GridBundle{4})(t::Chain) = quadlinterp(m,t)
+(m::GridBundle{4})(x::AbstractFloat,y::AbstractFloat,z::AbstractFloat,w::AbstractFloat) = quadlinterp(m,Chain(x,y,z,w))
 (m::TensorField{B,F,N,<:RealSpace{4}} where {B,F,N})(t::Chain) = quadlinterp(m,t)
 (m::TensorField{B,F,N,<:RealSpace{4}} where {B,F,N})(x,y,z,w) = m(Chain(x,y,z,w))
 function (m)(t::Chain{V,G,T,4} where {G,T}) where V
@@ -253,8 +253,8 @@ function (m)(t::Chain{V,G,T,4} where {G,T}) where V
         f[i,j,k+1,l+1],f[i+1,j,k+1,l+1],f[i,j+1,k+1,l+1],f[i+1,j+1,k+1,l+1])
 end
 
-(m::Grid{5})(t::Chain) = quintlinterp(m,t)
-(m::Grid{5})(x::AbstractFloat,y::AbstractFloat,z::AbstractFloat,w::AbstractFloat,v::AbstractFloat) = quintlinterp(m,Chain(x,y,z,w,v))
+(m::GridBundle{5})(t::Chain) = quintlinterp(m,t)
+(m::GridBundle{5})(x::AbstractFloat,y::AbstractFloat,z::AbstractFloat,w::AbstractFloat,v::AbstractFloat) = quintlinterp(m,Chain(x,y,z,w,v))
 (m::TensorField{B,F,N,<:RealSpace{5}} where {B,F,N})(t::Chain) = quintlinterp(m,t)
 (m::TensorField{B,F,N,<:RealSpace{5}} where {B,F,N})(x,y,z,w,v) = m(Chain(x,y,z,w,v))
 function quintlinterp(m,t::Chain{V,G,T,5} where {G,T}) where V
@@ -338,8 +338,8 @@ for fun ∈ (:_slow,:_fast)
     cd,grad = Symbol(:centraldiff,fun),Symbol(:gradient,fun)
     cdg,cdp,cdf = Symbol(cd,:_calc),Symbol(cd,:_points),Symbol(cd,:_fiber) 
     @eval begin
-        $cdf(f,args...) = $cdg(GridFrameBundle(PointArray(0,fiber(f)),immersion(f)),args...)
-        $cdp(f,args...) = $cdg(GridFrameBundle(PointArray(0,points(f)),immersion(f)),args...)
+        $cdf(f,args...) = $cdg(GridBundle(PointArray(0,fiber(f)),immersion(f)),args...)
+        $cdp(f,args...) = $cdg(GridBundle(PointArray(0,points(f)),immersion(f)),args...)
         $cdp(f::TensorField{B,F,Nf,<:RealSpace{Nf,P,<:InducedMetric} where P} where {B,F,Nf},n::Val{N},args...) where N = $cd(points(f).v[N],subtopology(immersion(f),n),args...)
         function $grad(f::IntervalMap,d::AbstractVector=$cdp(f))
             TensorField(domain(f), $cdf(f,d))
@@ -365,40 +365,40 @@ for fun ∈ (:_slow,:_fast)
             TensorField(domain(f), $cdf(f,n,d))
         end
         $grad(f::TensorField,n::Int,args...) = $grad(f,Val(n),args...)
-        $cd(f::AbstractArray,args...) = $cdg(GridFrameBundle(PointArray(0,f)),args...)
-        $cd(f::AbstractArray,q::QuotientTopology,args...) = $cdg(GridFrameBundle(PointArray(0,f),q),args...)
-        function $cdg(f::GridFrameBundle{1},dt::Real,s::Tuple=size(f))
+        $cd(f::AbstractArray,args...) = $cdg(GridBundle(PointArray(0,f)),args...)
+        $cd(f::AbstractArray,q::QuotientTopology,args...) = $cdg(GridBundle(PointArray(0,f),q),args...)
+        function $cdg(f::GridBundle{1},dt::Real,s::Tuple=size(f))
             d = similar(points(f))
             @threads for i ∈ OneTo(s[1])
                 d[i] = $cdg(f,s,i)/$cdg(i,dt,l)
             end
             return d
         end
-        function $cdg(f::GridFrameBundle{1},dt::DenseVector,s::Tuple=size(f))
+        function $cdg(f::GridBundle{1},dt::DenseVector,s::Tuple=size(f))
             d = similar(points(f))
             @threads for i ∈ OneTo(s[1])
                 d[i] = $cdg(f,s,i)/dt[i]
             end
             return d
         end
-        function $cdg(f::GridFrameBundle{1},s::Tuple=size(f))
+        function $cdg(f::GridBundle{1},s::Tuple=size(f))
             d = similar(points(f))
             @threads for i ∈ OneTo(s[1])
                 d[i] = $cdg(f,s,i)
             end
             return d
         end
-        $cdg(f::GridFrameBundle{1},s::Tuple,i::Int) = $cdg(f,s[1],Val(1),i)
-        @generated function $cdg(f::GridFrameBundle{N},s::Tuple,i::Vararg{Int}) where N
+        $cdg(f::GridBundle{1},s::Tuple,i::Int) = $cdg(f,s[1],Val(1),i)
+        @generated function $cdg(f::GridBundle{N},s::Tuple,i::Vararg{Int}) where N
             :(Chain($([:($$cdg(f,s[$n],Val($n),i...)) for n ∈ list(1,N)]...)))
         end
         $cd(f::RealRegion) = ProductSpace($cd.(f.v))
-        $cd(f::GridFrameBundle{N,Coordinate{P,G},<:PointArray{P,G,N,<:RealRegion,<:Global{N,<:InducedMetric}},<:ProductTopology}) where {N,P,G} = ProductSpace($cd.(points(f).v))
-        $cd(f::GridFrameBundle{N,Coordinate{P,G},<:PointArray{P,G,N,<:RealRegion,<:Global{N,<:InducedMetric}},<:OpenTopology}) where {N,P,G} = ProductSpace($cd.(points(f).v))
-        $cd(f::GridFrameBundle{N,Coordinate{P,G},<:PointArray{P,G,N,<:RealRegion,<:Global{N,<:InducedMetric}}}) where {N,P,G} = sum.(value.($cdg(f)))
-        #$cd(f::GridFrameBundle{N,Coordinate{P,G},<:PointArray{P,G,N,<:RealRegion},<:ProductTopology}) where {N,P,G} = applymetric.($cd(points(f)),metricextensor(f))
-        $cd(f::GridFrameBundle{N,Coordinate{P,G},<:PointArray{P,G,N,<:RealRegion},<:OpenTopology}) where {N,P,G} = applymetric.($cd(points(f)),metricextensor(f))
-        $cd(f::GridFrameBundle{N,Coordinate{P,G},<:PointArray{P,G,N,<:RealRegion}}) where {N,P,G} = applymetric.(sum.(value.($cdg(f))),metricextensor(f))
+        $cd(f::GridBundle{N,Coordinate{P,G},<:PointArray{P,G,N,<:RealRegion,<:Global{N,<:InducedMetric}},<:ProductTopology}) where {N,P,G} = ProductSpace($cd.(points(f).v))
+        $cd(f::GridBundle{N,Coordinate{P,G},<:PointArray{P,G,N,<:RealRegion,<:Global{N,<:InducedMetric}},<:OpenTopology}) where {N,P,G} = ProductSpace($cd.(points(f).v))
+        $cd(f::GridBundle{N,Coordinate{P,G},<:PointArray{P,G,N,<:RealRegion,<:Global{N,<:InducedMetric}}}) where {N,P,G} = sum.(value.($cdg(f)))
+        #$cd(f::GridBundle{N,Coordinate{P,G},<:PointArray{P,G,N,<:RealRegion},<:ProductTopology}) where {N,P,G} = applymetric.($cd(points(f)),metricextensor(f))
+        $cd(f::GridBundle{N,Coordinate{P,G},<:PointArray{P,G,N,<:RealRegion},<:OpenTopology}) where {N,P,G} = applymetric.($cd(points(f)),metricextensor(f))
+        $cd(f::GridBundle{N,Coordinate{P,G},<:PointArray{P,G,N,<:RealRegion}}) where {N,P,G} = applymetric.(sum.(value.($cdg(f))),metricextensor(f))
         $cd(f::AbstractRange,q::OpenTopology,s::Tuple=size(f)) = $cd(f,s)
         function $cd(f::AbstractRange,q::QuotientTopology,s::Tuple=size(f))
             d = Vector{eltype(f)}(undef,s[1])
@@ -424,21 +424,21 @@ for fun ∈ (:_slow,:_fast)
     end
     for N ∈ list(2,5)
         @eval begin
-            function $cdg(f::GridFrameBundle{$N},dt::AbstractArray{T,$N} where T,s::Tuple=size(f))
+            function $cdg(f::GridBundle{$N},dt::AbstractArray{T,$N} where T,s::Tuple=size(f))
                 d = Array{Chain{Submanifold($N),1,pointtype(f),$N},$N}(undef,s...)
                 @nthreads $N i d begin
                     (@nref $N d i) = Chain((@ncall $N $cdg f s i).v./(@nref $N dt i).v)
                 end
                 return d
             end
-            function $cdg(f::GridFrameBundle{$N},s::Tuple=size(f))
+            function $cdg(f::GridBundle{$N},s::Tuple=size(f))
                 d = Array{Chain{Submanifold($N),1,pointtype(f),$N},$N}(undef,s...)
                 @nthreads $N i d begin
                     (@nref $N d i) = (@ncall $N $cdg f s i)
                 end
                 return d
             end
-            function $cdg(f::GridFrameBundle{$N},n::Val{M},dt::AbstractMatrix,s::Tuple=size(f)) where M
+            function $cdg(f::GridBundle{$N},n::Val{M},dt::AbstractMatrix,s::Tuple=size(f)) where M
                 d = Array{pointtype(f),$N}(undef,s...)
                 sM = @inbounds s[M]
                 @nthreads $N i d begin
@@ -446,7 +446,7 @@ for fun ∈ (:_slow,:_fast)
                 end
                 return d
             end
-            function $cdg(f::GridFrameBundle{$N},n::Val{M},s::Tuple=size(f)) where M
+            function $cdg(f::GridBundle{$N},n::Val{M},s::Tuple=size(f)) where M
                 d = Array{pointtype(f),$N}(undef,s...)
                 sM = @inbounds s[M]
                 @nthreads $N i d begin
@@ -456,7 +456,7 @@ for fun ∈ (:_slow,:_fast)
             end
         end
         for M ∈ list(1,N)
-            @eval function $cdg(f::GridFrameBundle{$N},n::Val{$M},dt::AbstractVector,s::Tuple=size(f))
+            @eval function $cdg(f::GridBundle{$N},n::Val{$M},dt::AbstractVector,s::Tuple=size(f))
                 d = Array{pointtype(f),$N}(undef,s...)
                 sM = @inbounds s[$M]
                 @nthreads $N i d begin
@@ -476,7 +476,7 @@ applymetric(f::Chain{V,G},g::Endomorphism{W,<:Simplex} where W) where {V,G} = ap
     Expr(:call,:(Chain{V}),[:(x[$k]/sqrt(g[$k,$k])) for k ∈ list(1,N)]...)
 end
 
-function centraldiff_slow_calc(f::GridFrameBundle{M,T,PA,<:OpenTopology} where {M,T,PA},l::Int,n::Val{N},i::Vararg{Int}) where N #l=size(f)[N]
+function centraldiff_slow_calc(f::GridBundle{M,T,PA,<:OpenTopology} where {M,T,PA},l::Int,n::Val{N},i::Vararg{Int}) where N #l=size(f)[N]
     if isone(i[N])
         18f[1,n,i...]-9f[2,n,i...]+2f[3,n,i...]-11points(f)[i...]
     elseif i[N]==l
@@ -489,7 +489,7 @@ function centraldiff_slow_calc(f::GridFrameBundle{M,T,PA,<:OpenTopology} where {
         f[-2,n,i...]+8(f[1,n,i...]-f[-1,n,i...])-f[2,n,i...]
     end
 end
-function Cartan.centraldiff_slow_calc(f::GridFrameBundle,l::Int,n::Val{N},i::Vararg{Int}) where N #l=size(f)[N]
+function Cartan.centraldiff_slow_calc(f::GridBundle,l::Int,n::Val{N},i::Vararg{Int}) where N #l=size(f)[N]
     if isone(i[N])
         if iszero(immersion(f).r[2N-1])
             18f[1,n,i...]-9f[2,n,i...]+2f[3,n,i...]-11points(f)[i...]
@@ -581,7 +581,7 @@ function centraldiff_slow_calc(i::Int,q::QuotientTopology,dt::Real,l::Int)
     end
 end
 
-function centraldiff_fast_calc(f::GridFrameBundle{M,T,PA,<:OpenTopology} where {M,T,PA},l::Int,n::Val{N},i::Vararg{Int}) where N
+function centraldiff_fast_calc(f::GridBundle{M,T,PA,<:OpenTopology} where {M,T,PA},l::Int,n::Val{N},i::Vararg{Int}) where N
     if isone(i[N]) # 4f[1,k,i...]-f[2,k,i...]-3f.v[i...]
         18f[1,n,i...]-9f[2,n,i...]+2f[3,n,i...]-11points(f)[i...]
     elseif i[N]==l # 3f.v[i...]-4f[-1,k,i...]+f[-2,k,i...]
@@ -590,7 +590,7 @@ function centraldiff_fast_calc(f::GridFrameBundle{M,T,PA,<:OpenTopology} where {
         f[1,n,i...]-f[-1,n,i...]
     end
 end
-function Cartan.centraldiff_fast_calc(f::GridFrameBundle,l::Int,n::Val{N},i::Vararg{Int}) where N
+function Cartan.centraldiff_fast_calc(f::GridBundle,l::Int,n::Val{N},i::Vararg{Int}) where N
     if isone(i[N])
         if iszero(immersion(f).r[2N-1])
             18f[1,n,i...]-9f[2,n,i...]+2f[3,n,i...]-11points(f)[i...]

@@ -50,6 +50,7 @@ end
 include("topology.jl")
 include("fiber.jl")
 
+export ElementMap, SimplexMap, FaceMap
 export IntervalMap, RectangleMap, HyperrectangleMap, PlaneCurve, SpaceCurve
 export TensorField, ScalarField, VectorField, BivectorField, TrivectorField
 export ElementFunction, SurfaceGrid, VolumeGrid, ScalarGrid, Variation
@@ -62,25 +63,28 @@ export alteration, variation, modification
 
 # TensorField
 
-struct TensorField{B,F,N,M<:AbstractFrameBundle{B,N},A<:AbstractArray{F,N}} <: GlobalFiber{LocalTensor{B,F},N}
+struct TensorField{B,F,N,M<:FrameBundle{B,N},A<:AbstractArray{F,N}} <: GlobalFiber{LocalTensor{B,F},N}
     dom::M
     cod::A
-    function TensorField(dom::M,cod::A) where {B,F,N,M<:AbstractFrameBundle{B,N},A<:AbstractArray{F,N}}
+    function TensorField(dom::M,cod::A) where {B,F,N,M<:FrameBundle{B,N},A<:AbstractArray{F,N}}
         new{B,F,N,M,A}(dom,cod)
     end
 end
 
-#TensorField(dom::AbstractFrameBundle,cod::Array) = TensorField(dom,ElasticArray(cod))
+#TensorField(dom::FrameBundle,cod::Array) = TensorField(dom,ElasticArray(cod))
 function TensorField(dom::AbstractArray{P,N},cod::AbstractArray{F,N},met::AbstractArray=Global{N}(InducedMetric())) where {N,P,F}
-    TensorField(GridFrameBundle(PointArray(0,dom,met)),cod)
+    TensorField(GridBundle(PointArray(0,dom,met)),cod)
 end
-TensorField(dom::PointArray,cod::AbstractArray) = TensorField(GridFrameBundle(dom),cod)
+TensorField(dom::PointArray,cod::AbstractArray) = TensorField(GridBundle(dom),cod)
 TensorField(dom,cod::AbstractArray,met::GlobalFiber) = TensorField(dom,cod,fiber(met))
-TensorField(dom::AbstractFrameBundle,cod::AbstractFrameBundle) = TensorField(dom,points(cod))
+TensorField(dom::FrameBundle,cod::FrameBundle) = TensorField(dom,points(cod))
 TensorField(a::TensorField,b::TensorField) = TensorField(fiber(a),fiber(b))
 
 #const ParametricMesh{B,F,P<:AbstractVector{<:Chain},A} = TensorField{B,F,1,P,A}
-const ScalarMap{B,F<:AbstractReal,P<:SimplexFrameBundle,A} = TensorField{B,F,1,P,A}
+const ScalarMap{B,F<:AbstractReal,P<:SimplexBundle,A} = TensorField{B,F,1,P,A}
+const ElementMap{B,F,P<:ElementBundle,A} = TensorField{B,F,1,P,A}
+const SimplexMap{B,F,P<:SimplexBundle,A} = TensorField{B,F,1,P,A}
+const FaceMap{B,F,P<:FaceBundle,A} = TensorField{B,F,1,P,A}
 #const ElementFunction{B,F<:AbstractReal,P<:AbstractVector,A} = TensorField{B,F,1,P,A}
 const IntervalMap{B,F,P<:Interval,A} = TensorField{B,F,1,P,A}
 const RectangleMap{B,F,P<:RealSpace{2},A} = TensorField{B,F,2,P,A}
@@ -117,10 +121,9 @@ TensorField(dom::TensorField,fun::Function) = TensorField(base(dom), fun)
 #TensorField(dom::AbstractArray,fun::AbstractRange) = TensorField(dom, collect(fun))
 #TensorField(dom::AbstractArray,fun::RealRegion) = TensorField(dom, collect(fun))
 TensorField(dom::AbstractArray,fun::Function) = TensorField(dom, fun.(dom))
-TensorField(dom::AbstractFrameBundle,fun::Function) = fun.(dom)
+TensorField(dom::FrameBundle,fun::Function) = fun.(dom)
 TensorField(dom::AbstractArray,fun::Number) = TensorField(dom, fill(fun,size(dom)...))
 TensorField(dom::AbstractArray) = TensorField(dom, dom)
-TensorField(dom::ChainBundle,fun::Function) = TensorField(dom, fun.(value(points(dom))))
 base(t::TensorField) = t.dom
 fiber(t::TensorField) = t.cod
 coordinatetype(t::TensorField) = basetype(t)
@@ -130,7 +133,7 @@ basetype(::Type{<:TensorField{B}}) where B = B
 fibertype(::TensorField{B,F} where B) where F = F
 fibertype(::Type{<:TensorField{B,F} where B}) where F = F
 Base.broadcast(f,t::TensorField) = TensorField(domain(t), f.(codomain(t)))
-#TensorField(dom::SimplexFrameBundle{1}) = TensorField(dom,getindex.(points(dom),2))
+#TensorField(dom::SimplexBundle{1}) = TensorField(dom,getindex.(points(dom),2))
 
 for fun ∈ (:points,:metricextensor,:coordinates,:immersion,:vertices,:fullcoordinates)
     @eval $fun(t::TensorField) = $fun(base(t))
@@ -140,10 +143,10 @@ end
 const → = TensorField
 metricextensorfield(t::TensorField) = metricextensorfield(base(t))
 metrictensorfield(t::TensorField) = metrictensorfield(base(t))
-metricextensorfield(t::GridFrameBundle) = TensorField(GridFrameBundle(PointArray(0,points(t)),immersion(t)),metricextensor(t))
-metrictensorfield(t::GridFrameBundle) = TensorField(GridFrameBundle(PointArray(0,points(t)),immersion(t)),metrictensor(t))
-metricextensorfield(t::SimplexFrameBundle) = TensorField(SimplexFrameBundle(PointCloud(0,points(t)),immersion(t)),metricextensor(t))
-metrictensorfield(t::SimplexFrameBundle) = TensorField(SimplexFrameBundle(PointCloud(0,points(t)),immersion(t)),metrictensor(t))
+metricextensorfield(t::GridBundle) = TensorField(GridBundle(PointArray(0,points(t)),immersion(t)),metricextensor(t))
+metrictensorfield(t::GridBundle) = TensorField(GridBundle(PointArray(0,points(t)),immersion(t)),metrictensor(t))
+metricextensorfield(t::SimplexBundle) = TensorField(SimplexBundle(PointCloud(0,points(t)),immersion(t)),metricextensor(t))
+metrictensorfield(t::SimplexBundle) = TensorField(SimplexBundle(PointCloud(0,points(t)),immersion(t)),metrictensor(t))
 Grassmann.grade(::GradedField{G}) where G = G
 Grassmann.antigrade(t::GradedField) = antigrade(fibertype(t))
 
@@ -197,17 +200,17 @@ function Base.similar(bc::Broadcast.Broadcasted{Broadcast.ArrayStyle{TensorField
     # Use the domain field of t to create the output
     TensorField(domain(t), similar(Array{fibertype(ElType),N}, axes(bc)))
 end
-function Base.similar(bc::Broadcast.Broadcasted{Broadcast.ArrayStyle{GridFrameBundle{N,C,PA,TA}}}, ::Type{ElType}) where {N,C,PA,TA,ElType}
+function Base.similar(bc::Broadcast.Broadcasted{Broadcast.ArrayStyle{GridBundle{N,C,PA,TA}}}, ::Type{ElType}) where {N,C,PA,TA,ElType}
     t = find_gf(bc)
     # Use the data type to create the output
     TensorField(t,similar(Array{ElType,N}, axes(bc)))
 end
-function Base.similar(bc::Broadcast.Broadcasted{Broadcast.ArrayStyle{SimplexFrameBundle{N,C,PA,TA}}}, ::Type{ElType}) where {N,C,PA,TA,ElType}
+function Base.similar(bc::Broadcast.Broadcasted{Broadcast.ArrayStyle{SimplexBundle{N,C,PA,TA}}}, ::Type{ElType}) where {N,C,PA,TA,ElType}
     t = find_gf(bc)
     # Use the data type to create the output
     TensorField(t,similar(Vector{ElType}, axes(bc)))
 end
-function Base.similar(bc::Broadcast.Broadcasted{Broadcast.ArrayStyle{FacetFrameBundle{N,C,PA,TA}}}, ::Type{ElType}) where {N,C,PA,TA,ElType}
+function Base.similar(bc::Broadcast.Broadcasted{Broadcast.ArrayStyle{FaceBundle{N,C,PA,TA}}}, ::Type{ElType}) where {N,C,PA,TA,ElType}
     t = find_gf(bc)
     # Use the data type to create the output
     TensorField(t,similar(Vector{ElType}, axes(bc)))
@@ -222,14 +225,14 @@ find_tf(::Tuple{}) = nothing
 find_tf(a::TensorField, rest) = a
 find_tf(::Any, rest) = find_tf(rest)
 
-(m::TensorField{B,F,N,<:SimplexFrameBundle} where {B,F,N})(i::ImmersedTopology) = TensorField(coordinates(m)(i),fiber(m)[vertices(i)])
-(m::TensorField{B,F,N,<:GridFrameBundle} where {B,F,N})(i::ImmersedTopology) = TensorField(base(m)(i),fiber(m))
+(m::TensorField{B,F,N,<:SimplexBundle} where {B,F,N})(i::ImmersedTopology) = TensorField(coordinates(m)(i),fiber(m)[vertices(i)])
+(m::TensorField{B,F,N,<:GridBundle} where {B,F,N})(i::ImmersedTopology) = TensorField(base(m)(i),fiber(m))
 for fun ∈ (:Open,:Mirror,:Clamped,:Torus,:Ribbon,:Wing,:Mobius,:Klein,:Cone,:Polar,:Sphere,:Geographic,:Hopf)
     for top ∈ (Symbol(fun,:Topology),)
         @eval begin
-            $top(m::TensorField{B,F,N,<:GridFrameBundle} where {B,F,N}) = TensorField($top(base(m)),fiber(m))
-            $top(m::GridFrameBundle) = m($top(size(m)))
-            $top(p::PointArray) = TensorField(GridFrameBundle(p,$top(size(p))))
+            $top(m::TensorField{B,F,N,<:GridBundle} where {B,F,N}) = TensorField($top(base(m)),fiber(m))
+            $top(m::GridBundle) = m($top(size(m)))
+            $top(p::PointArray) = TensorField(GridBundle(p,$top(size(p))))
             $(Symbol(fun,:Parameter))(p::PointArray) = $top(p)
         end
     end
@@ -447,11 +450,12 @@ function __init__()
         funsym(sym) = String(sym)[end] == '!' ? sym : Symbol(sym,:!)
         for lines ∈ (:lines,:lines!,:linesegments,:linesegments!)
             @eval begin
-                Makie.$lines(t::ScalarMap;args...) = Makie.$lines(getindex.(domain(t),2),codomain(t);args...)
+                Makie.$lines(t::ScalarMap;args...) = Makie.$lines(TensorField(GridBundle(base(t)),fiber(t));args...)
                 Makie.$lines(t::SpaceCurve,f::Function=speed;args...) = Makie.$lines(vec(fiber(t));color=Real.(vec(fiber(f(t)))),args...)
                 Makie.$lines(t::PlaneCurve,f::Function=speed;args...) = Makie.$lines(vec(fiber(t));color=Real.(vec(fiber(f(t)))),args...)
                 Makie.$lines(t::RealFunction,f::Function=speed;args...) = Makie.$lines(Real.(points(t)),Real.(fiber(t));color=Real.(vec(fiber(f(t)))),args...)
                 Makie.$lines(t::ComplexMap{B,F,1},f::Function=speed;args...) where {B<:Coordinate{<:AbstractReal},F} = Makie.$lines(realvalue.(fiber(t)),imagvalue.(fiber(t));color=Real.(vec(fiber(f(t)))),args...)
+                #Makie.$lines(t::TensorField{B,F<:AbstractReal,N,<:SimplexBundle{1}};args...) = Makie.$lines(TensorField(GridBundle(base(t)),fiber(t));args...)
             end
         end
         #Makie.lines(t::TensorField{B,F,1};args...) where {B<:Coordinate{<:AbstractReal},F<:AbstractReal} = linegraph(t;args...)
@@ -459,7 +463,7 @@ function __init__()
         for fun ∈ (:linegraph,:linegraph!)
             @eval begin
                 $fun(t::SurfaceGrid;args...) = $fun(graph(t);args...)
-                $fun(t::TensorField{B,<:AbstractReal,2,<:FiberProductBundle} where B;args...) = $fun(TensorField(GridFrameBundle(base(t)),fiber(t)))
+                $fun(t::TensorField{B,<:AbstractReal,2,<:FiberProductBundle} where B;args...) = $fun(TensorField(GridBundle(base(t)),fiber(t)))
             end
         end
         function linegraph(t::GradedField{G,B,F,1} where G;args...) where {B<:Coordinate{<:AbstractReal},F}
@@ -525,10 +529,10 @@ function __init__()
                 end
             end
         end
-        function Makie.arrows(M::VectorField,t::TensorField{B,<:TensorOperator,N,<:GridFrameBundle} where B;args...) where N
+        function Makie.arrows(M::VectorField,t::TensorField{B,<:TensorOperator,N,<:GridBundle} where B;args...) where N
             Makie.arrows(TensorField(fiber(M),fiber(t));args...)
         end
-        function Makie.arrows!(M::VectorField,t::TensorField{B,<:TensorOperator,N,<:GridFrameBundle} where B;args...) where N
+        function Makie.arrows!(M::VectorField,t::TensorField{B,<:TensorOperator,N,<:GridBundle} where B;args...) where N
             Makie.arrows!(TensorField(fiber(M),fiber(t));args...)
         end
         function Makie.arrows(t::VectorField{<:Coordinate{<:Chain},<:TensorOperator,2,<:RealSpace{2}};args...)
@@ -545,13 +549,13 @@ function __init__()
         end
         for (fun,fun!) ∈ ((:arrows,:arrows!),(:streamplot,:streamplot!))
             @eval begin
-                function Makie.$fun(t::TensorField{<:Coordinate{<:Chain},<:TensorOperator,N,<:GridFrameBundle};args...) where N
+                function Makie.$fun(t::TensorField{<:Coordinate{<:Chain},<:TensorOperator,N,<:GridBundle};args...) where N
                     display(Makie.$fun(getindex.(t,1);args...))
                     for i ∈ 2:mdims(eltype(codomain(t)))
                         Makie.$fun!(getindex.(t,i);args...)
                     end
                 end
-                function Makie.$fun!(t::TensorField{<:Coordinate{<:Chain},<:TensorOperator,N,<:GridFrameBundle};args...) where N
+                function Makie.$fun!(t::TensorField{<:Coordinate{<:Chain},<:TensorOperator,N,<:GridBundle};args...) where N
                     display(Makie.$fun!(getindex.(t,1);args...))
                     for i ∈ 2:mdims(eltype(codomain(t)))
                         Makie.$fun!(getindex.(t,i);args...)
@@ -578,7 +582,7 @@ function __init__()
             @eval begin
                 Makie.$fun(t::SurfaceGrid,f::Function=gradient_fast;args...) = Makie.$fun(points(t).v...,Real.(codomain(t));color=Real.(abs.(codomain(f(Real(t))))),args...)
                 Makie.$fun(t::ComplexMap{B,<:AbstractComplex,2,<:RealSpace{2}} where B;args...) = Makie.$fun(points(t).v...,Real.(radius.(codomain(t)));color=Real.(angle.(codomain(t))),colormap=:twilight,args...)
-                Makie.$fun(t::TensorField{B,<:AbstractReal,2,<:FiberProductBundle} where B;args...) = Makie.$fun(TensorField(GridFrameBundle(base(t)),fiber(t)))
+                Makie.$fun(t::TensorField{B,<:AbstractReal,2,<:FiberProductBundle} where B;args...) = Makie.$fun(TensorField(GridBundle(base(t)),fiber(t)))
                 function Makie.$fun(t::GradedField{G,B,F,2,<:RealSpace{2}} where G,f::Function=gradient_fast;args...) where {B,F<:Chain}
                     x,y = points(t),value.(codomain(t))
                     yi = Real.(getindex.(y,1))
@@ -603,7 +607,7 @@ function __init__()
         for fun ∈ (:contour,:contour!,:contourf,:contourf!,:contour3d,:contour3d!,:heatmap,:heatmap!)
             @eval begin
                 Makie.$fun(t::SurfaceGrid;args...) = Makie.$fun(points(t).v...,Real.(codomain(t));args...)
-                Makie.$fun(t::TensorField{B,<:AbstractReal,2,<:FiberProductBundle} where B;args...) = Makie.$fun(TensorField(GridFrameBundle(base(t)),fiber(t)))
+                Makie.$fun(t::TensorField{B,<:AbstractReal,2,<:FiberProductBundle} where B;args...) = Makie.$fun(TensorField(GridBundle(base(t)),fiber(t)))
                 function Makie.$fun(t::GradedField{G,B,F,2,<:RealSpace{2}} where G;args...) where {B,F}
                     x,y = points(t),value.(codomain(t))
                     display(Makie.$fun(x.v...,Real.(getindex.(y,1));args...))
@@ -616,7 +620,7 @@ function __init__()
         for fun ∈ (:wireframe,:wireframe!)
             @eval begin
                 Makie.$fun(t::SurfaceGrid;args...) = Makie.$fun(graph(t);args...)
-                Makie.$fun(t::TensorField{B,<:AbstractReal,2,<:FiberProductBundle} where B;args...) = Makie.$fun(TensorField(GridFrameBundle(base(t)),fiber(t)))
+                Makie.$fun(t::TensorField{B,<:AbstractReal,2,<:FiberProductBundle} where B;args...) = Makie.$fun(TensorField(GridBundle(base(t)),fiber(t)))
             end
         end
         point2chain(x,V=Submanifold(2)) = Chain(x[1],x[2])
@@ -627,9 +631,9 @@ function __init__()
                 Makie.$fun(f::Function,t::Hyperrectangle;args...) = Makie.$fun(f,t.v...;args...)
                 Makie.$fun(m::ScalarField{<:Coordinate{<:Chain},<:AbstractReal,N,<:RealSpace} where N;args...) = Makie.$fun(gradient_fast(m);args...)
                 Makie.$fun(m::ScalarMap,dims...;args...) = Makie.$fun(gradient_fast(m),dims...;args...)
-                Makie.$fun(m::VectorField{R,F,1,<:SimplexFrameBundle} where {R,F},dims...;args...) = Makie.$fun(p->Makie.Point(m(Chain(one(eltype(p)),p.data...))),dims...;args...)
+                Makie.$fun(m::VectorField{R,F,1,<:SimplexBundle} where {R,F},dims...;args...) = Makie.$fun(p->Makie.Point(m(Chain(one(eltype(p)),p.data...))),dims...;args...)
                 Makie.$fun(m::VectorField{<:Coordinate{<:Chain},F,N,<:RealSpace} where {F,N};args...) = Makie.$fun(p->Makie.Point(m(Chain(p.data...))),points(m).v...;args...)
-                Makie.$fun(t::TensorField{B,<:AbstractReal,2,<:FiberProductBundle} where B;args...) = Makie.$fun(TensorField(GridFrameBundle(base(t)),fiber(t)))
+                Makie.$fun(t::TensorField{B,<:AbstractReal,2,<:FiberProductBundle} where B;args...) = Makie.$fun(TensorField(GridBundle(base(t)),fiber(t)))
                 function Makie.$fun(M::VectorField,m::VectorField{<:Coordinate{<:Chain{V}},<:Chain,2,<:RealSpace{2}};args...) where V
                     kwargs = if haskey(args,:gridsize)
                         wargs = Dict(args)
@@ -656,7 +660,7 @@ function __init__()
                 Makie.$fun(t::ScalarField{<:Coordinate{<:Chain},F,2,<:RealSpace{2}} where F;args...) = Makie.$fun(vec(Makie.Point.(fiber(graph(Real(t))))),vec(Makie.Point.(fiber(normal(Real(t)))));args...)
                 Makie.$fun(t::VectorField{<:Coordinate{<:Chain{W,L,F,2} where {W,L,F}},<:Chain{V,G,T,2} where {V,G,T},2,<:AlignedRegion{2}};args...) = Makie.$fun(points(t).v...,getindex.(codomain(t),1),getindex.(codomain(t),2);args...)
                 Makie.$fun(t::VectorField{<:Coordinate{<:Chain},<:Chain,2,<:RealSpace{2}};args...) = Makie.$fun(Makie.Point.(vec(points(t))),Makie.Point.(vec(fiber(t)));args...)
-                Makie.$fun(t::VectorField{<:Coordinate{<:Chain},F,N,<:GridFrameBundle} where {F,N};args...) = Makie.$fun(vec(Makie.Point.(points(t))),vec(Makie.Point.(fiber(t)));args...)
+                Makie.$fun(t::VectorField{<:Coordinate{<:Chain},F,N,<:GridBundle} where {F,N};args...) = Makie.$fun(vec(Makie.Point.(points(t))),vec(Makie.Point.(fiber(t)));args...)
                 Makie.$fun(t::VectorField,f::VectorField;args...) = Makie.$fun(vec(Makie.Point.(fiber(t))),vec(Makie.Point.(fiber(f)));args...)
                 Makie.$fun(t::Rectangle,f::Function;args...) = Makie.$fun(t.v...,f;args...)
                 Makie.$fun(t::Hyperrectangle,f::Function;args...) = Makie.$fun(t.v...,f;args...)
@@ -667,44 +671,44 @@ function __init__()
         Makie.mesh!(t::ScalarMap;args...) = Makie.mesh!(domain(t);color=Real.(codomain(t)),args...)
         #Makie.wireframe(t::ElementFunction;args...) = Makie.wireframe(value(domain(t));color=Real.(codomain(t)),args...)
         #Makie.wireframe!(t::ElementFunction;args...) = Makie.wireframe!(value(domain(t));color=Real.(codomain(t)),args...)
-        Makie.convert_arguments(P::Makie.PointBased, a::SimplexFrameBundle) = Makie.convert_arguments(P, points(a))
+        Makie.convert_arguments(P::Makie.PointBased, a::SimplexBundle) = Makie.convert_arguments(P, points(a))
         Makie.convert_single_argument(a::LocalFiber) = convert_arguments(P,Point(a))
-        Makie.arrows(p::SimplexFrameBundle,v;args...) = Makie.arrows(GeometryBasics.Point.(↓(V).(points(p))),GeometryBasics.Point.(value(v));args...)
-        Makie.arrows!(p::SimplexFrameBundle,v;args...) = Makie.arrows!(GeometryBasics.Point.(↓(V).(points(p))),GeometryBasics.Point.(value(v));args...)
-        Makie.scatter(p::SimplexFrameBundle,x;args...) = Makie.scatter(submesh(p)[:,1],x;args...)
-        Makie.scatter!(p::SimplexFrameBundle,x;args...) = Makie.scatter!(submesh(p)[:,1],x;args...)
-        Makie.scatter(p::SimplexFrameBundle;args...) = Makie.scatter(submesh(p);args...)
-        Makie.scatter!(p::SimplexFrameBundle;args...) = Makie.scatter!(submesh(p);args...)
-        Makie.lines(p::SimplexFrameBundle;args...) = Makie.lines(points(p);args...)
-        Makie.lines!(p::SimplexFrameBundle;args...) = Makie.lines!(points(p);args...)
+        Makie.arrows(p::SimplexBundle,v;args...) = Makie.arrows(GeometryBasics.Point.(↓(V).(points(p))),GeometryBasics.Point.(value(v));args...)
+        Makie.arrows!(p::SimplexBundle,v;args...) = Makie.arrows!(GeometryBasics.Point.(↓(V).(points(p))),GeometryBasics.Point.(value(v));args...)
+        Makie.scatter(p::SimplexBundle,x;args...) = Makie.scatter(submesh(p)[:,1],x;args...)
+        Makie.scatter!(p::SimplexBundle,x;args...) = Makie.scatter!(submesh(p)[:,1],x;args...)
+        Makie.scatter(p::SimplexBundle;args...) = Makie.scatter(submesh(p);args...)
+        Makie.scatter!(p::SimplexBundle;args...) = Makie.scatter!(submesh(p);args...)
+        Makie.lines(p::SimplexBundle;args...) = Makie.lines(points(p);args...)
+        Makie.lines!(p::SimplexBundle;args...) = Makie.lines!(points(p);args...)
         #Makie.lines(p::Vector{<:TensorAlgebra};args...) = Makie.lines(GeometryBasics.Point.(p);args...)
         #Makie.lines!(p::Vector{<:TensorAlgebra};args...) = Makie.lines!(GeometryBasics.Point.(p);args...)
         #Makie.lines(p::Vector{<:TensorTerm};args...) = Makie.lines(value.(p);args...)
         #Makie.lines!(p::Vector{<:TensorTerm};args...) = Makie.lines!(value.(p);args...)
         #Makie.lines(p::Vector{<:Chain{V,G,T,1} where {V,G,T}};args...) = Makie.lines(getindex.(p,1);args...)
         #Makie.lines!(p::Vector{<:Chain{V,G,T,1} where {V,G,T}};args...) = Makie.lines!(getindex.(p,1);args...)
-        function Makie.linesegments(e::SimplexFrameBundle;args...)
+        function Makie.linesegments(e::SimplexBundle;args...)
             mdims(immersion(e)) ≠ 2 && (return Makie.linesegments(edges(e)))
             Makie.linesegments(Grassmann.pointpair.(e[ImmersedTopology(e)],↓(Manifold(points(e))));args...)
         end
-        function Makie.linesegments!(e::SimplexFrameBundle;args...)
+        function Makie.linesegments!(e::SimplexBundle;args...)
             mdims(immersion(e)) ≠ 2 && (return Makie.linesegments!(edges(e)))
             Makie.linesegments!(Grassmann.pointpair.(e[ImmersedTopology(e)],↓(Manifold(points(e))));args...)
         end
-        Makie.wireframe(t::SimplexFrameBundle;args...) = Makie.linesegments(edges(t);args...)
-        Makie.wireframe!(t::SimplexFrameBundle;args...) = Makie.linesegments!(edges(t);args...)
+        Makie.wireframe(t::SimplexBundle;args...) = Makie.linesegments(edges(t);args...)
+        Makie.wireframe!(t::SimplexBundle;args...) = Makie.linesegments!(edges(t);args...)
         for fun ∈ (:mesh,:mesh!,:wireframe,:wireframe!)
-            @eval Makie.$fun(M::GridFrameBundle;args...) = Makie.$fun(GeometryBasics.Mesh(M);args...)
+            @eval Makie.$fun(M::GridBundle;args...) = Makie.$fun(GeometryBasics.Mesh(M);args...)
         end
-        function linegraph(M::TensorField{B,<:Chain,2,<:GridFrameBundle} where B,f::Function=speed;args...)
+        function linegraph(M::TensorField{B,<:Chain,2,<:GridBundle} where B,f::Function=speed;args...)
             variation(M,Makie.lines,Makie.lines!,f;args...)
             alteration(M,Makie.lines!,Makie.lines!,f;args...)
         end
-        function linegraph!(M::TensorField{B,<:Chain,2,<:GridFrameBundle} where B,f::Function=speed;args...)
+        function linegraph!(M::TensorField{B,<:Chain,2,<:GridBundle} where B,f::Function=speed;args...)
             variation(M,Makie.lines!,Makie.lines!,f;args...)
             alteration(M,Makie.lines!,Makie.lines!,f;args...)
         end
-        function linegraph(v::TensorField{B,<:Chain,3,<:GridFrameBundle} where B,f::Function=speed;args...)
+        function linegraph(v::TensorField{B,<:Chain,3,<:GridBundle} where B,f::Function=speed;args...)
             display(Makie.lines(leaf2(v,1,1,1),f;args...))
             c = (2,3),(1,3),(1,2)
             for k ∈ (1,2,3)
@@ -717,29 +721,29 @@ function __init__()
         end
         Makie.mesh(M::TensorField,f::Function;args...) = Makie.mesh(M,f(M);args...)
         Makie.mesh!(M::TensorField,f::Function;args...) = Makie.mesh!(M,f(M);args...)
-        function Makie.mesh(M::TensorField{B,<:Chain,2,<:GridFrameBundle} where B;args...)
-            Makie.mesh(GridFrameBundle(fiber(M));args...)
+        function Makie.mesh(M::TensorField{B,<:Chain,2,<:GridBundle} where B;args...)
+            Makie.mesh(GridBundle(fiber(M));args...)
         end
-        function Makie.mesh!(M::TensorField{B,<:Chain,2,<:GridFrameBundle} where B;args...)
-            Makie.mesh!(GridFrameBundle(fiber(M));args...)
+        function Makie.mesh!(M::TensorField{B,<:Chain,2,<:GridBundle} where B;args...)
+            Makie.mesh!(GridBundle(fiber(M));args...)
         end
-        function Makie.mesh(M::TensorField{B,<:AbstractReal,2,<:GridFrameBundle} where B;args...)
+        function Makie.mesh(M::TensorField{B,<:AbstractReal,2,<:GridBundle} where B;args...)
             Makie.mesh(GeometryBasics.Mesh(base(M));color=vec(fiber(Real(M))),args...)
         end
-        function Makie.mesh!(M::TensorField{B,<:AbstractReal,2,<:GridFrameBundle} where B;args...)
+        function Makie.mesh!(M::TensorField{B,<:AbstractReal,2,<:GridBundle} where B;args...)
             Makie.mesh!(GeometryBasics.Mesh(base(M));color=vec(fiber(Real(M))),args...)
         end
-        function Makie.mesh(M::TensorField{B,<:Chain,2,<:GridFrameBundle} where B,f::TensorField;args...)
-            Makie.mesh(GridFrameBundle(fiber(M));color=vec(fiber(Real(f))),args...)
+        function Makie.mesh(M::TensorField{B,<:Chain,2,<:GridBundle} where B,f::TensorField;args...)
+            Makie.mesh(GridBundle(fiber(M));color=vec(fiber(Real(f))),args...)
         end
-        function Makie.mesh!(M::TensorField{B,<:Chain,2,<:GridFrameBundle} where B,f::TensorField;args...)
-            Makie.mesh!(GridFrameBundle(fiber(M));color=vec(fiber(Real(f))),args...)
+        function Makie.mesh!(M::TensorField{B,<:Chain,2,<:GridBundle} where B,f::TensorField;args...)
+            Makie.mesh!(GridBundle(fiber(M));color=vec(fiber(Real(f))),args...)
         end
-        Makie.wireframe(M::TensorField{B,<:Chain,N,<:GridFrameBundle} where {B,N};args...) = Makie.wireframe(GridFrameBundle(fiber(M));args...)
-        Makie.wireframe!(M::TensorField{B,<:Chain,N,<:GridFrameBundle} where {B,N};args...) = Makie.wireframe!(GridFrameBundle(fiber(M));args...)
-        Makie.mesh(M::TensorField{B,F,N,<:FacetFrameBundle} where {B,F,N};args...) = Makie.mesh(TensorField(SimplexFrameBundle(base(M)),interp(M)))
-        Makie.mesh!(M::TensorField{B,F,N,<:FacetFrameBundle} where {B,F,N};args...) = Makie.mesh!(TensorField(SimplexFrameBundle(base(M)),interp(M)))
-        function Makie.mesh(M::SimplexFrameBundle;args...)
+        Makie.wireframe(M::TensorField{B,<:Chain,N,<:GridBundle} where {B,N};args...) = Makie.wireframe(GridBundle(fiber(M));args...)
+        Makie.wireframe!(M::TensorField{B,<:Chain,N,<:GridBundle} where {B,N};args...) = Makie.wireframe!(GridBundle(fiber(M));args...)
+        Makie.mesh(M::TensorField{B,F,N,<:FaceBundle} where {B,F,N};args...) = Makie.mesh(TensorField(SimplexBundle(base(M)),interp(M)))
+        Makie.mesh!(M::TensorField{B,F,N,<:FaceBundle} where {B,F,N};args...) = Makie.mesh!(TensorField(SimplexBundle(base(M)),interp(M)))
+        function Makie.mesh(M::SimplexBundle;args...)
             if mdims(points(M)) == 2
                 sm = submesh(M)[:,1]
                 Makie.lines(sm,args[:color])
@@ -748,7 +752,7 @@ function __init__()
                 Makie.mesh(submesh(M),array(ImmersedTopology(M));args...)
             end
         end
-        function Makie.mesh!(M::SimplexFrameBundle;args...)
+        function Makie.mesh!(M::SimplexBundle;args...)
             if mdims(points(M)) == 2
                 sm = submesh(M)[:,1]
                 Makie.lines!(sm,args[:color])
@@ -784,31 +788,29 @@ function __init__()
         Base.display(t::SurfaceGrid) = (display(typeof(t)); display(UnicodePlots.heatmap(t)))
     end
     @require Meshes = "eacbb407-ea5a-433e-ab97-5258b1ca43fa" begin
-        function initmesh(m::Meshes.SimpleMesh{N}) where N
+        function SimplexBundle(m::Meshes.SimpleMesh{N}) where N
             c,f = Meshes.vertices(m),m.topology.connec
             s = N+1; V = Submanifold(ℝ^s) # s
             n = length(f[1].indices)
             p = PointCloud([Chain{V,1}(Values{s,Float64}(1.0,k.coords...)) for k ∈ c])
-            t = SimplexTopology([Values{n,Int}(k.indices) for k ∈ f])
-            return (p,∂(t),t)
+            p(SimplexTopology([Values{n,Int}(k.indices) for k ∈ f],length(p)))
         end
     end
     @require GeometryBasics = "5c1252a2-5f33-56bf-86c9-59e7332b4326" begin
         Base.convert(::Type{GeometryBasics.Point},t::T) where T<:LocalFiber = GeometryBasics.Point(base(t))
         #GeometryBasics.Point(t::T) where T<:TensorAlgebra = convert(GeometryBasics.Point,t)
-        function GeometryBasics.Mesh(m::GridFrameBundle{2})
+        function GeometryBasics.Mesh(m::GridBundle{2})
             nm = size(points(m))
             faces = GeometryBasics.Tesselation(GeometryBasics.Rect(0, 0, 1, 1), nm)
             uv = Chain(0.0,0.0):map(inv,Chain((nm.-1)...)):Chain(1.0,1.0)
             GeometryBasics.Mesh(GeometryBasics.meta(GeometryBasics.Point.(vec(points(m))); uv=GeometryBasics.Vec{2}.(value.(vec(uv)))), GeometryBasics.decompose(GeometryBasics.QuadFace{GeometryBasics.GLIndex}, faces))
         end
-        function initmesh(m::GeometryBasics.Mesh)
+        function SimplexBundle(m::GeometryBasics.Mesh)
             c,f = GeometryBasics.coordinates(m),GeometryBasics.faces(m)
             s = size(eltype(c))[1]+1; V = varmanifold(s) # s
             n = size(eltype(f))[1]
-            p = [Chain{V,1}(Values{s,Float64}(1.0,k...)) for k ∈ c]
-            t = SimplexTopology([Values{n,Int}(k) for k ∈ f])
-            return (p,∂(t),t)
+            p = PointCloud([Chain{V,1}(Values{s,Float64}(1.0,k...)) for k ∈ c])
+            p(SimplexTopology([Values{n,Int}(k) for k ∈ f],length(p)))
         end
     end
     @require Delaunay="07eb4e4e-0c6d-46ef-bc4e-83d5e5d860a9" begin
@@ -820,11 +822,11 @@ function __init__()
         QHull.chull(p::Vector{<:Chain},n=1:length(p)) = QHull.chull(PointCloud(p),n)
         function QHull.chull(p::PointCloud,n=1:length(p))
             T = QHull.chull(submesh(length(n)==length(p) ? p : p[n]))
-            p(SimplexTopology([Values(getindex.(Ref(n),k)) for k ∈ T.simplices]))
+            p(SimplexTopology([Values(getindex.(Ref(n),k)) for k ∈ T.simplices],length(p)))
         end
-        function initmesh(t::Chull)
+        function SimplexBundle(t::Chull)
             p = PointCloud(initpoints(t.points'))
-            p(SimplexTopology(Values.(t.simplices)))
+            p(SimplexTopology(Values.(t.simplices),length(p)))
         end
     end
     @require MiniQhull="978d7f02-9e05-4691-894f-ae31a51d76ca" begin
@@ -835,7 +837,7 @@ function __init__()
             N,m = mdims(p),length(n)
             l = list(1,N)
             T = MiniQhull.delaunay(Matrix(submesh(m==length(p) ? p : p[n])'),args...)
-            SimplexTopology([Values{N,Int}(getindex.(Ref(n),Int.(T[l,k]))) for k ∈ 1:size(T,2)],m)
+            p(SimplexTopology([Values{N,Int}(getindex.(Ref(n),Int.(T[l,k]))) for k ∈ 1:size(T,2)],length(p)))
         end
     end
     @require Triangulate = "f7e6ffb2-c36d-4f8f-a77e-16e897189344" begin
@@ -871,21 +873,21 @@ function __init__()
         end
         triangle(p::Vector{<:Chain{V,1,T} where V}) where T = array(p)'[2:end,:]
         triangle(p::Vector{<:Values}) = Cint.(array(p)')
-        function Triangulate.TriangulateIO(e::SimplexFrameBundle,h=nothing)
+        function Triangulate.TriangulateIO(e::SimplexBundle,h=nothing)
             triin=Triangulate.TriangulateIO()
             triin.pointlist=triangle(points(e))
             triin.segmentlist=triangle(immersion(e))
             !isnothing(h) && (triin.holelist=triangle(h))
             return triin
         end
-        function Triangulate.triangulate(i,e::SimplexFrameBundle;holes=nothing)
+        function Triangulate.triangulate(i,e::SimplexBundle;holes=nothing)
             initmesh(Triangulate.triangulate(i,Triangulate.TriangulateIO(e,holes))[1])
         end
         initmesh(t::Triangulate.TriangulateIO) = initmeshdata(t.pointlist,t.segmentlist,t.trianglelist,Val(2))
         #aran(area=0.001,angle=20) = "pa$(Printf.@sprintf("%.15f",area))q$(Printf.@sprintf("%.15f",angle))Q"
     end
     @require TetGen="c5d3f3f7-f850-59f6-8a2e-ffc6dc1317ea" begin
-        function TetGen.JLTetGenIO(mesh::SimplexFrameBundle;
+        function TetGen.JLTetGenIO(mesh::SimplexBundle;
                 marker = :markers, holes = TetGen.Point{3, Float64}[])
             f = TetGen.TriangleFace{Cint}.(immersion(mesh))
             kw_args = Any[:facets => TetGen.metafree(f),:holes => holes]
@@ -897,12 +899,13 @@ function __init__()
         end
         function initmesh(tio::TetGen.JLTetGenIO, command = "Qp")
             r = TetGen.tetrahedralize(tio, command); V = Submanifold(ℝ^4)
-            p = [Chain{V,1}(Values{4,Float64}(1.0,k...)) for k ∈ r.points]
+            p = PointCloud([Chain{V,1}(Values{4,Float64}(1.0,k...)) for k ∈ r.points])
             t = Values{4,Int}.(r.tetrahedra)
             e = Values{3,Int}.(r.trifaces) # Values{2,Int}.(r.edges)
-            return PointCloud(p),SimplexTopology(e),SimplexTopology(t)
+            n = Ref(length(p))
+            return p(SimplexTopology(t,n)),p(SimplexTopology(e,n))
         end
-        function TetGen.tetrahedralize(mesh::SimplexFrameBundle, command = "Qp";
+        function TetGen.tetrahedralize(mesh::SimplexBundle, command = "Qp";
                 marker = :markers, holes = TetGen.Point{3, Float64}[])
             initmesh(TetGen.JLTetGenIO(mesh;marker=marker,holes=holes),command)
         end
@@ -926,7 +929,7 @@ function __init__()
             B = bundle(p)
             if length(matlab_cache)<B || isempty(matlab_cache[B])
                 ap = array(p)'
-                matlab(islocal(p) ? vcat(ap,ones(length(p))') : ap[2:end,:],B)
+                matlab(ap[2:end,:],B)
             else
                 return matlab_cache[B]
             end
@@ -935,7 +938,7 @@ function __init__()
             B = bundle(p)
             if length(matlab_top_cache)<B || isempty(matlab_top_cache[B])
                 ap = array(p)'
-                matlab_top(islocal(p) ? vcat(ap,ones(length(p))') : ap[2:end,:],B)
+                matlab_top(vcat(ap,ones(length(p))'),B)
             else
                 return matlab_top_cache[B]
             end
@@ -944,50 +947,73 @@ function __init__()
         initmeshall(g::Matrix{Int},args...) = initmeshall(Matrix{Float64}(g),args...)
         function initmeshall(g,args...)
             P,E,T = MATLAB.mxcall(:initmesh,3,g,args...)
-            p,e,t = initmeshdata(P,E,T,Val(2))
-            return (p,e,t,T,E,P)
+            pt,pe = initmeshdata(P,E,T,Val(2))
+            return (pt,pe,T,E,P)
         end
         function initmeshes(g,args...)
-            p,e,t,T = initmeshall(g,args...)
-            p,e,t,TensorField(FacetFrameBundle(p,t),Int[T[end,k] for k ∈ 1:size(T,2)])
+            pt,pe,T = initmeshall(g,args...)
+            pt,pe,TensorField(FaceBundle(pt),Int[T[end,k] for k ∈ 1:size(T,2)])
         end
         totalmesh(g,args...) = totalmeshall(g,args...)[list(1,3)]
         totalmeshall(g::Matrix{Int},args...) = totalmeshall(Matrix{Float64}(g),args...)
         function totalmeshall(g,args...)
             P,E,T = MATLAB.mxcall(:initmesh,3,g,args...)
-            p,e,t = totalmeshdata(P,E,T,Val(2))
-            return (p,e,t,T,E,P)
+            pt,pe = totalmeshdata(P,E,T,Val(2))
+            return (pt,pe,T,E,P)
         end
         function totalmeshes(g,args...)
-            p,e,t,T = totalmeshall(g,args...)
-            p,e,t,TensorField(FacetFrameBundle(p,t),Int[T[end,k] for k ∈ 1:size(T,2)])
+            pt,pe,T = totalmeshall(g,args...)
+            pt,pe,TensorField(FaceBundle(pt),Int[T[end,k] for k ∈ 1:size(T,2)])
         end
         export initmeshes, totalmeshes, totalmesh
         function refinemesh(g,args...)
-            p,e,t,T,E,P = initmeshall(g,args...)
-            matlab(P,bundle(p)); matlab(E,bundle(e)); matlab(T,bundle(t))
-            return (g,p,e,t)
+            pt,pe,T,E,P = initmeshall(g,args...)
+            matlab(P,bundle(fullcoordinates(pt)))
+            matlab_top(E,bundle(immersion(pe)))
+            matlab_top(T,bundle(immersion(pt)))
+            return (g,refine(pt),refine(pe))
         end
-        #=refinemesh3(g,p::ChainBundle,e,t,s...) = MATLAB.mxcall(:refinemesh,3,g,matlab(p),matlab(e),matlab(t),s...)
-        refinemesh4(g,p::ChainBundle,e,t,s...) = MATLAB.mxcall(:refinemesh,4,g,matlab(p),matlab(e),matlab(t),s...)
-        refinemesh(g,p::ChainBundle,e,t) = refinemesh3(g,p,e,t)
-        refinemesh(g,p::ChainBundle,e,t,s::String) = refinemesh3(g,p,e,t,s)
-        refinemesh(g,p::ChainBundle,e,t,η::Vector{Int}) = refinemesh3(g,p,e,t,float.(η))
-        refinemesh(g,p::ChainBundle,e,t,η::Vector{Int},s::String) = refinemesh3(g,p,e,t,float.(η),s)
-        refinemes(g,p::ChainBundle,e,t,u) = refinemesh4(g,p,e,t,u)
-        refinemesh(g,p::ChainBundle,e,t,u,s::String) = refinemesh4(g,p,e,t,u,s)
-        refinemesh(g,p::ChainBundle,e,t,u,η) = refinemesh4(g,p,e,t,u,float.(η))
-        refinemesh(g,p::ChainBundle,e,t,u,η,s) = refinemesh4(g,p,e,t,u,float.(η),s)
-        refinemesh!(g::Matrix{Int},p::ChainBundle,args...) = refinemesh!(Matrix{Float64}(g),p,args...)
-        function refinemesh!(g,p::ChainBundle{V},e,t,s...) where V
+        refinemesh3(g,p,e,t,s...) = MATLAB.mxcall(:refinemesh,3,g,matlab(p),matlab(e),matlab(t),s...)
+        refinemesh4(g,p,e,t,s...) = MATLAB.mxcall(:refinemesh,4,g,matlab(p),matlab(e),matlab(t),s...)
+        refinemesh(g,p::PointCloud,e,t) = refinemesh3(g,p,e,t)
+        refinemesh(g,p::PointCloud,e,t,s::String) = refinemesh3(g,p,e,t,s)
+        refinemesh(g,p::PointCloud,e,t,η::Vector{Int}) = refinemesh3(g,p,e,t,float.(η))
+        refinemesh(g,p::PointCloud,e,t,η::Vector{Int},s::String) = refinemesh3(g,p,e,t,float.(η),s)
+        refinemesh(g,p::PointCloud,e,t,u) = refinemesh4(g,p,e,t,u)
+        refinemesh(g,p::PointCloud,e,t,u,s::String) = refinemesh4(g,p,e,t,u,s)
+        refinemesh(g,p::PointCloud,e,t,u,η) = refinemesh4(g,p,e,t,u,float.(η))
+        refinemesh(g,p::PointCloud,e,t,u,η,s) = refinemesh4(g,p,e,t,u,float.(η),s)
+        refinemesh!(g::Matrix{Int},e::SimplexBundle,args...) = refinemesh!(Matrix{Float64}(g),e,args...)
+        function refinemesh!(g,pt::SimplexBundle,pe,s...)
+            p,e,t = unbundle(pt,pe)
+            V = Manifold(p)
             P,E,T = refinemesh(g,p,e,t,s...); l = size(P,1)+1
             matlab(P,bundle(p)); matlab(E,bundle(e)); matlab(T,bundle(t))
-            submesh!(p); array!(t); el,tl = list(1,l-1),list(1,l)
-            bundle_cache[bundle(p)] = [Chain{V,1,Float64}(vcat(1,P[:,k])) for k ∈ 1:size(P,2)]
-            bundle_cache[bundle(e)] = [Chain{↓(p),1,Int}(Int.(E[el,k])) for k ∈ 1:size(E,2)]
-            bundle_cache[bundle(t)] = [Chain{p,1,Int}(Int.(T[tl,k])) for k ∈ 1:size(T,2)]
-            return (p,e,t)
-        end=#
+            Grassmann.submesh!(p); array!(p); array!(t)
+            deletepointcloud!(bundle(p))
+            el,tl = list(1,l-1),list(1,l)
+            np,ne,nt = size(P,2),size(E,2),size(T,2)
+            ip = length(p)+1:np
+            it = length(t)+1:nt
+            totalnodes!(t,np)
+            resize!(fullpoints(p),np)
+            resize!(fulltopology(e),ne)
+            resize!(subelements(e),ne)
+            resize!(verticesinv(e),np)
+            resize!(vertices(t),np)
+            resize!(fulltopology(t),nt)
+            resize!(subelements(t),nt)
+            fullpoints(p)[:] = [Chain{V,1,Float64}(1.0,P[:,k]...) for k ∈ 1:np]
+            fulltopology(e)[:] = [Values{2,Int}(E[el,k]) for k ∈ 1:ne]
+            fulltopology(t)[:] = [Values{3,Int}(T[tl,k]) for k ∈ 1:nt]
+            vertices(t)[ip] = ip
+            subelements(t)[it] = it
+            ve = collect(vertices(fulltopology(e)))
+            resize!(vertices(e),length(ve))
+            vertices(e)[:] = ve
+            verticesinv(e)[:] = verticesinv(np,ve)
+            return (pt,pe)
+        end
     end
 end
 

@@ -52,7 +52,7 @@ secondstructure(ω) = d(ω)+ω∧ω
 Grassmann.curl(t::TensorField) = ⋆d(t)
 Grassmann.d(t::TensorField) = TensorField(fromany(∇(t)∧Chain(t)))
 Grassmann.∂(t::TensorField) = TensorField(fromany(Chain(t)⋅∇(t)))
-Grassmann.d(t::ScalarField{B,<:AbstractReal,N,<:AbstractFrameBundle,<:AbstractArray} where {B,N}) = gradient(t)
+Grassmann.d(t::ScalarField{B,<:AbstractReal,N,<:FrameBundle,<:AbstractArray} where {B,N}) = gradient(t)
 #Grassmann.∂(t::ScalarField) = gradient(t)
 #Grassmann.∂(t::VectorField) = TensorField(domain(t), sum.(value.(codomain(t))))
 #=function Grassmann.∂(t::VectorField{G,B,<:Chain{V},N,T} where {B,N,T}) where {G,V}
@@ -73,8 +73,8 @@ end
     V = Manifold(fibertype(t)); N = mdims(V)
     Expr(:call,:TensorField,:(base(t)),Expr(:.,:(Chain{$V,1}),Expr(:tuple,[:(fiber(d(getindex.(t,$i)))) for i ∈ list(1,N)]...)))
 end
-Grassmann.d(t::DiagonalField{B,<:DiagonalOperator,N,<:AbstractFrameBundle,<:AbstractArray} where{B,N}) = DiagonalOperator(dvec(value(t)))
-@generated function Grassmann.d(t::EndomorphismField{B,<:Endomorphism,N,<:AbstractFrameBundle,<:AbstractArray} where {B,N})
+Grassmann.d(t::DiagonalField{B,<:DiagonalOperator,N,<:FrameBundle,<:AbstractArray} where{B,N}) = DiagonalOperator(dvec(value(t)))
+@generated function Grassmann.d(t::EndomorphismField{B,<:Endomorphism,N,<:FrameBundle,<:AbstractArray} where {B,N})
     V = Manifold(fibertype(t)); N = mdims(V)
     syms = Symbol.(:x,list(1,N))
     Expr(:block,:(V = $V),
@@ -571,15 +571,15 @@ end
 
 surfacemetric(dom,f::Function) = surfacemetric(TensorField(dom,f))
 function surfacemetric(t::DiagonalField)
-    GridFrameBundle(PointArray(points(t),fiber(outermorphism(t))),immersion(t))
+    GridBundle(PointArray(points(t),fiber(outermorphism(t))),immersion(t))
 end
 function surfacemetric(t::EndomorphismField)
-    GridFrameBundle(PointArray(points(t),fiber(Outermorphism(t))),immersion(t))
+    GridBundle(PointArray(points(t),fiber(Outermorphism(t))),immersion(t))
 end
 function surfacemetric(t,g=gradient(t))
     V = Submanifold(MetricTensor([1 1; 1 1]))
     EFG = Outermorphism.(fiber(firstform(t,g,V)))
-    GridFrameBundle(PointArray(points(t),EFG),immersion(t))
+    GridBundle(PointArray(points(t),EFG),immersion(t))
 end
 
 surfacemetricdiag(dom,f::Function) = surfacemetricdiag(TensorField(dom,f))
@@ -587,11 +587,11 @@ surfacemetricdiag(t::DiagonalField) = surfacemetric(t)
 function surfacemetricdiag(t,g=gradient(t))
     V = Submanifold(DiagonalForm(Values(1,1)))
     EG = outermorphism.(fiber(firstformdiag(t,g,V)))
-    GridFrameBundle(PointArray(points(t),EG),immersion(t))
+    GridBundle(PointArray(points(t),EG),immersion(t))
 end
 
 surfaceframe(t::DiagonalField) = surfaceframediag(t)
-surfaceframe(t::AbstractFrameBundle) = surfaceframe(metrictensorfield(t))
+surfaceframe(t::FrameBundle) = surfaceframe(metrictensorfield(t))
 function surfaceframe(t::EndomorphismField)
     surfaceframe(base(t),getindex.(t,1,1),getindex.(t,1,2),getindex.(t,2,2))
 end
@@ -605,7 +605,7 @@ function surfaceframe(b,E,F,G)
 end
 
 surfaceframediag(t) = surfaceframediag(firstformdiag(t))
-surfaceframediag(t::AbstractFrameBundle) = surfaceframediag(metrictensorfield(t))
+surfaceframediag(t::FrameBundle) = surfaceframediag(metrictensorfield(t))
 function surfaceframediag(t::DiagonalField)
     E,G = getindex.(value.(fiber(g)),1),getindex.(value.(fiber(g)),2)
     mag,sig = sqrt.(E.*E), sign.(.-(E.*G))
@@ -613,7 +613,7 @@ function surfaceframediag(t::DiagonalField)
 end
 
 _firstkind(dg,k,i,j) = dg[k,j][i] + dg[i,k][j] - dg[i,j][k]
-firstkind(g::AbstractFrameBundle) = firstkind(metrictensorfield(g))
+firstkind(g::FrameBundle) = firstkind(metrictensorfield(g))
 firstkind(g::TensorField) = TensorField(base(g),firstkind.(d(g/2)))
 firstkind(dg::DiagonalOperator,i,j,k) = _firstkind(dg,k,i,j)
 @generated function firstkind(dg,i,j,k)
@@ -629,7 +629,7 @@ end
     Expr(:call,:TensorOperator,Expr(:call,:Chain,[:(firstkind(dg,$j)) for j ∈ list(1,mdims(fibertype(dg)))]...))
 end
 
-secondkind(g::AbstractFrameBundle) = secondkind(metrictensorfield(g))
+secondkind(g::FrameBundle) = secondkind(metrictensorfield(g))
 secondkind(g::TensorField) = TensorField(base(g),secondkind.(inv(g),d(g/2)))
 secondkind(ig::DiagonalOperator,dg,i,j,k) = ig[k,k]*_firstkind(dg,k,i,j)
 @generated function secondkind(ig,dg,i,j,k)
@@ -646,7 +646,7 @@ end
 end
 
 geodesic(Γ) = x -> geodesic(x,Γ)
-geodesic(g::AbstractFrameBundle) = geodesic(secondkind(g))
+geodesic(g::FrameBundle) = geodesic(secondkind(g))
 geodesic(x,Γ::Function) = (x2 = x[2]; Chain(x2,-geodesic(x2,Γ(x[1]))))
 geodesic(x,Γ::TensorField) = (x2 = x[2]; Chain(x2,-geodesic(x2,Γ(x[1]))))
 @generated function geodesic(x::Chain{V,G,T,N} where {V,G,T},Γ) where N

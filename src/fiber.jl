@@ -144,7 +144,7 @@ struct LocalTensor{B,F} <: LocalFiber{B,F}
     LocalTensor(b::LocalTensor{B,R} where R,f::F) where {B,F} = new{B,F}(base(b)=>f)
 end
 
-export Section
+export Section, LocalTensor
 const Section = LocalTensor
 const ↦, domain, codomain = LocalTensor, base, fiber
 ↤(F,B) = B ↦ F
@@ -253,13 +253,17 @@ isinduced(::DenseArray) = false
 isinduced(::Global) = false
 isinduced(::Global{N,<:InducedMetric} where N) = true
 
+fullpoints(m::AbstractArray{<:Chain{V,1} where V}) = m
+points(m::AbstractArray{<:Chain{V,1} where V}) = m
+metricextensor(m::AbstractArray{<:Chain{V,1} where V,N}) where N = Global{N}(InducedMetric())
+
 @pure Grassmann.Manifold(m::FiberBundle) = Manifold(pointtype(m))
 @pure LinearAlgebra.rank(m::FiberBundle) = rank(pointtype(m))
 @pure Grassmann.mdims(m::FiberBundle) = mdims(pointtype(m))
 
 # PointCloud
 
-export PointArray, PointVector, PointMatrix, PointCloud
+export PointArray, PointVector, PointMatrix, PointCloud, Coordinates, FiberBundle
 
 point_id = 0
 
@@ -285,6 +289,8 @@ PointArray(dom::PointArray,fun::Array) = PointArray(base(dom), fun)
 PointArray(dom::PointArray,fun::Function) = PointArray(base(dom), fun)
 PointArray(dom::AbstractArray,fun::Function) = PointArray(dom, fun.(dom))
 
+totalnodes(m::PointArray) = length(m)
+nodes(m::PointArray) = length(m)
 points(m::PointArray) = base(m)
 metricextensor(m::PointArray) = fiber(m)
 isinduced(t::PointArray) = isinduced(metricextensor(t))
@@ -426,7 +432,7 @@ Base.@pure isfiberbundle(::Any) = false
 globalfiber(x) = x
 globalfiber(x::GlobalFiber) = fiber(x)
 
-for fun ∈ (:sdims,:fullimmersion,:fulltopology,:topology,:totalelements,:elements,:subelements,:totalnodes,:nodes,:vertices,:isopen,:iscompact,:isfull,:iscover,:immersiontype)
+for fun ∈ (:sdims,:subimmersion,:fullimmersion,:fulltopology,:topology,:subtopology,:totalelements,:elements,:subelements,:totalnodes,:nodes,:vertices,:verticesinv,:isopen,:iscompact,:isfull,:iscover,:istotal,:immersiontype,:refnodes)
     @eval export $fun
     @eval $fun(m::GlobalFiber) = $fun(immersion(m))
 end
@@ -441,217 +447,224 @@ Base.size(m::GlobalFiber) = size(m.cod)
 Base.resize!(m::GlobalFiber,i) = ((resize!(domain(m),i),resize!(codomain(m),i)); m)
 resize_lastdim!(m::GlobalFiber,i) = ((resize_lastdim!(domain(m),i),resize_lastdim!(codomain(m),i)); m)
 
-# AbstractFrameBundle
+# FrameBundle
 
-export AbstractFrameBundle, GridFrameBundle, SimplexFrameBundle, FacetFrameBundle
+export FrameBundle, GridBundle, SimplexBundle, FaceBundle, ElementBundle
 export IntervalRange, AlignedRegion, AlignedSpace
 
-abstract type AbstractFrameBundle{C,N} <: GlobalFiber{C,N} end
+abstract type FrameBundle{C,N} <: GlobalFiber{C,N} end
 
-base(m::AbstractFrameBundle) = points(m)
-fiber(m::AbstractFrameBundle) = metricextensor(m)
-metricextensor(m::AbstractFrameBundle) = metricextensor(coordinates(m))
-metrictensor(m::AbstractFrameBundle) = metrictensor(coordinates(m))
-coordinatetype(m::AbstractFrameBundle{C}) where C = C
-coordinatetype(m::Type{<:AbstractFrameBundle{C}}) where C = C
-basetype(m::AbstractFrameBundle) = basetype(coordinates(m))
-basetype(m::Type{<:AbstractFrameBundle}) = basetype(coordinatetype(m))
-fibertype(m::AbstractFrameBundle) = fibertype(coordinates(m))
-fibertype(m::Type{<:AbstractFrameBundle}) = fibertype(coordinatetype(m))
-Base.size(m::AbstractFrameBundle) = size(points(m))
+base(m::FrameBundle) = points(m)
+fiber(m::FrameBundle) = metricextensor(m)
+metricextensor(m::FrameBundle) = metricextensor(coordinates(m))
+metrictensor(m::FrameBundle) = metrictensor(coordinates(m))
+coordinatetype(m::FrameBundle{C}) where C = C
+coordinatetype(m::Type{<:FrameBundle{C}}) where C = C
+basetype(m::FrameBundle) = basetype(coordinates(m))
+basetype(m::Type{<:FrameBundle}) = basetype(coordinatetype(m))
+fibertype(m::FrameBundle) = fibertype(coordinates(m))
+fibertype(m::Type{<:FrameBundle}) = fibertype(coordinatetype(m))
+Base.size(m::FrameBundle) = size(points(m))
 
-@pure isbundle(::AbstractFrameBundle) = true
+@pure isbundle(::FrameBundle) = true
 @pure isbundle(t) = false
-@pure Grassmann.grade(m::AbstractFrameBundle) = grade(pointtype(m))
-@pure Grassmann.antigrade(m::AbstractFrameBundle) = antigrade(pointtype(m))
+@pure Grassmann.grade(m::FrameBundle) = grade(pointtype(m))
+@pure Grassmann.antigrade(m::FrameBundle) = antigrade(pointtype(m))
 
-# GridFrameBundle
+# GridBundle
 
-struct GridFrameBundle{N,C<:Coordinate,PA<:FiberBundle{C,N},TA<:ImmersedTopology} <: AbstractFrameBundle{C,N}
+struct GridBundle{N,C<:Coordinate,PA<:FiberBundle{C,N},TA<:ImmersedTopology} <: FrameBundle{C,N}
     p::PA
     t::TA
-    GridFrameBundle(p::PA,t::TA=OpenTopology(size(p))) where {N,C<:Coordinate,PA<:FiberBundle{C,N},TA<:ImmersedTopology} = new{N,C,PA,TA}(p,t)
+    GridBundle(p::PA,t::TA=OpenTopology(size(p))) where {N,C<:Coordinate,PA<:FiberBundle{C,N},TA<:ImmersedTopology} = new{N,C,PA,TA}(p,t)
 end
 
-const IntervalRange{P<:Real,G,PA<:AbstractRange,GA} = GridFrameBundle{1,Coordinate{P,G},<:PointVector{P,G,PA,GA}}
-const AlignedRegion{N,P<:Chain,G<:InducedMetric,PA<:RealRegion{V,<:Real,N,<:AbstractRange} where V,GA<:Global} = GridFrameBundle{N,Coordinate{P,G},PointArray{P,G,N,PA,GA}}
-const AlignedSpace{N,P<:Chain,G<:InducedMetric,PA<:RealRegion{V,<:Real,N,<:AbstractRange} where V,GA} = GridFrameBundle{N,Coordinate{P,G},PointArray{P,G,N,PA,GA}}
+const IntervalRange{P<:Real,G,PA<:AbstractRange,GA} = GridBundle{1,Coordinate{P,G},<:PointVector{P,G,PA,GA}}
+const AlignedRegion{N,P<:Chain,G<:InducedMetric,PA<:RealRegion{V,<:Real,N,<:AbstractRange} where V,GA<:Global} = GridBundle{N,Coordinate{P,G},PointArray{P,G,N,PA,GA}}
+const AlignedSpace{N,P<:Chain,G<:InducedMetric,PA<:RealRegion{V,<:Real,N,<:AbstractRange} where V,GA} = GridBundle{N,Coordinate{P,G},PointArray{P,G,N,PA,GA}}
 
-GridFrameBundle(p::AbstractArray{P,N},g::AbstractArray=Global{N}(InducedMetric())) where {N,P} = GridFrameBundle(PointArray(0,p,g))
-GridFrameBundle(dom::GridFrameBundle,fun) = GridFrameBundle(coordinates(dom), fun)
-GridFrameBundle(dom::GridFrameBundle,fun::Array) = GridFrameBundle(coordinates(dom), fun)
-GridFrameBundle(dom::GridFrameBundle,fun::Function) = GridFrameBundle(coordinates(dom), fun)
-GridFrameBundle(dom::AbstractArray,fun::Function) = GridFrameBundle(dom, fun.(dom))
+GridBundle(p::AbstractArray{P,N},g::AbstractArray=Global{N}(InducedMetric())) where {N,P} = GridBundle(PointArray(0,p,g))
+GridBundle(dom::GridBundle,fun) = GridBundle(coordinates(dom), fun)
+GridBundle(dom::GridBundle,fun::Array) = GridBundle(coordinates(dom), fun)
+GridBundle(dom::GridBundle,fun::Function) = GridBundle(coordinates(dom), fun)
+GridBundle(dom::AbstractArray,fun::Function) = GridBundle(dom, fun.(dom))
 
-⊕(a::GridFrameBundle{1},b::GridFrameBundle{1}) = GridFrameBundle(coordinates(a)⊕coordinates(b),immersion(a)×immersion(b))
-⊕(a::GridFrameBundle,b::AbstractVector{<:Real}) = GridFrameBundle(coordinates(a)⊕b,immersion(a)×length(b))
-cross(a::GridFrameBundle,b::GridFrameBundle) = a⊕b
-cross(a::GridFrameBundle,b::AbstractVector{<:Real}) = a⊕b
+⊕(a::GridBundle{1},b::GridBundle{1}) = GridBundle(coordinates(a)⊕coordinates(b),immersion(a)×immersion(b))
+⊕(a::GridBundle,b::AbstractVector{<:Real}) = GridBundle(coordinates(a)⊕b,immersion(a)×length(b))
+cross(a::GridBundle,b::GridBundle) = a⊕b
+cross(a::GridBundle,b::AbstractVector{<:Real}) = a⊕b
 
-fullcoordinates(m::GridFrameBundle) = m.p
-coordinates(m::GridFrameBundle) = m.p
-immersion(m::GridFrameBundle) = m.t
-immersiontype(::Type{<:GridFrameBundle{N,C,PA,TA} where {N,C,PA}}) where TA = TA
-points(m::GridFrameBundle) = base(coordinates(m))
-metricextensor(m::GridFrameBundle) = fiber(coordinates(m))
+fullcoordinates(m::GridBundle) = m.p
+coordinates(m::GridBundle) = m.p
+immersion(m::GridBundle) = m.t
+immersiontype(::Type{<:GridBundle{N,C,PA,TA} where {N,C,PA}}) where TA = TA
+points(m::GridBundle) = base(coordinates(m))
+metricextensor(m::GridBundle) = fiber(coordinates(m))
 
-function resample(m::GridFrameBundle,i::NTuple)
+function resample(m::GridBundle,i::NTuple)
     rp,rq = resample(points(m),i),resample(immersion(m),i)
     pid = iszero(bundle(coordinates(m))) ? 0 : (global point_id+=1)
     if isinduced(m)
-        GridFrameBundle(PointArray(pid,rp),rq)
+        GridBundle(PointArray(pid,rp),rq)
     else
-        GridFrameBundle(PointArray(pid,rp,m.(rp)),rq)
+        GridBundle(PointArray(pid,rp,m.(rp)),rq)
     end
 end
 
-resize_lastdim!(m::GridFrameBundle,i) = (resize_lastdim!(coordinates(m),i); m)
-resize(m::GridFrameBundle) = GridFrameBundle(coordinates(m),resize(immersion(m),size(coordinates(m))[end]))
-Base.resize!(m::GridFrameBundle,i) = (resize!(coordinates(m),i); m)
-Base.broadcast(f,t::GridFrameBundle) = GridFrameBundle(f.(coordinates(t)))
+resize_lastdim!(m::GridBundle,i) = (resize_lastdim!(coordinates(m),i); m)
+resize(m::GridBundle) = GridBundle(coordinates(m),resize(immersion(m),size(coordinates(m))[end]))
+Base.resize!(m::GridBundle,i) = (resize!(coordinates(m),i); m)
+Base.broadcast(f,t::GridBundle) = GridBundle(f.(coordinates(t)))
 
-(m::GridFrameBundle)(i::ImmersedTopology) = GridFrameBundle(coordinates(m),i)
-(m::GridFrameBundle)(i::Vararg{Union{Int,Colon}}) = GridFrameBundle(coordinates(m)(i...),immersion(m)(i...))
-@pure Base.eltype(::Type{<:GridFrameBundle{N,C} where N}) where C = C
-Base.getindex(m::GridFrameBundle,i::Vararg{Int}) = getindex(coordinates(m),i...)
-Base.getindex(m::GridFrameBundle,i::Vararg{Union{Int,Colon}}) = GridFrameBundle(getindex(base(m),i...),immersion(m)(i...))
-Base.setindex!(m::GridFrameBundle,s,i::Vararg{Int}) = setindex!(coordinates(m),s,i...)
+(m::GridBundle)(i::ImmersedTopology) = GridBundle(coordinates(m),i)
+(m::GridBundle)(i::Vararg{Union{Int,Colon}}) = GridBundle(coordinates(m)(i...),immersion(m)(i...))
+@pure Base.eltype(::Type{<:GridBundle{N,C} where N}) where C = C
+Base.getindex(m::GridBundle,i::Vararg{Int}) = getindex(coordinates(m),i...)
+Base.getindex(m::GridBundle,i::Vararg{Union{Int,Colon}}) = GridBundle(getindex(base(m),i...),immersion(m)(i...))
+Base.setindex!(m::GridBundle,s,i::Vararg{Int}) = setindex!(coordinates(m),s,i...)
 
 export Grid
-const Grid = GridFrameBundle
+const Grid = GridBundle
 
-#Grid(v::A,t::I=OpenTopology(size(v))) where {N,T,A<:AbstractArray{T,N},I} = GridFrameBundle(0,PointArray(0,v),t)
+#Grid(v::A,t::I=OpenTopology(size(v))) where {N,T,A<:AbstractArray{T,N},I} = GridBundle(0,PointArray(0,v),t)
 
-Base.getindex(g::GridFrameBundle{M,C,<:FiberBundle,<:OpenTopology} where C,j::Int,n::Val,i::Vararg{Int}) where M = getpoint(g,j,n,i...)
-@generated function getpoint(g::GridFrameBundle{M,C,<:FiberBundle} where C,j::Int,::Val{N},i::Vararg{Int}) where {M,N}
+Base.getindex(g::GridBundle{M,C,<:FiberBundle,<:OpenTopology} where C,j::Int,n::Val,i::Vararg{Int}) where M = getpoint(g,j,n,i...)
+@generated function getpoint(g::GridBundle{M,C,<:FiberBundle} where C,j::Int,::Val{N},i::Vararg{Int}) where {M,N}
     :(Base.getindex(points(g),$([k≠N ? :(@inbounds i[$k]) : :(@inbounds i[$k]+j) for k ∈ list(1,M)]...)))
 end
-@generated function Base.getindex(g::GridFrameBundle{M},j::Int,n::Val{N},i::Vararg{Int}) where {M,N}
+@generated function Base.getindex(g::GridBundle{M},j::Int,n::Val{N},i::Vararg{Int}) where {M,N}
     :(Base.getindex(points(g),Base.getindex(immersion(g),n,$([k≠N ? :(@inbounds i[$k]) : :(@inbounds i[$k]+j) for k ∈ list(1,M)]...))...))
 end
 
-Base.BroadcastStyle(::Type{<:GridFrameBundle{N,C,PA,TA}}) where {N,C,PA,TA} = Broadcast.ArrayStyle{GridFrameBundle{N,C,PA,TA}}()
+Base.BroadcastStyle(::Type{<:GridBundle{N,C,PA,TA}}) where {N,C,PA,TA} = Broadcast.ArrayStyle{GridBundle{N,C,PA,TA}}()
 
-function Base.similar(bc::Broadcast.Broadcasted{Broadcast.ArrayStyle{GridFrameBundle{N,C,PA,TA}}}, ::Type{ElType}) where {N,C,PA,TA,ElType<:Coordinate}
+function Base.similar(bc::Broadcast.Broadcasted{Broadcast.ArrayStyle{GridBundle{N,C,PA,TA}}}, ::Type{ElType}) where {N,C,PA,TA,ElType<:Coordinate}
     ax = axes(bc)
     # Use the data type to create the output
-    GridFrameBundle(similar(Array{pointtype(ElType),N}, ax), similar(Array{metrictype(ElType),N}, ax))
+    GridBundle(similar(Array{pointtype(ElType),N}, ax), similar(Array{metrictype(ElType),N}, ax))
 end
-#=function Base.similar(bc::Broadcast.Broadcasted{Broadcast.ArrayStyle{GridFrameBundle{N,C,PA}}}, ::Type{ElType}) where {N,C,PA,ElType}
+#=function Base.similar(bc::Broadcast.Broadcasted{Broadcast.ArrayStyle{GridBundle{N,C,PA}}}, ::Type{ElType}) where {N,C,PA,ElType}
     t = find_gf(bc)
     # Use the data type to create the output
-    GridFrameBundle(similar(Array{ElType,N}, axes(bc)), metricextensor(t))
+    GridBundle(similar(Array{ElType,N}, axes(bc)), metricextensor(t))
 end=#
 
-"`A = find_gf(As)` returns the first GridFrameBundle among the arguments."
+"`A = find_gf(As)` returns the first GridBundle among the arguments."
 find_gf(bc::Base.Broadcast.Broadcasted) = find_gf(bc.args)
 find_gf(bc::Base.Broadcast.Extruded) = find_gf(bc.x)
 find_gf(args::Tuple) = find_gf(find_gf(args[1]), Base.tail(args))
 find_gf(x) = x
 find_gf(::Tuple{}) = nothing
-find_gf(a::AbstractFrameBundle, rest) = a
+find_gf(a::FrameBundle, rest) = a
 find_gf(::Any, rest) = find_gf(rest)
 
-# SimplexFrameBundle
+# ElementBundle
 
-struct SimplexFrameBundle{N,C<:Coordinate,PA<:FiberBundle{C,1},TA<:ImmersedTopology} <: AbstractFrameBundle{C,1}
+abstract type ElementBundle{N,C<:Coordinate,PA<:FiberBundle{C,1},TA} <: FrameBundle{C,1} end
+
+fullcoordinates(m::ElementBundle) = m.p
+immersion(m::ElementBundle) = m.t
+immersiontype(::Type{<:ElementBundle{N,C,PA,TA} where {N,C,PA}}) where TA = TA
+affinehull(m::ElementBundle) = fullpoints(m)[topology(m)]
+
+# SimplexBundle
+
+struct SimplexBundle{N,C<:Coordinate,PA<:FiberBundle{C,1},TA<:ImmersedTopology} <: ElementBundle{N,C,PA,TA}
     p::PA
     t::TA
-    SimplexFrameBundle(p::PA,t::TA) where {C,PA<:FiberBundle{C,1},TA} = new{mdims(pointtype(p))-1,C,PA,TA}(p,t)
+    SimplexBundle(p::PA,t::TA) where {C,PA<:FiberBundle{C,1},TA} = new{mdims(pointtype(p))-1,C,PA,TA}(p,t)
 end
 
-SimplexFrameBundle(id::Int,p,t,g) = SimplexFrameBundle(PointCloud(id,p,g),t)
-SimplexFrameBundle(id::Int,p,t) = SimplexFrameBundle(PointCloud(id,p),t)
-SimplexFrameBundle(p::P,t,g::G) where {P<:AbstractVector,G<:AbstractVector} = SimplexFrameBundle(PointCloud(p,g),t)
-#SimplexFrameBundle(p::AbstractVector,t) = SimplexFrameBundle(PointCloud(p),t)
+SimplexBundle(m::SimplexBundle) = m
+SimplexBundle(id::Int,p,t,g) = SimplexBundle(PointCloud(id,p,g),t)
+SimplexBundle(id::Int,p,t) = SimplexBundle(PointCloud(id,p),t)
+SimplexBundle(p::P,t,g::G) where {P<:AbstractVector,G<:AbstractVector} = SimplexBundle(PointCloud(p,g),t)
+#SimplexBundle(p::AbstractVector,t) = SimplexBundle(PointCloud(p),t)
 
-(p::PointCloud)(t::ImmersedTopology) = SimplexFrameBundle(p,t)
-fullcoordinates(m::SimplexFrameBundle) = m.p
-function coordinates(m::SimplexFrameBundle)
+GridBundle(m::SimplexBundle{1}) = GridBundle(getindex.(fullpoints(m),2))
+
+(p::PointCloud)(t::ImmersedTopology) = SimplexBundle(p,t)
+function coordinates(m::SimplexBundle)
     iscover(m) ? fullcoordinates(m) : PointCloud(0,points(m),metricextensor(m))
 end
-function points(m::SimplexFrameBundle)
+function points(m::SimplexBundle)
     iscover(m) ? base(fullcoordinates(m)) : view(base(fullcoordinates(m)),vertices(m))
 end
-function metricextensor(m::SimplexFrameBundle)
+function metricextensor(m::SimplexBundle)
     if iscover(m) || isinduced(m)
         fiber(fullcoordinates(m))
     else
         view(fiber(fullcoordinates(m)),vertices(m))
     end
 end
-#bundle(m::SimplexFrameBundle) = bundle(coordinates(m))
-#deletebundle!(m::SimplexFrameBundle) = deletepointcloud!(bundle(m))
-immersion(m::SimplexFrameBundle) = m.t
-immersiontype(::Type{<:SimplexFrameBundle{N,C,PA,TA} where {N,C,PA}}) where TA = TA
-affinehull(m::SimplexFrameBundle) = fullpoints(m)[topology(m)]
-Base.size(m::SimplexFrameBundle) = size(vertices(m))
+#bundle(m::SimplexBundle) = bundle(coordinates(m))
+#deletebundle!(m::SimplexBundle) = deletepointcloud!(bundle(m))
+Base.size(m::SimplexBundle) = size(vertices(m))
+refine(m::SimplexBundle) = SimplexBundle(fullcoordinates(m),refine(immersion(m)))
 
-#Base.broadcast(f,t::SimplexFrameBundle) = SimplexFrameBundle(f.(coordinates(t)),immersion(t))
+#Base.broadcast(f,t::SimplexBundle) = SimplexBundle(f.(coordinates(t)),immersion(t))
 
-#Base.resize!(m::SimplexFrameBundle,n::Int) = resize!(value(m),n)
+#Base.resize!(m::SimplexBundle,n::Int) = resize!(value(m),n)
 
-(m::SimplexFrameBundle)(i::ImmersedTopology) = SimplexFrameBundle(fullcoordinates(m),i)
-Base.getindex(m::SimplexFrameBundle,i::Chain{V,1}) where V = Chain{Manifold(V),1}(points(m)[value(i)])
-Base.getindex(m::SimplexFrameBundle,i::Values{N,Int}) where N = points(m)[value(i)]
+(m::SimplexBundle)(i::ImmersedTopology) = SimplexBundle(fullcoordinates(m),i)
+Base.getindex(m::SimplexBundle,i::Chain{V,1}) where V = Chain{Manifold(V),1}(points(m)[value(i)])
+Base.getindex(m::SimplexBundle,i::Values{N,Int}) where N = points(m)[i]
 getindex(m::AbstractVector,i::ImmersedTopology) = getindex.(Ref(m),topology(i))
-getindex(m::AbstractVector,i::SimplexFrameBundle) = m[immersion(i)]
-getindex(m::SimplexFrameBundle,i::ImmersedTopology) = fullpoints(m)[i]
-getindex(m::SimplexFrameBundle,i::SimplexFrameBundle) = fullpoints(m)[topology(i)]
+getindex(m::AbstractVector,i::SimplexBundle) = m[immersion(i)]
+getindex(m::SimplexBundle,i::ImmersedTopology) = fullpoints(m)[i]
+getindex(m::SimplexBundle,i::SimplexBundle) = fullpoints(m)[topology(i)]
 
-@pure Base.eltype(::Type{<:SimplexFrameBundle{N,C} where N}) where C = C
-function Base.getindex(m::SimplexFrameBundle,i::Int)
+@pure Base.eltype(::Type{<:SimplexBundle{N,C} where N}) where C = C
+function Base.getindex(m::SimplexBundle,i::Int)
     ind = getimage(immersion(m),i)
     Coordinate(getindex(fullpoints(m),ind), getindex(fullmetricextensor(m),ind))
 end
-Base.setindex!(m::SimplexFrameBundle{P},s::P,i::Int) where P = setindex!(fullpoints(m),s,getimage(immersion(m),i))
-Base.setindex!(m::SimplexFrameBundle{P,G} where P,s::G,i::Int) where G = setindex!(fullmetricextensor(m),s,getimage(immersion(m),i))
-function Base.setindex!(m::SimplexFrameBundle,s::Coordinate,i::Int)
+Base.setindex!(m::SimplexBundle{P},s::P,i::Int) where P = setindex!(fullpoints(m),s,getimage(immersion(m),i))
+Base.setindex!(m::SimplexBundle{P,G} where P,s::G,i::Int) where G = setindex!(fullmetricextensor(m),s,getimage(immersion(m),i))
+function Base.setindex!(m::SimplexBundle,s::Coordinate,i::Int)
     ind = getimage(immersion(m),i)
     setindex!(fullpoints(m),point(s),ind)
     setindex!(fullmetricextensor(m),metricextensor(s),ind)
     return s
 end
 
-Base.BroadcastStyle(::Type{<:SimplexFrameBundle{N,C,PA,TA}}) where {N,C,PA,TA} = Broadcast.ArrayStyle{SimplexFrameBundle{N,C,PA,TA}}()
+Base.BroadcastStyle(::Type{<:SimplexBundle{N,C,PA,TA}}) where {N,C,PA,TA} = Broadcast.ArrayStyle{SimplexBundle{N,C,PA,TA}}()
 
-function Base.similar(bc::Broadcast.Broadcasted{Broadcast.ArrayStyle{SimplexFrameBundle{N,C,PA,TA}}}, ::Type{ElType}) where {N,C,PA,TA,ElType<:Coordinate}
+function Base.similar(bc::Broadcast.Broadcasted{Broadcast.ArrayStyle{SimplexBundle{N,C,PA,TA}}}, ::Type{ElType}) where {N,C,PA,TA,ElType<:Coordinate}
     ax = axes(bc)
     # Use the data type to create the output
-    SimplexFrameBundle(similar(Array{pointtype(ElType),N}, ax), similar(Array{metrictype(ElType),N}, ax))
+    SimplexBundle(similar(Array{pointtype(ElType),N}, ax), similar(Array{metrictype(ElType),N}, ax))
 end
 
-function Base.findall(f::Function,pt::SimplexFrameBundle)
+function Base.findall(f::Function,pt::SimplexBundle)
     vt = vertices(pt)
-    vt[findall(f,points(pt)[vt])]
+    vt[findall(f,fullpoints(pt)[vt])]
 end
 
-function (m::SimplexFrameBundle)(fixed::AbstractVector{Int})
+function (m::SimplexBundle)(fixed::AbstractVector{Int})
     fullcoordinates(m)(subtopology(immersion(m),fixed))
 end
 
-# FacetFrameBundle
+# FaceBundle
 
-struct FacetFrameBundle{N,C<:Coordinate,PA<:FiberBundle{C,1},TA<:ImmersedTopology} <: AbstractFrameBundle{C,1}
+struct FaceBundle{N,C<:Coordinate,PA<:FiberBundle{C,1},TA<:ImmersedTopology} <: ElementBundle{N,C,PA,TA}
     p::PA
     t::TA
-    FacetFrameBundle(p::PA,t::TA) where {C,PA<:FiberBundle{C,1},TA} = new{mdims(pointtype(p))-1,C,PA,TA}(p,t)
+    FaceBundle(p::PA,t::TA) where {C,PA<:FiberBundle{C,1},TA} = new{mdims(pointtype(p))-1,C,PA,TA}(p,t)
 end
 
-#FacetFrameBundle(id::Int,p,t,g) = FacetFrameBundle(PointCloud(id,p,g),t)
-#FacetFrameBundle(id::Int,p,t) = FacetFrameBundle(PointCloud(id,p),t)
-#FacetFrameBundle(p::AbstractVector,t) = FacetFrameBundle(PointCloud(p),t)
+#FaceBundle(id::Int,p,t,g) = FaceBundle(PointCloud(id,p,g),t)
+#FaceBundle(id::Int,p,t) = FaceBundle(PointCloud(id,p),t)
+#FaceBundle(p::AbstractVector,t) = FaceBundle(PointCloud(p),t)
 
-SimplexFrameBundle(m::FacetFrameBundle) = SimplexFrameBundle(fullcoordinates(m),immersion(m))
-FacetFrameBundle(m::SimplexFrameBundle) = FacetFrameBundle(fullcoordinates(m),immersion(m))
+SimplexBundle(m::FaceBundle) = SimplexBundle(fullcoordinates(m),immersion(m))
+FaceBundle(m::SimplexBundle) = FaceBundle(fullcoordinates(m),immersion(m))
+FaceBundle(m::FaceBundle) = m
 
-immersion(m::FacetFrameBundle) = m.t
-immersiontype(::Type{<:FacetFrameBundle{N,C,PA,TA} where {N,C,PA}}) where TA = TA
-fullcoordinates(m::FacetFrameBundle) = m.p
-coordinates(m::FacetFrameBundle) = PointCloud(0,points(m),metricextensor(m))
-#vertices(m::FacetFrameBundle) = OneTo(length(m))
-points(m::FacetFrameBundle) = means(topology(m),points(fullcoordinates(m)))
-function metricextensor(m::FacetFrameBundle)
+coordinates(m::FaceBundle) = PointCloud(0,points(m),metricextensor(m))
+#vertices(m::FaceBundle) = OneTo(length(m))
+points(m::FaceBundle) = means(topology(m),points(fullcoordinates(m)))
+function metricextensor(m::FaceBundle)
     if isinduced(m)
         fullmetricextensor(m)
     else
@@ -659,27 +672,23 @@ function metricextensor(m::FacetFrameBundle)
     end
 end
 
-Base.size(m::FacetFrameBundle) = size(immersion(m))
-#Base.broadcast(f,t::FacetFrameBundle) = FacetFrameBundle(f.(t.p),immersion(t))
+refine(m::FaceBundle) = FaceBundle(fullcoordinates(m),refine(immersion(m)))
+Base.size(m::FaceBundle) = size(immersion(m))
+#Base.broadcast(f,t::FaceBundle) = FaceBundle(f.(t.p),immersion(t))
 
-#@pure ispoints(t::Submanifold{V}) where V = isbundle(V) && rank(V) == 1 && !isbundle(Manifold(V))
-#@pure ispoints(t) = isbundle(t) && rank(t) == 1 && !isbundle(Manifold(t))
-#@pure islocal(t) = isbundle(t) && rank(t)==1 && valuetype(t)==Int && ispoints(Manifold(t))
-#@pure iscell(t) = isbundle(t) && islocal(Manifold(t))
-
-@pure Base.eltype(::Type{<:FacetFrameBundle{N,C} where N}) where C = C
-Base.getindex(m::FacetFrameBundle,i::AbstractVector{Int}) = FacetFrameBundle(fullcoordinates(m),immersion(m)[i])
-function Base.getindex(m::FacetFrameBundle,i::Int)
+@pure Base.eltype(::Type{<:FaceBundle{N,C} where N}) where C = C
+Base.getindex(m::FaceBundle,i::AbstractVector{Int}) = FaceBundle(fullcoordinates(m),immersion(m)[i])
+function Base.getindex(m::FaceBundle,i::Int)
     ind = getindex(immersion(m),i)
     Coordinate(mean(points(m.p)[ind]),
         isinduced(m.p) ? metricextensor(m.p)[i] : mean(metricextensor(m.p)[ind]))
 end
 
-Base.BroadcastStyle(::Type{<:FacetFrameBundle{N,C,PA,TA}}) where {N,C,PA,TA} = Broadcast.ArrayStyle{FacetFrameBundle{N,C,PA,TA}}()
+Base.BroadcastStyle(::Type{<:FaceBundle{N,C,PA,TA}}) where {N,C,PA,TA} = Broadcast.ArrayStyle{FaceBundle{N,C,PA,TA}}()
 
 # FiberProductBundle
 
-struct FiberProductBundle{P,N,SA<:AbstractArray,PA<:AbstractArray} <: AbstractFrameBundle{Coordinate{P,InducedMetric},N}
+struct FiberProductBundle{P,N,SA<:AbstractArray,PA<:AbstractArray} <: FrameBundle{Coordinate{P,InducedMetric},N}
     s::SA
     g::PA
     FiberProductBundle{P}(s::SA,g::PA) where {P,M,N,SA<:AbstractArray{S,M} where S,PA<:AbstractArray{F,N} where F} = new{P,M+N,SA,PA}(s,g)
@@ -687,7 +696,7 @@ end
 
 varmanifold(N::Int) = Submanifold(N+1)(list(1,N)...)
 
-function ⊕(a::SimplexFrameBundle,b::AbstractVector{B}) where B<:Real
+function ⊕(a::SimplexBundle,b::AbstractVector{B}) where B<:Real
     V = Manifold(basetype(eltype(a)))
     N = mdims(V)+1
     W = Submanifold(N)
@@ -703,7 +712,7 @@ fibertype(::Type{<:FiberProductBundle{P}}) where P = InducedMetric
 Base.size(m::FiberProductBundle) = (length(m.s),size(m.g)...)
 metricextensor(m::FiberProductBundle) = Global{mdims(basetype(m))}(InducedMetric())
 
-(m::FacetFrameBundle)(i::ImmersedTopology) = FacetFrameBundle(fullcoordinates(m),i)
+(m::FaceBundle)(i::ImmersedTopology) = FaceBundle(fullcoordinates(m),i)
 
 @pure Base.eltype(::Type{<:FiberProductBundle{P}}) where P = Coordinate{P,InducedMetric}
 Base.getindex(m::FiberProductBundle,i::Int,j::Vararg{Int}) = Coordinate(getindex(points(m.s),i) ⧺ getindex(m.g,j...), InducedMetric())
@@ -715,7 +724,7 @@ function Base.setindex!(m::FiberProductBundle,s::Coordinate,i::Int,j::Vararg{Int
     return s
 end=#
 
-GridFrameBundle(f::FiberProductBundle{P,2} where P) = OpenTopology(getindex.(points(f.s),2)⊕points(f.g))
+GridBundle(f::FiberProductBundle{P,2} where P) = OpenTopology(getindex.(points(f.s),2)⊕points(f.g))
 
 export TimeParameter
 function TimeParameter(m,time::AbstractVector)
@@ -728,7 +737,7 @@ TimeParameter(m,fixed::Function,time::AbstractVector) = TimeParameter(m,findall(
 
 # HomotopyBundle
 
-struct HomotopyBundle{P,N,PA<:AbstractArray{F,N} where F,FA<:AbstractArray,TA<:ImmersedTopology} <: AbstractFrameBundle{Coordinate{P,InducedMetric},N}
+struct HomotopyBundle{P,N,PA<:AbstractArray{F,N} where F,FA<:AbstractArray,TA<:ImmersedTopology} <: FrameBundle{Coordinate{P,InducedMetric},N}
     p::FiberProduct{P,N,PA,FA}
     t::TA
     HomotopyBundle(p::FiberProduct{P,N,PA,FA},t::T) where {P,N,PA<:AbstractArray{F,N} where F,FA,T} = new{P,N,PA,FA,T}(p,t)

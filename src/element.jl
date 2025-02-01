@@ -19,21 +19,22 @@ export assembleload, assemblemassload, assemblerobin, edges, edgesindices, neigh
 export solvepoisson, solvetransportdiffusion, solvetransport, solvedirichlet, adaptpoisson
 export gradienthat, gradientCR, gradient, interp, nedelec, nedelecmean, jumps
 export submesh, detsimplex, iterable, callable, value, edgelengths, laplacian
-export boundary, interior, trilength, trinormals, incidence, degrees, edges
-export adjacency, antiadjacency, facetsigns
+export boundary, interior, trilength, trinormals, incidence, degrees, edges, faces, facets
+export adjacency, antiadjacency, facetsigns,refinemesh, refinemesh!, select, rms, unbundle
 import Grassmann: norm, column, columns, points, pointset
 using Base.Threads
 
 @inline iterpts(t,f) = iterable(fullpoints(t),f)
-@inline iterable(p,f) = range(f,f,length=length(p))
-@inline iterable(p,f::F) where F<:Function = f.(value(p))
-@inline iterable(p,f::ChainBundle) = value(f)
+@inline iterpts(t,f::Number) = iterable(totalnodes(t),f)
+@inline iterable(p::Int,f::Number) = range(f,f,length=p)
+@inline iterable(p,f::Number) = iterable(length(p),f)
+@inline iterable(p,f::F) where F<:Function = f.(p) #f.(points(p))
 @inline iterable(p,f::F) where F<:AbstractVector = f
 @inline callable(c::F) where F<:Function = c
 @inline callable(c) = x->c
 
-(m::SimplexFrameBundle)(t::Chain) = sinterp(m,t)
-(m::TensorField{B,F,N,<:SimplexFrameBundle} where {B,F,N})(t::Chain) = sinterp(m,t)
+(m::SimplexBundle)(t::Chain) = sinterp(m,t)
+(m::TensorField{B,F,N,<:SimplexBundle} where {B,F,N})(t::Chain) = sinterp(m,t)
 function sinterp(m,t::Chain)
     V = Manifold(pointtype(m))
     pt = Chain{V}(value(t))
@@ -44,20 +45,28 @@ function sinterp(m,t::Chain)
 end
 
 edgelength(v) = value(abs(v[2]-v[1]))
-function Grassmann.volumes(t::SimplexFrameBundle)
+Grassmann.volumes(t::TensorField) = volumes(base(t))
+Grassmann.volumes(t::SimplexBundle) = volumes(FaceBundle(t))
+function Grassmann.volumes(t::FaceBundle)
     if mdims(immersion(t))≠2
-        Real.(abs.(Grassmann.detsimplex(t)))
+        out = Grassmann.detsimplex(t)
+        TensorField(t,Real.(abs.(fiber(out))))
     else
-        edgelength.(affinehull(t))
+        TensorField(t,edgelength.(affinehull(t)))
     end
 end
 
+unbundle(te::Tuple) = unbundle(te...)
+unbundle(t) = (fullcoordinates(t),immersion(t))
+unbundle(t,e) = (fullcoordinates(t),immersion(e),immersion(t))
+unbundle(g,t,e) = (g,unbundle(t,e)...)
+
 initedges(n::Int) = SimplexTopology(Values{2,Int}.(OneTo(n-1),2:n),Base.OneTo(n))
-initedges(r::R) where R<:AbstractVector = SimplexFrameBundle(PointCloud(initpoints(r)),initedges(length(r)))
+initedges(r::R) where R<:AbstractVector = PointCloud(initpoints(r))(initedges(length(r)))
 function initmesh(r::R) where R<:AbstractVector
-    t = initedges(r); p = coordinates(t); n = length(p)
-    bound = Values{1,Int}.([1,n])
-    p,SimplexTopology(bound,vertices(bound),n),immersion(t)
+    t = initedges(r); n = refnodes(t)
+    bound = Values{1,Int}.([1,n.x])
+    t,t(SimplexTopology(bound,vertices(bound),n))
 end
 
 initpoints(P::AbstractArray) = initpoint.(vec(P))
@@ -73,19 +82,24 @@ end
 
 function initpointsdata(P,E,N::Val{n}=Val(size(P,1))) where n
     p = PointCloud(initpoints(P,N)); l = list(1,n)
-    p,SimplexTopology([Int.(E[l,k]) for k ∈ 1:size(E,2)],length(p))
+    p(SimplexTopology([Int.(E[l,k]) for k ∈ 1:size(E,2)],length(p)))
 end
 
 function initmeshdata(P,E,T,N::Val{n}=Val(size(P,1))) where n
-    p,e = initpointsdata(P,E,N); l = list(1,n+1); np = length(p)
-    p,e,SimplexTopology([Int.(T[l,k]) for k ∈ 1:size(T,2)],OneTo(np),np)
+    e = initpointsdata(P,E,N); l = list(1,n+1); np = refnodes(e)
+    e(SimplexTopology([Int.(T[l,k]) for k ∈ 1:size(T,2)],OneTo(np.x),np)),e
 end
 function totalmeshdata(P,E,T,N::Val{n}=Val(size(P,1))) where n
     p = PointCloud(initpoints(P,N))
     np,ln,ln1 = length(p),list(1,n),list(1,n+1)
     t = SimplexTopology([Int.(T[ln1,k]) for k ∈ 1:size(T,2)],OneTo(np),np)
+    ed,ind = edgemeshdata(p(t),E,N)
+    p(t),p(SimplexTopology((global top_id+=1),ed,vertices(view(ed,ind)),refnodes(t),ind,vertices(ed)))
+end
+function edgemeshdata(pt::SimplexBundle,E,::Val{n}) where n
+    np,ln = totalnodes(pt),list(1,n)
     bd = [Int.(E[ln,k]) for k ∈ 1:size(E,2)]
-    ed = edgetopology(p(t))
+    ed = edgetopology(pt)
     ne = length(bd)
     ind = Vector{Int}(undef,ne)
     for i ∈ OneTo(ne)
@@ -100,38 +114,54 @@ function totalmeshdata(P,E,T,N::Val{n}=Val(size(P,1))) where n
             ind[i] = j
         end
     end
-    p,SimplexTopology((global top_id+=1),ed,vertices(view(ed,ind)),length(p),ind),t
+    return ed,ind
 end
 
-select(η,ϵ=sqrt(norm(η)^2/length(η))) = sort!(findall(x->x>ϵ,η))
-refinemesh(g::R,args...) where R<:AbstractRange = (g,initmesh(g,args...)...)
-function refinemesh!(::R,p::ChainBundle{W},e,t,η,_=nothing) where {W,R<:AbstractRange}
-    p = points(t)
-    x,T,V = value(p),value(t),Manifold(p)
+for fun ∈ (:(Base.maximum),:(Base.minimum),:rms)
+    @eval $fun(η::TensorField) = $fun(fiber(η))
+end
+rms(η) = norm(η)/sqrt(length(η))
+select(η,ϵ=rms(η)) = sort!(findall(x->x>ϵ,fiber(η)))
+function refinemesh(g::AbstractRange,args...)
+    pt,pe = initmesh(g,args...)
+    return (g,refine(pt),refine(pe))
+end
+function refinemesh!(::AbstractRange,pt::SimplexBundle,pe,η,_=nothing)
+    p,e,t = unbundle(pt,pe)
+    x,V = fullpoints(p),Manifold(p)
     for i ∈ η
         push!(x,Chain{V,1}(Values(1,(x[i+1][2]+x[i][2])/2)))
     end
-    sort!(x,by=x->x[2]); submesh!(p)
-    e[end] = Chain{p(2),1}(Values(length(x)))
-    for i ∈ length(t)+2:length(x)
-        push!(T,Chain{p,1}(Values{2,Int}(i-1,i)))
+    sort!(x,by=x->x[2])
+    Grassmann.submesh!(p)
+    np = length(x)
+    totalnodes!(t,np)
+    ind = length(t)+2:np
+    fulltopology(e)[end] = Values(np)
+    vertices(e)[end] = np
+    verticesinv(e)[end] = 0
+    resize!(verticesinv(e),np)
+    verticesinv(e)[ind] .= 0
+    verticesinv(e)[end] = np
+    resize!(vertices(t),np)
+    resize!(fulltopology(t),np-1)
+    resize!(subelements(t),np-1)
+    vertices(t)[ind] = ind
+    for i ∈ ind
+        fulltopology(t)[i-1] = Values(i-1,i)
+        subelements(t)[i-1] = i-1
     end
+    return (pt,pe)
 end
 
 Grassmann.columns(t::ImmersedTopology{N},i=1) where N = columns(topology(t))
 Grassmann.columns(t::AbstractVector{<:Values{N}},i=1) where N = column.(Ref(t),list(i,N))
 
-doubleget(x,i) = getindex.(Ref(x),i)
-reducedcolumns(m::AbstractFrameBundle) = reducedcolumns(immersion(m))
-function reducedcolumns(m::SimplexTopology)
-    iscover(m) && (return columns(m))
-    v = vertices(m)
-    ind = Dict(v .=> OneTo(length(v)))
-    doubleget.(Ref(ind),columns(m))
-end
+reducedcolumns(m::FrameBundle) = reducedcolumns(immersion(m))
+reducedcolumns(m::SimplexTopology) = iscover(m) ? columns(m) : columns(subtopology(m))
 
 pointset(m::SimplexTopology) = vertices(m)
-pointset(m::AbstractFrameBundle) = vertices(m)
+pointset(m::ElementBundle) = vertices(m)
 pointset(e::ImmersedTopology{N,1}) where N = vertices(e)
 vertices(e::ImmersedTopology{1,1}) = column(e)
 function vertices(e::ImmersedTopology{N,1}) where N
@@ -151,7 +181,7 @@ end
 
 antiadjacency(t,cols=reducedcolumns(t)) = (A = sparse(t,cols); A-transpose(A))
 adjacency(t,cols=reducedcolumns(t)) = (A = sparse(t,cols); A+transpose(A))
-SparseArrays.sparse(t::AbstractFrameBundle,cols=reducedcolumns(t)) = sparse(immersion(t),cols)
+SparseArrays.sparse(t::FrameBundle,cols=reducedcolumns(t)) = sparse(immersion(t),cols)
 function SparseArrays.sparse(t::SimplexTopology{N},cols=reducedcolumns(t)) where N
     np = nodes(t)
     A = spzeros(Int,np,np)
@@ -162,62 +192,66 @@ function SparseArrays.sparse(t::SimplexTopology{N},cols=reducedcolumns(t)) where
 end
 
 edges(t,cols::Values) = edges(t,adjacency(t,cols))
-edges(t::AbstractFrameBundle) = t(edges(immersion(t)))
-edges(t::AbstractFrameBundle,adj::AbstractMatrix) = t(edges(immersion(t),adj))
-edges(t::SimplexTopology{2},adj::AbstractMatrix=nothing) = t
+edges(t::ElementBundle) = t(edges(immersion(t)))
+edges(t::ElementBundle,adj::AbstractMatrix) = t(edges(immersion(t),adj))
+edges(t::SimplexTopology{2}) = t
+edges(t::SimplexTopology{2},cols::Values) = t
+edges(t::SimplexTopology{2},adj::AbstractMatrix) = t
 function edges(t::SimplexTopology,adj::AbstractMatrix=adjacency(t))
-    SimplexTopology(0,edgetopology(adj),elements(t))
+    SimplexTopology(0,edgetopology(adj),refnodes(t))
 end
 edgetopology(t) = edgetopology(adjacency(t))
 function edgetopology(adj::AbstractMatrix=adjacency(t))
     f = findall((!)∘iszero,LinearAlgebra.triu(adj))
     Values{2,Int}[Values{2,Int}(@inbounds f[n].I) for n ∈ 1:length(f)]
 end
-edgefacets(t,cols::Values) = edgefacets(t,adjacency(t,cols))
-edgefacets(t,adj=adjacency(t)) = FacetFrameBundle(edges(t,adj))
 
-function facetsinterior(t::Vector{Values{M,Int}}) where M
+function facetsinterior(t::SimplexTopology{M}) where M
     N = M-1
-    N == 0 && (return [list(2,1)],Int[])
+    #N == 0 && (return [list(2,1)],Int[])
     out = Values{N,Int}[]
     bnd = Int[]
-    for i ∈ t
+    for i ∈ topology(t)
         for w ∈ Values{N}.(Leibniz.combinations(sort(i),N))
             j = findfirst(isequal(w),out)
             isnothing(j) ? push!(out,w) : push!(bnd,j)
         end
     end
-    return out,bnd
+    return SimplexTopology(0,out,vertices(t),refnodes(t)),bnd
 end
-facets(t) = faces(t,Val(N-1))
-facets(t,h) = faces(t,h,Val(N-1))
-#faces(t,v::Val) = faces(value(t),v)
-#faces(t,h,v,g=identity) = faces(value(t),h,v,g)
+facets(t) = faces(t,Val(sdims(t)-1))
+facets(t,h) = faces(t,h,Val(sdims(t)-1))
 faces(t::Tuple,v,g=identity) = faces(t[1],t[2],v,g)
-function faces(t::Vector{Values{M,Int}},::Val{N}) where {N,M}
+faces(t,N::Int) = faces(t,Val(N))
+faces(t::ElementBundle,v::Val) = t(faces(immersion(t),v))
+faces(t::ElementBundle,h,v::Val,g=identity) = faces(immersion(t),h,v,g)
+function faces(t::SimplexTopology{M},::Val{N}) where {N,M}
+    ver = vertices(t)
     N == M && (return t)
-    #N == 2 && (return edgefacets(t))
-    N == 1 && (return Values.(vertices(t)))
-    N == 0 && (return list(2,1))
+    N == 2 && (return edges(t))
+    N == 1 && (return SimplexTopology(Values.(ver),ver,refnodes(t)))
+    #N == 0 && (return list(2,1))
     out = Values{N,Int}[]
-    for i ∈ t
+    for i ∈ topology(t)
         for w ∈ Values{N}.(Leibniz.combinations(sort(i),N))
             w ∉ out && push!(out,w)
         end
     end
-    return out
+    return SimplexTopology(0,out,ver,refnodes(t))
 end
-function faces(t::Vector{Values{M,Int}},h,::Val{N},g=identity) where {N,M}
-    N == 0 && (return [list(1,N)],Int[sum(h)])
+function faces(t::SimplexTopology{M},h,::Val{N},g=identity) where {N,M}
+    #N == 0 && (return [list(1,N)],Int[sum(h)])
     out = Values{N,Int}[]
     bnd = Int[]
     vec = zeros(Variables{M,Int})
-    val = N+1==M ? ∂(Manifold(points(t))(list(1,N+1))(I)) : ones(Values{binomial(M,N)})
+    val = N+1==M ? value(∂(Submanifold(N+1)(I))) : ones(Values{binomial(M,N)})
+    bin = list(1,binomial(M,N))
+    top = topology(t)
     for i ∈ 1:length(t)
-        vec[:] = @inbounds t[i]
-        par = DirectSum.indexparity!(vec)
+        vec[:] = @inbounds top[i]
+        par = Leibniz.indexparity!(vec)
         w = Values{N,Int}.(Leibniz.combinations(par[2],N))
-        for k ∈ 1:binomial(M,N)
+        for k ∈ bin
             j = findfirst(isequal(w[k]),out)
             v = h[i]*(par[1] ? -val[k] : val[k])
             if isnothing(j)
@@ -228,38 +262,48 @@ function faces(t::Vector{Values{M,Int}},h,::Val{N},g=identity) where {N,M}
             end
         end
     end
-    return out,bnd
+    return SimplexTopology(0,out,refnodes(t)),bnd
 end
 
-∂(t::Values{N,<:Tuple}) where N = ∂.(t)
-∂(t::Values{N,<:Vector}) where N = ∂.(t)
-∂(t::Tuple{Vector{<:Values},Vector{Int}}) = ∂(t[1],t[2])
-function ∂(t::Vector{<:Chain},u::Vector{Int})
+#∂(t::Values{N,<:Tuple}) where N = ∂.(t)
+#∂(t::Values{N,<:Vector}) where N = ∂.(t)
+Grassmann.∂(t::Tuple{<:ElementBundle,Vector{Int}}) = ∂(t[1],t[2])
+Grassmann.∂(t::Tuple{<:SimplexTopology,Vector{Int}}) = ∂(t[1],t[2])
+Grassmann.∂(t::SimplexBundle,u::Vector{Int}) = t(∂(immersion(t),u))
+function Grassmann.∂(t::SimplexTopology,u::Vector{Int})
     f = facets(t,u)
-    f[1][findall(x->!iszero(x),f[2])]
+    f[1][findall((!)∘iszero,f[2])]
 end
-function ∂(t::Vector{Values{N,Int}}) where N
+Grassmann.∂(t::ElementBundle) = t(∂(immersion(t)))
+function Grassmann.∂(t::SimplexTopology{N}) where N
     if N≠3
         f = facetsinterior(t)
         f[1][setdiff(1:length(f[1]),f[2])]
     else
-        edgesfacets(t,adjacency(t).%2)
+        edges(t,adjacency(t).%2)
     end
 end
-#∂(t::Vector{<:Values}) = (f=facets(t,ones(Int,length(t))); f[1][findall(x->!iszero(x),f[2])])
+#=function ∂(t::Vector{<:Values})
+    f = facets(t,ones(Int,length(t)))
+    f[1][findall((!)∘iszero,f[2])]
+end=#
+
+Grassmann.complement(t::ElementBundle) = t(complement(immersion(t)))
+function Grassmann.complement(t::SimplexTopology)
+    fullimmersion(t)[setdiff(1:totalelements(t),subelements(t))]
+end
 
 import Grassmann: Leibniz
-#=skeleton(t::ChainBundle,v) = skeleton(value(t),v)
-@inline (::Leibniz.Derivation)(x::Vector{<:Chain},v=Val{true}()) = skeleton(x,v)
-@generated skeleton(t::Vector{<:Chain{V}},v) where V = :(faces.(Ref(t),Ref(ones(Int,length(t))),$(Val.(list(1,mdims(V)))),abs))
-#@generated skeleton(t::Vector{<:Chain{V}},v) where V = :(faces.(Ref(t),$(Val.(list(1,mdims(V))))))=#
+skeleton(t::SimplexBundle) = skeleton(immersion(t))
+@generated skeleton(t::SimplexTopology{N}) where N = :(faces.(Ref(t),Ref(ones(Int,elements(t))),$(Val.(list(1,N+1))),abs))
+#@generated skeleton(t::SimplexTopology{N}) where N = :(faces.(Ref(t),$(Val.(list(1,N+1)))))
 
 const array_cache = (Array{T,2} where T)[]
 const array_top_cache = (Array{T,2} where T)[]
 array(m::Vector{<:Chain}) = [m[i][j] for i∈1:length(m),j∈1:mdims(Manifold(m))]
 array(m::Vector{<:Values{N,Int}}) where N = Int[m[i][j] for i∈1:length(m),j∈1:N]
-array(m::SimplexFrameBundle) = array(coordinates(m))
-array!(m::SimplexFrameBundle) = array!(coordinates(m))
+array(m::SimplexBundle) = array(fullcoordinates(m))
+array!(m::SimplexBundle) = array!(fullcoordinates(m))
 function array(m::SimplexTopology)
     B = bundle(m)
     if iszero(B)
@@ -295,8 +339,8 @@ end
 
 const submesh_cache = (Array{T,2} where T)[]
 #submesh(m) = [m[i][j] for i∈1:length(m),j∈2:mdims(Manifold(m))]
-Grassmann.submesh(m::SimplexFrameBundle) = submesh(coordinates(m))
-Grassmann.submesh!(m::SimplexFrameBundle) = submesh!(coordinates(m))
+Grassmann.submesh(m::SimplexBundle) = submesh(fullcoordinates(m))
+Grassmann.submesh!(m::SimplexBundle) = submesh!(fullcoordinates(m))
 function Grassmann.submesh(m::PointCloud)
     B = bundle(m)
     iszero(B) && (return submesh(points(m)))
@@ -311,76 +355,90 @@ function Grassmann.submesh!(m::PointCloud)
     length(submesh_cache) ≥ B && (submesh_cache[B] = Array{Any,2}(undef,0,0))
 end
 
-function Base.findfirst(P::GradedVector{V},M::SimplexFrameBundle) where V
-    p = points(M); t = immersion(M)
+function Base.findfirst(P::GradedVector{V},M::SimplexBundle) where V
+    p = fullpoints(M); t = immersion(M)
     for i ∈ 1:length(t)
         P ∈ Chain{V}(p[t[i]]) && (return i)
     end
     return 0
 end
-function Base.findlast(P::GradedVector{V},M::SimplexFrameBundle) where V
-    p = points(M); t = immersion(M)
+function Base.findlast(P::GradedVector{V},M::SimplexBundle) where V
+    p = fullpoints(M); t = immersion(M)
     for i ∈ length(t):-1:1
         P ∈ Chain{V}(p[t[i]]) && (return i)
     end
     return 0
 end
-Base.findall(P::GradedVector{V},t::SimplexFrameBundle) where V = findall(P .∈ Chain{V}.(points(t)[immersion(t)]))
 
-@generated function Grassmann.vectors(t::SimplexFrameBundle,c=columns(topology(t)))
-    sdims(t) == 1 && (return :(Grassmann.vectors.(fullpoints(t)[topology(t)])))
+import Grassmann: affineframe
+affineframe(t::SimplexBundle) = affineframe(FaceBundle(t))
+@generated function affineframe(t::FaceBundle,c=columns(topology(t)))
+    sdims(t) == 1 && (return :(TensorField(t,affineframe.(affinehull(t)))))
     v = Expr(:tuple,[:(M.(p[c[$i]]-A)) for i ∈ list(2,sdims(t))]...)
     V = :(Manifold(t)($(list(2,sdims(t))...)))
     quote
-        p = points(t)
+        p = fullpoints(t)
         V,M,A = $V,↓(Manifold(p)),p[c[1]]
-        TensorOperator.(Chain{V,1}.($(Expr(:.,:Values,v))))
+        TensorField(t,TensorOperator.(Chain{V,1}.($(Expr(:.,:Values,v)))))
     end
 end
 
-Grassmann.detsimplex(m::SimplexFrameBundle) = ∧(m)/factorial(sdims(m)-1)
-function Grassmann.:∧(m::SimplexFrameBundle)
-    mdims(m)>sdims(m) ? .∧(Grassmann.vectors.(affinehull(m))) : .∧(affinehull(m))
+Grassmann.detsimplex(m::ElementBundle) = ∧(m)/factorial(sdims(m)-1)
+Grassmann.:∧(m::SimplexBundle) = ∧(FaceBundle(m))
+function Grassmann.:∧(m::FaceBundle)
+    TensorField(m,mdims(m)>sdims(m) ? .∧(Grassmann.vectors.(affinehull(m))) : .∧(affinehull(m)))
 end
 for op ∈ (:mean,:barycenter,:curl)
     ops = Symbol(op,:s)
     @eval begin
         export $op, $ops
-        Grassmann.$ops(m::SimplexFrameBundle) = Grassmann.$op.(affinehull(m))
+        Grassmann.$ops(m::ElementBundle,u) = Grassmann.$ops(immersion(m),u)
+        Grassmann.$ops(m::SimplexBundle) = Grassmann.$ops(FaceBundle(m))
+        Grassmann.$ops(m::FaceBundle) = TensorField(m,Grassmann.$op.(affinehull(m)))
+        Grassmann.$ops(m::SimplexMap) = TensorField(FaceBundle(base(m)),Grassmann.$ops(subimmersion(m),fiber(m)))
     end
 end
 
 revrot(hk::TensorOperator,f=identity) = TensorOperator(revrot(value(hk)))
 revrot(hk::Chain{V,1},f=identity) where V = Chain{V,1}(-f(hk[2]),f(hk[1]))
 
-function gradienthat(t,m=volumes(t))
+gradienthat(t::TensorField,m=volumes(t)) = gradienthat(base(t),m)
+gradienthat(t::SimplexBundle,m=volumes(t)) = gradienthat(FaceBundle(t),m)
+function gradienthat(t::FaceBundle,m=volumes(t))
     N = mdims(Manifold(t))
-    if N == 2 #inv.(m)
+    TensorField(t, if N == 2 #inv.(m)
         V = Manifold(points(t))
-        c = Chain{↓(V),1}.(inv.(m))
-        Chain{V,1}.(-c,c)
+        c = Chain{↓(V),1}.(inv.(fiber(m)))
+        TensorOperator.(Chain{V,1}.(-c,c))
     elseif N == 3
-        h = curls(t)./2m
+        h = fiber(curls(t))./2fiber(m)
         V = Manifold(h); V2 = ↓(V)
-        [Chain{V,1}(revrot.(V2.(value(h[k])))) for k ∈ 1:length(h)]
+        [TensorOperator(Chain{V,1}(revrot.(V2.(value(h[k]))))) for k ∈ 1:length(h)]
     else
-        Grassmann.grad.(points(t)[value(t)])
-    end
+        TensorOperator.(Grassmann.grad.(affinehull(t)))
+    end)
 end
 
-laplacian_2(t,u,m=volumes(t),g=gradienthat(t,m)) = Real(abs(gradient_2(t,u,m,g)))
-laplacian(t,m=volumes(domain(t)),g=gradienthat(domain(t),m)) = Real(abs(gradient(t,m,g)))
-function gradient(f::ScalarMap,m=volumes(domain(f)),g=gradienthat(domain(f),m))
-    TensorField(domain(f), interp(domain(f),gradient_2(domain(f),codomain(f),m,g)))
+function laplacian(t::ElementMap,m=volumes(domain(t)),g=gradienthat(domain(t),m))
+    out = gradient(t,m,g)
+    TensorField(base(t),Real.(abs.(fiber(out))))
 end
-function gradient_2(t,u,m=volumes(t),g=gradienthat(t,m))
-    T = immersion(t)
-    [u[value(T[k])]⋅value(g[k]) for k ∈ 1:length(T)]
+function gradient(t::SimplexMap,m=volumes(t),g=gradienthat(t,m))
+    TensorField(base(t),interp(gradient_2(t,m,g)))
 end
-#=function gradient(t::SimplexFrameBundle,u::Vector,m=volumes(t),g=gradienthat(t,m))
-    i = immersion(t)
-    [u[value(i[k])]⋅value(g[k]) for k ∈ 1:length(t)]
-end=#
+function gradient(t::FaceMap,m=volumes(t),g=gradienthat(t,m))
+    gradient_2(base(t),interp(t),m,g)
+end
+function gradient_2(t::ElementMap,m=volumes(t),g=gradienthat(t,m))
+    gradient_2(base(t),fiber(t),m,g)
+end
+function gradient_2(t::SimplexBundle,u,m=volumes(t),g=gradienthat(t,m))
+    gradient_2(FaceBundle(t),u,m,g)
+end
+function gradient_2(t::FaceBundle,u,m=volumes(t),g=gradienthat(t,m))
+    T = topology(t)
+    TensorField(t,[fiber(u)[T[k]]⋅value(value(fiber(g)[k])) for k ∈ 1:length(T)])
+end
 
 for T ∈ (:Values,:Variables)
     @eval function assemblelocal!(M,mat,m,tk::$T{N}) where N
@@ -397,13 +455,15 @@ for T ∈ (:Values,:Variables)
     end
 end
 
-weights(t,d::Vector=degrees(t)) = inv.(d)
-weights(t,B::SparseMatrixCSC) = inv.(degrees(t,B))
-degrees(t::AbstractFrameBundle,B::SparseMatrixCSC) = degrees(immersion(t),B)
-degrees(t::SimplexTopology,B::SparseMatrixCSC) = B*ones(Int,nodes(t)) # A = incidence(t)
-degrees(t::AbstractFrameBundle,f=nothing) = degrees(immersion(t),f)
+weights(t::FrameBundle) = inv(degrees(t))
+weights(t::FrameBundle,B::SparseMatrixCSC) = inv(degrees(t,B))
+weights(t::SimplexTopology) = inv.(degrees(t))
+weights(t::SimplexTopology,B::SparseMatrixCSC) = inv.(degrees(t,B))
+degrees(t::SimplexTopology,B::SparseMatrixCSC) = B*ones(Int,totalnodes(t)) #B=incidence(t)
+degrees(t::FaceBundle,f=nothing) = degrees(SimplexBundle(t),f)
+degrees(t::SimplexBundle,f=nothing) = TensorField(t,degrees(immersion(t),f))
 function degrees(t::SimplexTopology,f=nothing)
-    b = zeros(Int,nodes(t))
+    b = zeros(Int,totalnodes(t))
     for tk ∈ topology(t)
         b[tk] .+= 1
     end
@@ -412,23 +472,21 @@ end
 
 assembleincidence(t,f,B::SparseMatrixCSC) = Diagonal(iterpts(t,f))*B
 assembleincidence(t,f,m=volumes(t),v::Val=Val(false)) = assembleincidence(t,iterpts(t,f),iterable(t,m))
-function assembleincidence(X::AbstractFrameBundle,f,m,v::Val=Val(false))
+function assembleincidence(X::FrameBundle,f,m,v::Val=Val(false))
     assembleincidence(immersion(X),f,m,v)
 end
 function assembleincidence(t::SimplexTopology,f::AbstractVector,m::AbstractVector,::Val{T}=Val{false}()) where T
-    typ = eltype(T ? m : f)
-    b = zeros(typ<:Int ? Float64 : typ,nodes(t))
+    typ = fibertype(T ? m : f)
+    b = zeros(typ<:Int ? Float64 : typ,totalnodes(t))
     for k ∈ 1:elements(t)
         tk = t[k]
-        b[tk] .+= f[tk].*m[k]
+        b[tk] .+= fiber(f)[tk].*fiber(m)[k]
     end
     return b
 end
-function incidence(t::AbstractFrameBundle,cols::Values=columns(topology(t)))
-    incidence(immersion(t),cols)
-end
-function incidence(t::SimplexTopology,cols::Values{N}=columns(topology(t))) where N
-    np,nt = nodes(t),elements(t)
+incidence(t::FrameBundle) = incidence(subimmersion(t),cols)
+function incidence(t::SimplexTopology,cols::Values{N}=columns(t)) where N
+    np,nt = totalnodes(t),elements(t)
     A = spzeros(Int,np,nt)
     for i ∈ list(1,N)
         A += sparse(cols[i],1:nt,1,np,nt)
@@ -438,10 +496,10 @@ end # node-element incidence, A[i,j]=1 -> i∈t[j]
 
 assembleload(t,f=1,m=volumes(t)) = assembleincidence(t,iterpts(t,f)/sdims(t),m,Val(true))
 
-interp(t::TensorField{B,F,N,<:FacetFrameBundle} where {B,F,N}) = interp(immersion(t),fiber(t))
-interp(t,B::SparseMatrixCSC=incidence(t)) = Diagonal(inv.(degrees(t,B)))*B
-interp(t,b,d=degrees(t,b)) = assembleincidence(t,inv.(d),b,Val(true))
-pretni(t::TensorField{B,F,N,<:SimplexFrameBundle} where {B,F,N}) = pretni(immersion(t),fiber(t))
+interp(t::FaceMap) = interp(subimmersion(t),fiber(t))
+interp(t,B::SparseMatrixCSC=incidence(t)) = Diagonal(weights(t,B))*B
+interp(t,b,w=weights(t)) = assembleincidence(t,w,b,Val(true))
+pretni(t::SimplexMap) = means(t)
 pretni(t,B::SparseMatrixCSC=incidence(t)) = interp(t,sparse(B'))
 pretni(t,ut) = means(t,ut) #interp(t,ut,B::SparseMatrixCSC) = B*ut
 
@@ -450,14 +508,14 @@ interior(fixed,neq) = sort!(setdiff(1:neq,fixed))
 
 facesindices(t,cols=columns(t)) = mdims(t) == 3 ? edgesindices(t,cols) : throw(error())
 
-function edgesindices(t::SimplexFrameBundle)
+function edgesindices(t::SimplexBundle)
     cols = columns(topology(t))
-    edgesindices(t,edgefacets(t,cols),cols)
+    edgesindices(t,edges(t,cols),cols)
 end
-function edgesindices(t::SimplexFrameBundle,ed::SimplexFrameBundle,cols=columns(topology(t)))
-    edgesindices(t,FacetFrameBundle(ed),cols)
+function edgesindices(t::SimplexBundle,ed::SimplexBundle,cols=columns(topology(t)))
+    edgesindices(t,FaceBundle(ed),cols)
 end
-function edgesindices(t::SimplexFrameBundle,e::FacetFrameBundle,cols=columns(immersion(t)))
+function edgesindices(t::SimplexBundle,e::FaceBundle,cols=columns(immersion(t)))
     np,nt = nodes(t),elements(t)
     et = fulltopology(e); ne = totalelements(e); i,j,k = cols
     A = sparse(columns(et)...,OneTo(ne),np,np); A += A'
@@ -496,12 +554,13 @@ facetsigns(i::Values,ni) = facetsign.(i,ni)
 facetsigns(t::SimplexTopology) = facetsigns.(neighbors(t),OneTo(elements(t)))
 
 function centroidvectors(t,m=means(t))
-    p,nt = points(t),elements(t)
+    p,nt = fullpoints(t),elements(t)
     V = Manifold(p)(2,3)
-    c = Vector{FixedVector{3,Chain{V,1,Float64,2}}}(undef,nt)
-    δ = Vector{FixedVector{3,Float64}}(undef,nt)
+    c = Vector{Values{3,Chain{V,1,Float64,2}}}(undef,nt)
+    δ = Vector{Values{3,Float64}}(undef,nt)
+    ah = affinehull(t)
     for k ∈ 1:nt
-        c[k] = V.(m[k].-p[value(t[k])])
+        c[k] = V.(fiber(m)[k].-ah[k])
         δ[k] = value.(abs.(c[k]))
     end
     return c,δ

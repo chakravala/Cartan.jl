@@ -831,23 +831,35 @@ end
 
 top_id = 0
 
+refval(p) = p
+refval(p::Base.RefValue) = p.x
+refnodes(p::Int) = Ref(p)
+refnodes(p::Base.RefValue) = p
+const RefInt = Union{Base.RefValue{Int},Int}
+
 struct SimplexTopology{N,P<:AbstractVector{Int},F<:AbstractVector{Int},T} <: ImmersedTopology{N,1}
-    id::Int
-    t::Vector{Values{N,Int}}
-    i::P
-    p::Int
-    f::F
-    c::Bool
-    function SimplexTopology(id::Int,t::Vector{Values{N,Int}},i::P,p::Int,f::F=OneTo(length(t)),c::Bool=length(i)==p) where {N,P,F}
-        new{N,P,F,(length(i)==p,length(f)==length(t))}(id,t,i,p,f,c)
+    id::Int # bundle
+    t::Vector{Values{N,Int}} # fulltopology
+    i::P # vertices
+    p::Base.RefValue{Int} # totalnodes
+    f::F # subelements
+    I::P # fullvertices
+    v::P # verticesinv
+    function SimplexTopology(id::Int,t::Vector{Values{N,Int}},i::P,p::RefInt,f::F=OneTo(length(t)),I::P=i,c::Bool=length(i)==refval(p),isc::Bool=length(i)==refval(p),isf::Bool=length(f)==length(t)) where {N,P,F}
+        new{N,P,F,(c,isc,isf)}(id,t,i,refnodes(p),f,I,verticesinv(p,i,isc))
+    end
+    function SimplexTopology(id::Int,t::Vector{Values{N,Int}},i::P,p::RefInt,f::F,I::OneTo,c::Bool=length(i)==refval(p),isc::Bool=length(i)==refval(p),isf::Bool=length(f)==length(t)) where {N,P<:DenseVector,F}
+        new{N,P,F,(c,isc,isf)}(id,t,i,refnodes(p),f,collect(I),verticesinv(p,i,isc))
     end
 end
-const SimplexManifold = SimplexTopology
 
-SimplexTopology(id::Int,t::Vector,i=vertices(t),p::Int=maximum(i)) = SimplexTopology(id,t,i,p,subelements(t),length(i)==p)
-SimplexTopology(id::Int,t::Vector,p::Int) = SimplexTopology(id,t,vertices(t),p)
-SimplexTopology(t::Vector,i=vertices(t),p::Int=maximum(i)) = SimplexTopology((global top_id+=1),t,i,p)
-SimplexTopology(t::Vector,p::Int) = SimplexTopology(t,vertices(t),p)
+function SimplexTopology(id::Int,t::Vector,i=vertices(t),p::RefInt=maximum(i))
+    isc = length(i)==refval(p)
+    SimplexTopology(id,t,i,p,subelements(t),i,isc,isc,true)
+end
+SimplexTopology(id::Int,t::Vector,p::RefInt) = SimplexTopology(id,t,vertices(t),p)
+SimplexTopology(t::Vector,i=vertices(t),p::RefInt=maximum(i)) = SimplexTopology((global top_id+=1),t,i,p)
+SimplexTopology(t::Vector,p::RefInt) = SimplexTopology(t,vertices(t),p)
 
 bundle(m::SimplexTopology) = m.id
 fulltopology(m::SimplexTopology) = m.t
@@ -855,9 +867,13 @@ topology(m::SimplexTopology) = isfull(m) ? fulltopology(m) : view(fulltopology(m
 totalelements(m::SimplexTopology) = length(fulltopology(m))
 elements(m::SimplexTopology) = length(subelements(m))
 subelements(m::SimplexTopology) = m.f
-totalnodes(m::SimplexTopology) = m.p
+refnodes(m::SimplexTopology) = m.p
+totalnodes!(m::SimplexTopology,p) = (refnodes(m).x = p)
+totalnodes(m::SimplexTopology) = refval(refnodes(m))
 nodes(m::SimplexTopology) = length(vertices(m))
+fullvertices(m::SimplexTopology) = m.I
 vertices(m::SimplexTopology) = m.i
+verticesinv(m::SimplexTopology) = m.v
 
 Base.size(m::SimplexTopology) = size(subelements(m))
 Base.length(m::SimplexTopology) = length(subelements(m))
@@ -871,13 +887,13 @@ _axes(t::SimplexTopology{N}) where N = (Base.OneTo(length(t)),Base.OneTo(N))
 # anything array-like gets summarized e.g. 10-element Array{Int64,1}
 Base.summary(io::IO, a::SimplexTopology) = Base.array_summary(io, a, _axes(a))
 
-getimage(m::SimplexTopology{N,<:AbstractVector} where N,i) = vertices(m)[i]
+getimage(m::SimplexTopology{N,<:AbstractVector} where N,i) = iscover(m) ? i : vertices(m)[i]
 getimage(m::SimplexTopology{N,<:OneTo} where N,i) = i
-getfacet(m::SimplexTopology{N,P,<:AbstractVector} where {N,P},i) = subelements(m)[i]
+getfacet(m::SimplexTopology{N,P,<:AbstractVector} where {N,P},i) = isfull(m) ? i : subelements(m)[i]
 getfacet(m::SimplexTopology{N,P,<:OneTo} where{N,P},i) = i
-istotal(m::SimplexTopology) = m.c
-isfull(m::SimplexTopology{N,P,F,T} where {N,P,F}) where T = T[2]
-iscover(m::SimplexTopology{N,P,F,T} where {N,P,F}) where T = T[1]
+istotal(m::SimplexTopology{N,P,F,T} where {N,P,F}) where T = T[1]
+isfull(m::SimplexTopology{N,P,F,T} where {N,P,F}) where T = T[3]
+iscover(m::SimplexTopology{N,P,F,T} where {N,P,F}) where T = T[2]
 subsym(x) = iscover(x) ? "⊆" : "⊂"
 
 function Base.array_summary(io::IO, a::SimplexTopology, inds::Tuple{Vararg{OneTo}})
@@ -888,14 +904,21 @@ end
 
 function fullimmersion(m::SimplexTopology)
     top = fulltopology(m)
-    ind = m.c ? OneTo(totalnodes(m)) : vertices(top)
-    SimplexTopology(bundle(m),top,ind,totalnodes(m),OneTo(length(top)),istotal(m))
+    isc = istotal(m)
+    ind = if isc
+        OneTo(totalnodes(m))
+    else
+        out = fullvertices(m)
+        n = length(out)
+        maximum(out) == n ? OneTo(n) : out
+    end
+    SimplexTopology(bundle(m),top,ind,refnodes(m),OneTo(length(top)),ind,isc,isc,true)
 end
 
 function Base.getindex(m::SimplexTopology,i::AbstractVector{Int})
-    ind = getfacet(m,i)
-    top = fulltopology(m)
-    SimplexTopology(bundle(m),top,vertices(view(top,ind)),totalnodes(m),ind,istotal(m))
+    ind,top = getfacet(m,i),fulltopology(m)
+    ver = vertices(view(top,ind))
+    SimplexTopology(bundle(m),top,ver,refnodes(m),ind,vertices(m),istotal(m))
 end
 
 (m::SimplexTopology)(i::AbstractVector{Int}) = subtopology(m,i)
@@ -905,6 +928,53 @@ function subtopology(m::SimplexTopology{N},i::AbstractVector{Int}) where N
     for j ∈ subelements(m)
         prod(top[j] .∈ Ref(i)) && push!(ind,j)
     end
-    SimplexTopology(bundle(m),top,i,totalnodes(m),ind,istotal(m))
+    SimplexTopology(bundle(m),top,i,refnodes(m),ind,vertices(m),istotal(m))
+end
+
+getelement(m::SimplexTopology{N,<:OneTo} where N,i::Int) = m[i]
+function getelement(m::SimplexTopology{N,<:AbstractVector} where N,i::Int)
+    iscover(m) ? m[i] : getindex.(Ref(verticesinv(m)),m[i])
+end
+
+subtopology(m::SimplexTopology{N,<:OneTo} where N) = topology(m)
+function subtopology(m::SimplexTopology{N,<:AbstractVector} where N)
+    iscover(m) ? topology(m) : getelement.(Ref(m),OneTo(elements(m)))
+end
+
+function subimmersion(m::SimplexTopology{N,<:OneTo} where N)
+    iscover(m) && (return m)
+    top,ind = topology(m),vertices(m)
+    SimplexTopology(0,top,ind,length(ind),OneTo(length(top)),ind,true,true,true)
+end
+function subimmersion(m::SimplexTopology{N,<:AbstractVector} where N)
+    iscover(m) && (return m)
+    top,ind = topology(m),vertices(m)
+    p = length(ind)
+    ver = OneTo(p)
+    SimplexTopology(0,subtopology(m),ver,p,OneTo(length(top)),ver,true,true,true)
+end
+
+verticesinv(n,ind,isc) = isc ? ind : verticesinv(n,ind)
+verticesinv(n::Base.RefValue,ind) = verticesinv(n.x,ind)
+verticesinv(n::Int,ind::OneTo) = ind
+function verticesinv(n::Int,ind)
+    out = zeros(Int,n)
+    out[ind] = OneTo(length(ind))
+    return out
+end
+
+refine(m::SimplexTopology{N,<:AbstractVector,<:AbstractVector}) where N = m
+function refine(m::SimplexTopology{N,<:OneTo,<:AbstractVector}) where N
+    i = collect(vertices(m))
+    fi = vertices(m)≠fullvertices(m) ? collect(fullvertices(m)) : i
+    SimplexTopology(bundle(m),fulltopology(m),i,refnodes(m),subelements(m),fi,istotal(m),iscover(m),isfull(m))
+end
+function refine(m::SimplexTopology{N,<:AbstractVector,<:OneTo}) where N
+    SimplexTopology(bundle(m),fulltopology(m),vertices(m),refnodes(m),collect(subelements(m)),fullvertices(m),istotal(m),iscover(m),isfull(m))
+end
+function refine(m::SimplexTopology{N,<:OneTo,<:OneTo}) where N
+    i = collect(vertices(m))
+    fi = vertices(m)≠fullvertices(m) ? collect(fullvertices(m)) : i
+    SimplexTopology(bundle(m),fulltopology(m),i,refnodes(m),collect(subelements(m)),fi,istotal(m),iscover(m),isfull(m))
 end
 
