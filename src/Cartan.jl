@@ -450,12 +450,12 @@ function __init__()
         funsym(sym) = String(sym)[end] == '!' ? sym : Symbol(sym,:!)
         for lines ∈ (:lines,:lines!,:linesegments,:linesegments!)
             @eval begin
-                Makie.$lines(t::ScalarMap;args...) = Makie.$lines(TensorField(GridBundle(base(t)),fiber(t));args...)
+                Makie.$lines(t::ScalarMap;args...) = Makie.$lines(TensorField(GridBundle{1}(base(t)),fiber(t));args...)
                 Makie.$lines(t::SpaceCurve,f::Function=speed;args...) = Makie.$lines(vec(fiber(t));color=Real.(vec(fiber(f(t)))),args...)
                 Makie.$lines(t::PlaneCurve,f::Function=speed;args...) = Makie.$lines(vec(fiber(t));color=Real.(vec(fiber(f(t)))),args...)
                 Makie.$lines(t::RealFunction,f::Function=speed;args...) = Makie.$lines(Real.(points(t)),Real.(fiber(t));color=Real.(vec(fiber(f(t)))),args...)
                 Makie.$lines(t::ComplexMap{B,F,1},f::Function=speed;args...) where {B<:Coordinate{<:AbstractReal},F} = Makie.$lines(realvalue.(fiber(t)),imagvalue.(fiber(t));color=Real.(vec(fiber(f(t)))),args...)
-                #Makie.$lines(t::TensorField{B,F<:AbstractReal,N,<:SimplexBundle{1}};args...) = Makie.$lines(TensorField(GridBundle(base(t)),fiber(t));args...)
+                #Makie.$lines(t::TensorField{B,F<:AbstractReal,N,<:SimplexBundle};args...) = Makie.$lines(TensorField(GridBundle{1}(base(t)),fiber(t));args...)
             end
         end
         #Makie.lines(t::TensorField{B,F,1};args...) where {B<:Coordinate{<:AbstractReal},F<:AbstractReal} = linegraph(t;args...)
@@ -671,16 +671,16 @@ function __init__()
         Makie.mesh!(t::ScalarMap;args...) = Makie.mesh!(domain(t);color=Real.(codomain(t)),args...)
         #Makie.wireframe(t::ElementFunction;args...) = Makie.wireframe(value(domain(t));color=Real.(codomain(t)),args...)
         #Makie.wireframe!(t::ElementFunction;args...) = Makie.wireframe!(value(domain(t));color=Real.(codomain(t)),args...)
-        Makie.convert_arguments(P::Makie.PointBased, a::SimplexBundle) = Makie.convert_arguments(P, points(a))
+        Makie.convert_arguments(P::Makie.PointBased, a::SimplexBundle) = Makie.convert_arguments(P, Vector(points(a)))
         Makie.convert_single_argument(a::LocalFiber) = convert_arguments(P,Point(a))
-        Makie.arrows(p::SimplexBundle,v;args...) = Makie.arrows(GeometryBasics.Point.(↓(V).(points(p))),GeometryBasics.Point.(value(v));args...)
-        Makie.arrows!(p::SimplexBundle,v;args...) = Makie.arrows!(GeometryBasics.Point.(↓(V).(points(p))),GeometryBasics.Point.(value(v));args...)
-        Makie.scatter(p::SimplexBundle,x;args...) = Makie.scatter(submesh(p)[:,1],x;args...)
-        Makie.scatter!(p::SimplexBundle,x;args...) = Makie.scatter!(submesh(p)[:,1],x;args...)
+        Makie.arrows(t::TensorField{B,F,N,<:SimplexBundle} where {B,F,N};args...) = Makie.arrows(GeometryBasics.Point.(↓(Manifold(base(t))).(points(t))),GeometryBasics.Point.(fiber(t));args...)
+        Makie.arrows!(t::TensorField{B,F,N,<:SimplexBundle} where {B,F,N};args...) = Makie.arrows!(GeometryBasics.Point.(↓(Manifold(base(t))).(points(t))),GeometryBasics.Point.(fiber(t));args...)
+        Makie.scatter(t::TensorField{B,F,N,<:SimplexBundle} where {B,F,N};args...) = Makie.scatter(submesh(base(t))[:,1],fiber(t);args...)
+        Makie.scatter!(t::TensorField{B,F,N,<:SimplexBundle} where {B,F,N};args...) = Makie.scatter!(submesh(base(t))[:,1],fiber(t);args...)
         Makie.scatter(p::SimplexBundle;args...) = Makie.scatter(submesh(p);args...)
         Makie.scatter!(p::SimplexBundle;args...) = Makie.scatter!(submesh(p);args...)
-        Makie.lines(p::SimplexBundle;args...) = Makie.lines(points(p);args...)
-        Makie.lines!(p::SimplexBundle;args...) = Makie.lines!(points(p);args...)
+        Makie.lines(p::SimplexBundle;args...) = Makie.lines(Vector(points(p));args...)
+        Makie.lines!(p::SimplexBundle;args...) = Makie.lines!(Vector(points(p));args...)
         #Makie.lines(p::Vector{<:TensorAlgebra};args...) = Makie.lines(GeometryBasics.Point.(p);args...)
         #Makie.lines!(p::Vector{<:TensorAlgebra};args...) = Makie.lines!(GeometryBasics.Point.(p);args...)
         #Makie.lines(p::Vector{<:TensorTerm};args...) = Makie.lines(value.(p);args...)
@@ -689,11 +689,11 @@ function __init__()
         #Makie.lines!(p::Vector{<:Chain{V,G,T,1} where {V,G,T}};args...) = Makie.lines!(getindex.(p,1);args...)
         function Makie.linesegments(e::SimplexBundle;args...)
             mdims(immersion(e)) ≠ 2 && (return Makie.linesegments(edges(e)))
-            Makie.linesegments(Grassmann.pointpair.(e[ImmersedTopology(e)],↓(Manifold(points(e))));args...)
+            Makie.linesegments(Grassmann.pointpair.(e[immersion(e)],↓(Manifold(e)));args...)
         end
         function Makie.linesegments!(e::SimplexBundle;args...)
             mdims(immersion(e)) ≠ 2 && (return Makie.linesegments!(edges(e)))
-            Makie.linesegments!(Grassmann.pointpair.(e[ImmersedTopology(e)],↓(Manifold(points(e))));args...)
+            Makie.linesegments!(Grassmann.pointpair.(e[immersion(e)],↓(Manifold(e)));args...)
         end
         Makie.wireframe(t::SimplexBundle;args...) = Makie.linesegments(edges(t);args...)
         Makie.wireframe!(t::SimplexBundle;args...) = Makie.linesegments!(edges(t);args...)
@@ -744,25 +744,43 @@ function __init__()
         Makie.mesh(M::TensorField{B,F,N,<:FaceBundle} where {B,F,N};args...) = Makie.mesh(TensorField(SimplexBundle(base(M)),interp(M)))
         Makie.mesh!(M::TensorField{B,F,N,<:FaceBundle} where {B,F,N};args...) = Makie.mesh!(TensorField(SimplexBundle(base(M)),interp(M)))
         function Makie.mesh(M::SimplexBundle;args...)
-            if mdims(points(M)) == 2
+            if mdims(M) == 2
                 sm = submesh(M)[:,1]
                 Makie.lines(sm,args[:color])
                 Makie.plot!(sm,args[:color])
             else
-                Makie.mesh(submesh(M),array(ImmersedTopology(M));args...)
+                Makie.mesh(submesh(M),array(immersion(M));args...)
             end
         end
         function Makie.mesh!(M::SimplexBundle;args...)
-            if mdims(points(M)) == 2
+            if mdims(M) == 2
                 sm = submesh(M)[:,1]
                 Makie.lines!(sm,args[:color])
                 Makie.plot!(sm,args[:color])
             else
-                Makie.mesh!(submesh(M),array(ImmersedTopology(M));args...)
+                Makie.mesh!(submesh(M),array(immersion(M));args...)
             end
         end
     end
     @require UnicodePlots="b8865327-cd53-5732-bb35-84acbb429228" begin
+        function UnicodePlots.scatterplot(p::SimplexBundle;args...)
+            s = submesh(p)
+            UnicodePlots.scatterplot(s[:,1],s[:,2];args...)
+        end
+        function UnicodePlots.scatterplot(p::FaceBundle;args...)
+            s = submesh(fiber(means(p)))
+            UnicodePlots.scatterplot(s[:,1],s[:,2];args...)
+        end
+        function UnicodePlots.scatterplot!(P,p::SimplexBundle;args...)
+            s = submesh(p)
+            UnicodePlots.scatterplot(P,s[:,1],s[:,2];args...)
+        end
+        function UnicodePlots.scatterplot!(P,p::FaceBundle;args...)
+            s = submesh(fiber(means(p)))
+            UnicodePlots.scatterplot(P,s[:,1],s[:,2];args...)
+        end
+        UnicodePlots.scatterplot(t::TensorField{B,F,N,<:SimplexBundle} where {B,F,N};args...) = UnicodePlots.scatterplot(submesh(base(t))[:,1],fiber(t);args...)
+        UnicodePlots.scatterplot!(P,t::TensorField{B,F,N,<:SimplexBundle} where {B,F,N};args...) = UnicodePlots.scatterplot!(P,submesh(base(t))[:,1],fiber(t);args...)
         UnicodePlots.lineplot(t::ScalarMap;args...) = UnicodePlots.lineplot(getindex.(domain(t),2),codomain(t);args...)
         UnicodePlots.lineplot!(p::UnicodePlots.Plot{<:UnicodePlots.Canvas},t::ScalarMap;args...) = UnicodePlots.lineplot!(p,getindex.(domain(t),2),codomain(t);args...)
         UnicodePlots.lineplot(t::PlaneCurve;args...) = UnicodePlots.lineplot(getindex.(codomain(t),1),getindex.(codomain(t),2);args...)
@@ -778,6 +796,7 @@ function __init__()
         UnicodePlots.surfaceplot(t::SurfaceGrid;args...) = UnicodePlots.surfaceplot(points(t).v[1][2:end-1],points(t).v[2][2:end-1],(x,y)->t(Chain(x,y));args...)
         UnicodePlots.surfaceplot(t::ComplexMap{B,F,2,<:RealSpace{2}} where {B,F};args...) = UnicodePlots.surfaceplot(points(t).v[1][2:end-1],points(t).v[2][2:end-1],(x,y)->radius(t(Chain(x,y)));colormap=:twilight,args...)
         UnicodePlots.spy(t::SurfaceGrid;args...) = UnicodePlots.spy(Real.(codomain(t));args...)
+        UnicodePlots.spy(p::SimplexBundle) = UnicodePlots.spy(antiadjacency(p))
         UnicodePlots.heatmap(t::SurfaceGrid;args...) = UnicodePlots.heatmap(Real.(codomain(t));xfact=step(points(t).v[1]),yfact=step(points(t).v[2]),xoffset=points(t).v[1][1],yoffset=points(t).v[2][1],args...)
         UnicodePlots.heatmap(t::ComplexMap{B,F,2,<:RealSpace{2}} where {B,F};args...) = UnicodePlots.heatmap(Real.(angle.(codomain(t)));xfact=step(points(t).v[1]),yfact=step(points(t).v[2]),xoffset=points(t).v[1][1],yoffset=points(t).v[2][1],colormap=:twilight,args...)
         Base.display(t::PlaneCurve) = (display(typeof(t)); display(UnicodePlots.lineplot(t)))
@@ -836,7 +855,7 @@ function __init__()
         function MiniQhull.delaunay(p::PointCloud,n::AbstractVector,args...)
             N,m = mdims(p),length(n)
             l = list(1,N)
-            T = MiniQhull.delaunay(Matrix(submesh(m==length(p) ? p : p[n])'),args...)
+            T = MiniQhull.delaunay(Matrix(submesh(m==length(p) ? p : fullpoints(p)[n])'),args...)
             p(SimplexTopology([Values{N,Int}(getindex.(Ref(n),Int.(T[l,k]))) for k ∈ 1:size(T,2)],length(p)))
         end
     end
@@ -856,7 +875,8 @@ function __init__()
             triangle_simplex_cache[B] = p
         end
         function triangle(p::PointCloud)
-            B = p.id
+            B = bundle(p)
+            iszero(B) && (return array(p)'[2:end,:])
             if length(triangle_point_cache)<B || isempty(triangle_point_cache[B])
                 triangle_point(array(p)'[2:end,:],B)
             else
@@ -875,7 +895,7 @@ function __init__()
         triangle(p::Vector{<:Values}) = Cint.(array(p)')
         function Triangulate.TriangulateIO(e::SimplexBundle,h=nothing)
             triin=Triangulate.TriangulateIO()
-            triin.pointlist=triangle(points(e))
+            triin.pointlist=triangle(fullcoordinates(e))
             triin.segmentlist=triangle(immersion(e))
             !isnothing(h) && (triin.holelist=triangle(h))
             return triin
@@ -890,7 +910,7 @@ function __init__()
         function TetGen.JLTetGenIO(mesh::SimplexBundle;
                 marker = :markers, holes = TetGen.Point{3, Float64}[])
             f = TetGen.TriangleFace{Cint}.(immersion(mesh))
-            kw_args = Any[:facets => TetGen.metafree(f),:holes => holes]
+            kw_args = Any[:facets => GeometryBasics.metafree(f),:holes => holes]
             if hasproperty(f, marker)
                 push!(kw_args, :facetmarkers => getproperty(f, marker))
             end
@@ -989,7 +1009,7 @@ function __init__()
             V = Manifold(p)
             P,E,T = refinemesh(g,p,e,t,s...); l = size(P,1)+1
             matlab(P,bundle(p)); matlab(E,bundle(e)); matlab(T,bundle(t))
-            Grassmann.submesh!(p); array!(p); array!(t)
+            submesh!(p); array!(p); array!(t)
             deletepointcloud!(bundle(p))
             el,tl = list(1,l-1),list(1,l)
             np,ne,nt = size(P,2),size(E,2),size(T,2)

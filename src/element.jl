@@ -21,7 +21,7 @@ export gradienthat, gradientCR, gradient, interp, nedelec, nedelecmean, jumps
 export submesh, detsimplex, iterable, callable, value, edgelengths, laplacian
 export boundary, interior, trilength, trinormals, incidence, degrees, edges, faces, facets
 export adjacency, antiadjacency, facetsigns,refinemesh, refinemesh!, select, rms, unbundle
-import Grassmann: norm, column, columns, points, pointset
+import Grassmann: norm, column, columns, points
 using Base.Threads
 
 @inline iterpts(t,f) = iterable(fullpoints(t),f)
@@ -133,7 +133,7 @@ function refinemesh!(::AbstractRange,pt::SimplexBundle,pe,η,_=nothing)
         push!(x,Chain{V,1}(Values(1,(x[i+1][2]+x[i][2])/2)))
     end
     sort!(x,by=x->x[2])
-    Grassmann.submesh!(p)
+    submesh!(p)
     np = length(x)
     totalnodes!(t,np)
     ind = length(t)+2:np
@@ -160,10 +160,8 @@ Grassmann.columns(t::AbstractVector{<:Values{N}},i=1) where N = column.(Ref(t),l
 reducedcolumns(m::FrameBundle) = reducedcolumns(immersion(m))
 reducedcolumns(m::SimplexTopology) = iscover(m) ? columns(m) : columns(subtopology(m))
 
-pointset(m::SimplexTopology) = vertices(m)
-pointset(m::ElementBundle) = vertices(m)
-pointset(e::ImmersedTopology{N,1}) where N = vertices(e)
 vertices(e::ImmersedTopology{1,1}) = column(e)
+const pointset = vertices
 function vertices(e::ImmersedTopology{N,1}) where N
     out = Int[]
     mx = 0
@@ -179,11 +177,10 @@ function vertices(e::ImmersedTopology{N,1}) where N
     mx≠n ? out : Base.OneTo(n)
 end
 
-antiadjacency(t,cols=reducedcolumns(t)) = (A = sparse(t,cols); A-transpose(A))
-adjacency(t,cols=reducedcolumns(t)) = (A = sparse(t,cols); A+transpose(A))
-SparseArrays.sparse(t::FrameBundle,cols=reducedcolumns(t)) = sparse(immersion(t),cols)
-function SparseArrays.sparse(t::SimplexTopology{N},cols=reducedcolumns(t)) where N
-    np = nodes(t)
+antiadjacency(t,cols=reducedcolumns(t),n=nodes(t)) = (A = sparse(t,cols,n); A-transpose(A))
+adjacency(t,cols=reducedcolumns(t),n=nodes(t)) = (A = sparse(t,cols,n); A+transpose(A))
+SparseArrays.sparse(t::FrameBundle,cols=reducedcolumns(t),np::Int=nodes(t)) = sparse(immersion(t),cols,np)
+function SparseArrays.sparse(t::SimplexTopology,cols::Values{N}=reducedcolumns(t),np::Int=nodes(t)) where N
     A = spzeros(Int,np,np)
     for c ∈ Grassmann.combo(N,2)
         A += @inbounds sparse(cols[c[1]],cols[c[2]],1,np,np)
@@ -191,16 +188,16 @@ function SparseArrays.sparse(t::SimplexTopology{N},cols=reducedcolumns(t)) where
     return A
 end
 
-edges(t,cols::Values) = edges(t,adjacency(t,cols))
+edges(t,cols::Values,np=totalnodees(t)) = edges(t,adjacency(t,cols,np))
 edges(t::ElementBundle) = t(edges(immersion(t)))
 edges(t::ElementBundle,adj::AbstractMatrix) = t(edges(immersion(t),adj))
 edges(t::SimplexTopology{2}) = t
 edges(t::SimplexTopology{2},cols::Values) = t
 edges(t::SimplexTopology{2},adj::AbstractMatrix) = t
-function edges(t::SimplexTopology,adj::AbstractMatrix=adjacency(t))
+function edges(t::SimplexTopology,adj::AbstractMatrix=adjacency(t,columns(t),totalnodes(t)))
     SimplexTopology(0,edgetopology(adj),refnodes(t))
 end
-edgetopology(t) = edgetopology(adjacency(t))
+edgetopology(t) = edgetopology(adjacency(t,columns(immersion(t)),totalnodes(t)))
 function edgetopology(adj::AbstractMatrix=adjacency(t))
     f = findall((!)∘iszero,LinearAlgebra.triu(adj))
     Values{2,Int}[Values{2,Int}(@inbounds f[n].I) for n ∈ 1:length(f)]
@@ -302,6 +299,7 @@ const array_cache = (Array{T,2} where T)[]
 const array_top_cache = (Array{T,2} where T)[]
 array(m::Vector{<:Chain}) = [m[i][j] for i∈1:length(m),j∈1:mdims(Manifold(m))]
 array(m::Vector{<:Values{N,Int}}) where N = Int[m[i][j] for i∈1:length(m),j∈1:N]
+array(m::SubArray) = array(Array(m))
 array(m::SimplexBundle) = array(fullcoordinates(m))
 array!(m::SimplexBundle) = array!(fullcoordinates(m))
 function array(m::SimplexTopology)
@@ -338,10 +336,10 @@ function array!(m::PointCloud)
 end
 
 const submesh_cache = (Array{T,2} where T)[]
-#submesh(m) = [m[i][j] for i∈1:length(m),j∈2:mdims(Manifold(m))]
-Grassmann.submesh(m::SimplexBundle) = submesh(fullcoordinates(m))
-Grassmann.submesh!(m::SimplexBundle) = submesh!(fullcoordinates(m))
-function Grassmann.submesh(m::PointCloud)
+submesh(m) = [m[i][j] for i∈1:length(m),j∈list(2,mdims(Manifold(m)))]
+submesh(m::SimplexBundle) = submesh(fullcoordinates(m))
+submesh!(m::SimplexBundle) = submesh!(fullcoordinates(m))
+function submesh(m::PointCloud)
     B = bundle(m)
     iszero(B) && (return submesh(points(m)))
     for k ∈ length(submesh_cache):B
@@ -350,7 +348,7 @@ function Grassmann.submesh(m::PointCloud)
     isempty(submesh_cache[B]) && (submesh_cache[B] = submesh(points(m)))
     return submesh_cache[B]
 end
-function Grassmann.submesh!(m::PointCloud)
+function submesh!(m::PointCloud)
     B = bundle(m)
     length(submesh_cache) ≥ B && (submesh_cache[B] = Array{Any,2}(undef,0,0))
 end
