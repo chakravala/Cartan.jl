@@ -34,7 +34,7 @@ import LinearAlgebra: cross
 import ElasticArrays: resize_lastdim!
 
 export Values, Derivation
-export initmesh, pdegrad, det
+export initmesh, pdegrad, det, graphbundle
 
 macro elastic(itr)
     :(elastic($(itr.args[1]),$(itr.args[2])))
@@ -175,7 +175,7 @@ function Base.setindex!(m::TensorField{B,F,N,<:AlignedSpace} where {B,F,N},s::Lo
     return s
 end
 function Base.setindex!(m::TensorField,s::LocalTensor,i::Vararg{Int})
-    setindex!(domain(m),base(s),i...)
+    #setindex!(domain(m),base(s),i...)
     setindex!(codomain(m),fiber(s),i...)
     return s
 end
@@ -342,6 +342,13 @@ Grassmann.Couple(s::TensorField) = TensorField(domain(s), Couple(codomain(s)))
 
 checkdomain(a::GlobalFiber,b::GlobalFiber) = domain(a)≠domain(b) ? error("GlobalFiber base not equal") : true
 
+disconnect(t::FaceMap) = TensorField(disconnect(base(t)),fiber(t))
+discontinuous(t::FaceMap) = discontinuous(t,discontinuous(base(t)))
+discontinuous(t::FaceMap,m) = TensorField(m,fiber(t))
+discontinuous(t::SimplexMap) = discontinuous(t,discontinuous(base(t)))
+discontinuous(t::SimplexMap,m) = isdiscontinuous(t) ? t : TensorField(m,view(fiber(t),vertices(m)))
+graphbundle(t::TensorField{B,F,N,<:SimplexBundle} where {B,F,N}) = SimplexBundle(PointCloud(0,fiber(graph.(t))),isdiscontinuous(t) ? disconnect(immersion(t)) : immersion(t))
+
 Variation(dom,cod::TensorField) = TensorField(dom,cod.(dom))
 function Variation(cod::TensorField); p = points(cod).v[end]
     TensorField(p,leaf.(Ref(cod),1:length(p)))
@@ -372,8 +379,12 @@ function variation(v::Variation,t,fun::Function,args...)
     end
 end
 function variation(v::Variation,t,fun::Function,fun!::Function,args...)
-    display(fun(v.cod[1],args...))
+    out = fun(v.cod[1],args...)
+    fig,ax,plt = out
+    display(out)
+    sleep(t)
     for i ∈ 2:length(v)
+        empty!(ax)
         fun!(v.cod[i],args...)
         sleep(t)
     end
@@ -385,8 +396,12 @@ function variation(v::TensorField,t,fun::Function,args...)
     end
 end
 function variation(v::TensorField,t,fun::Function,fun!::Function,args...)
-    display(fun(leaf(v,1),args...))
+    out = fun(leaf(v,1),args...)
+    fig,ax,plt = out
+    display(out)
+    sleep(t)
     for i ∈ 2:length(points(v).v[end])
+        empty!(ax)
         fun!(leaf(v,i),args...)
         sleep(t)
     end
@@ -398,8 +413,12 @@ function variation(v::TensorField{B,F,2,<:FiberProductBundle} where {B,F},t,fun:
     end
 end
 function variation(v::TensorField{B,F,2,<:FiberProductBundle} where {B,F},t,fun::Function,fun!::Function,args...)
-    display(fun(leaf(v,1),args...))
+    out = fun(leaf(v,1),args...)
+    fig,ax,plt = out
+    display(out)
+    sleep(t)
     for i ∈ 2:length(base(v).g.v[1])
+        empty!(ax)
         fun!(leaf(v,i),args...)
         sleep(t)
     end
@@ -415,8 +434,12 @@ function alteration(v::TensorField,t,fun::Function,args...)
     end
 end
 function alteration(v::TensorField,t,fun::Function,fun!::Function,args...)
-    display(fun(leaf(v,1,1),args...))
+    out = fun(leaf(v,1,1),args...)
+    fig,ax,plt = out
+    display(out)
+    sleep(t)
     for i ∈ 2:length(points(v).v[1])
+        empty!(ax)
         fun!(leaf(v,i,1),args...)
         sleep(t)
     end
@@ -432,8 +455,12 @@ function modification(v::TensorField,t,fun::Function,args...)
     end
 end
 function modification(v::TensorField,t,fun::Function,fun!::Function,args...)
-    display(fun(leaf(v,1,2),args...))
+    out = fun(leaf(v,1,2),args...)
+    fig,ax,plt = out
+    display(out)
+    sleep(t)
     for i ∈ 2:length(points(v).v[2])
+        empty!(ax)
         fun!(leaf(v,i,2),args...)
         sleep(t)
     end
@@ -442,7 +469,6 @@ end
 include("grid.jl")
 include("element.jl")
 include("diffgeo.jl")
-include("constants.jl")
 
 function __init__()
     @require Makie="ee78f7c6-11fb-53f2-987a-cfe4a2b5a57a" begin
@@ -667,8 +693,6 @@ function __init__()
                 Makie.$fun(t::ScalarMap;args...) = Makie.$fun(points(points(t)),Real.(codomain(t));args...)
             end
         end
-        Makie.mesh(t::ScalarMap;args...) = Makie.mesh(domain(t);color=Real.(codomain(t)),args...)
-        Makie.mesh!(t::ScalarMap;args...) = Makie.mesh!(domain(t);color=Real.(codomain(t)),args...)
         #Makie.wireframe(t::ElementFunction;args...) = Makie.wireframe(value(domain(t));color=Real.(codomain(t)),args...)
         #Makie.wireframe!(t::ElementFunction;args...) = Makie.wireframe!(value(domain(t));color=Real.(codomain(t)),args...)
         Makie.convert_arguments(P::Makie.PointBased, a::SimplexBundle) = Makie.convert_arguments(P, Vector(points(a)))
@@ -679,6 +703,12 @@ function __init__()
         Makie.scatter!(t::TensorField{B,F,N,<:SimplexBundle} where {B,F,N};args...) = Makie.scatter!(submesh(base(t))[:,1],fiber(t);args...)
         Makie.scatter(p::SimplexBundle;args...) = Makie.scatter(submesh(p);args...)
         Makie.scatter!(p::SimplexBundle;args...) = Makie.scatter!(submesh(p);args...)
+        Makie.scatter(p::FaceBundle;args...) = Makie.scatter(submesh(fiber(means(p)));args...)
+        Makie.scatter!(p::FaceBundle;args...) = Makie.scatter!(submesh(fiber(means(p)));args...)
+        Makie.text(p::SimplexBundle;args...) = Makie.text(submesh(p);text=string.(vertices(p)),args...)
+        Makie.text!(p::SimplexBundle;args...) = Makie.text!(submesh(p);text=string.(vertices(p)),args...)
+        Makie.text(p::FaceBundle;args...) = Makie.text(submesh(fiber(means(p)));text=string.(subelements(p)),args...)
+        Makie.text!(p::FaceBundle;args...) = Makie.text!(submesh(fiber(means(p)));text=string.(subelements(p)),args...)
         Makie.lines(p::SimplexBundle;args...) = Makie.lines(Vector(points(p));args...)
         Makie.lines!(p::SimplexBundle;args...) = Makie.lines!(Vector(points(p));args...)
         #Makie.lines(p::Vector{<:TensorAlgebra};args...) = Makie.lines(GeometryBasics.Point.(p);args...)
@@ -741,8 +771,10 @@ function __init__()
         end
         Makie.wireframe(M::TensorField{B,<:Chain,N,<:GridBundle} where {B,N};args...) = Makie.wireframe(GridBundle(fiber(M));args...)
         Makie.wireframe!(M::TensorField{B,<:Chain,N,<:GridBundle} where {B,N};args...) = Makie.wireframe!(GridBundle(fiber(M));args...)
-        Makie.mesh(M::TensorField{B,F,N,<:FaceBundle} where {B,F,N};args...) = Makie.mesh(TensorField(SimplexBundle(base(M)),interp(M)))
-        Makie.mesh!(M::TensorField{B,F,N,<:FaceBundle} where {B,F,N};args...) = Makie.mesh!(TensorField(SimplexBundle(base(M)),interp(M)))
+        Makie.mesh(M::TensorField{B,F,N,<:FaceBundle} where {B,F,N};args...) = Makie.mesh(interp(M);args...)
+        Makie.mesh!(M::TensorField{B,F,N,<:FaceBundle} where {B,F,N};args...) = Makie.mesh!(interp(M);args...)
+        Makie.mesh(t::ScalarMap;args...) = Makie.mesh(domain(t);color=Real.(codomain(t)),args...)
+        Makie.mesh!(t::ScalarMap;args...) = Makie.mesh!(domain(t);color=Real.(codomain(t)),args...)
         function Makie.mesh(M::SimplexBundle;args...)
             if mdims(M) == 2
                 sm = submesh(M)[:,1]
@@ -760,6 +792,22 @@ function __init__()
             else
                 Makie.mesh!(submesh(M),array(immersion(M));args...)
             end
+        end
+        function Makie.surface(M::ScalarMap,f::Function=laplacian;args...)
+            fM = f(M)
+            col = isdiscontinuous(M) && !isdiscontinuous(fM) ? discontinuous(fM,base(M)) : fM
+            Makie.mesh(hcat(submesh(base(M)),Real.(fiber(M))),array(immersion(M));color=fiber(col),args...)
+        end
+        function Makie.surface!(M::ScalarMap,f::Function=laplacian;args...)
+            fM = f(M)
+            col = isdiscontinuous(M) && !isdiscontinuous(fM) ? discontinuous(fM,base(M)) : fM
+            Makie.mesh!(hcat(submesh(base(M)),Real.(fiber(M))),array(immersion(M));color=fiber(col),args...)
+        end
+        function Makie.surface(M::TensorField{B,<:AbstractReal,1,<:FaceBundle} where B,f::Function=laplacian;args...)
+            Makie.surface(interp(M),f;args...)
+        end
+        function Makie.surface!(M::TensorField{B,<:AbstractReal,1,<:FaceBundle} where B,f::Function=laplacian;args...)
+            Makie.surface!(interp(M),f;args...)
         end
     end
     @require UnicodePlots="b8865327-cd53-5732-bb35-84acbb429228" begin

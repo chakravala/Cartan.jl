@@ -18,6 +18,11 @@ resize_lastdim!(x::Vector,i) = resize!(x,i)
 
 # ProductSpace
 
+affmanifold(N::Int) = Submanifold(N+2)(list(2,N+1)...)
+@generated function affinepoint(p::Chain{V,1,T}) where {V,T}
+    :(Chain{$(V(list(1,mdims(V)+1)...))}(Values(one(T),$([:(@inbounds p[$i]) for i ∈ list(1,mdims(V))]...))))
+end
+
 struct ProductSpace{V,T,N,M,S} <: AbstractArray{Chain{V,1,T,N},N}
     v::Values{M,S} # how to deal with T???
     ProductSpace{V,T,N}(v::Values{M,S}) where {V,T,N,M,S} = new{V,T,N,M,S}(v)
@@ -30,9 +35,9 @@ const Rectangle{V,T,S} = RealRegion{V,T,2,S}
 const Hyperrectangle{V,T,S} = RealRegion{V,T,3,S}
 
 RealRegion{V}(v::Values{N,S}) where {V,T<:Real,N,S<:AbstractVector{T}} = ProductSpace{V,T,N}(v)
-RealRegion(v::Values{N,S}) where {T<:Real,N,S<:AbstractVector{T}} = ProductSpace{Submanifold(N),T,N}(v)
+RealRegion(v::Values{N,S}) where {T<:Real,N,S<:AbstractVector{T}} = ProductSpace{affmanifold(N),T,N}(v)
 ProductSpace{V}(v::Values{N,S}) where {V,T<:Real,N,S<:AbstractVector{T}} = ProductSpace{V,T,N}(v)
-ProductSpace(v::Values{N,S}) where {T<:Real,N,S<:AbstractVector{T}} = ProductSpace{Submanifold(N),T,N}(v)
+ProductSpace(v::Values{N,S}) where {T<:Real,N,S<:AbstractVector{T}} = ProductSpace{affmanifold(N),T,N}(v)
 
 Base.show(io::IO,t::RealRegion{V,T,N,<:AbstractRange} where {V,T,N}) = print(io,'(',Chain(getindex.(t.v,1)),"):(",Chain(Number.(getproperty.(t.v,:step))),"):(",Chain(getindex.(t.v,length.(t.v))),')')
 
@@ -167,6 +172,8 @@ fullimmersion(m::ImmersedTopology) = m
 topology(m::ImmersedTopology{N,1}) where N = m
 subelements(m::ImmersedTopology{N,1}) where N = OneTo(length(m))
 
+@pure Base.eltype(::Type{ImmersedTopology{N}}) where N = Values{N,Int}
+
 # ProductTopology
 
 struct ProductTopology{N,S<:AbstractVector{Int}} <: ImmersedTopology{N,N}
@@ -255,8 +262,10 @@ struct QuotientTopology{N,L,M,O,LA<:ImmersedTopology{L,L}} <: ImmersedTopology{N
     q::Values{O,LA}
     r::Values{M,Int}
     s::Values{N,Int}
+    c::Values{M,Int}
     #t::Values{O,Int}
     #QuotientTopology(p::Values{O,Int},q::Values{O,LA},r::Values{M,Int},n::Values{N,Int}) where {O,L,LA<:ImmersedTopology{L,L},M,N} = QuotientTopology{N,L,M,O,LA}(p,q,r,n)
+    QuotientTopology(p::Values{O,Int},q::Values{O,LA},r::Values{M,Int},s::Values{N,Int},c::Values{M,Int}=zeros(Values{M,Int})) where {O,L,LA<:ImmersedTopology{L,L},M,N} = new{N,L,M,O,LA}(p,q,r,s,c)
 end
 
 #QuotientTopology(p::Values{O,Int},q::Values{O,LA},r::Values{M,Int},n::Values{N,Int}) where {O,L,LA<:ImmersedTopology{L,L},M,N} = QuotientTopology{N,L,M,O,LA}(p,q,r,n,invert_q(Val(O),r))
@@ -296,7 +305,7 @@ KleinTopology(n::Values{2,Int}) = QuotientTopology(Values(2,1,4,3),Values(Produc
 ConeTopology(n::Values{2,Int}) = QuotientTopology(Values(1,4,3),Values(ProductTopology(CrossRange(n[2])),ProductTopology(n[1]),ProductTopology(n[1])),Values(1,0,2,3),n)
 PolarTopology(n::Values{2,Int}) = QuotientTopology(Values(1,2,4,3),Values(ProductTopology(CrossRange(n[2])),ProductTopology(n[2]),ProductTopology(n[1]),ProductTopology(n[1])),Values(1,2,3,4),n)
 SphereTopology(n::Values{1,Int}) = TorusTopology(n)
-SphereTopology(n::Values{2,Int}) = QuotientTopology(Values(1,2,4,3),Values(ProductTopology(CrossRange(n[2])),ProductTopology(CrossRange(n[2])),ProductTopology(n[1]),ProductTopology(n[1])),Values(1,2,3,4),n)
+SphereTopology(n::Values{2,Int}) = QuotientTopology(Values(1,2,4,3),Values(ProductTopology(CrossRange(n[2])),ProductTopology(CrossRange(n[2])),ProductTopology(n[1]),ProductTopology(n[1])),Values(1,2,3,4),n,Values(1,1,0,0))
 SphereTopology(n::Values{3,Int}) = QuotientTopology(Values(1,2,3,4,6,5),Values(ProductTopology(OneTo(n[2]),CrossRange(n[3])),ProductTopology(OneTo(n[2]),CrossRange(n[3])),ProductTopology(OneTo(n[1]),CrossRange(n[3])),ProductTopology(OneTo(n[1]),CrossRange(n[3])),ProductTopology(n[1],n[2]),ProductTopology(n[1],n[2])),Values(1,2,3,4,5,6),n)
 SphereTopology(n::Values{4,Int}) = QuotientTopology(Values(1,2,3,4,5,6,8,7),Values(ProductTopology(OneTo(n[2]),OneTo(n[3]),CrossRange(n[4])),ProductTopology(OneTo(n[2]),OneTo(n[3]),CrossRange(n[4])),ProductTopology(OneTo(n[1]),OneTo(n[3]),CrossRange(n[4])),ProductTopology(OneTo(n[1]),OneTo(n[3]),CrossRange(n[4])),ProductTopology(OneTo(n[1]),OneTo(n[2]),CrossRange(n[4])),ProductTopology(OneTo(n[1]),OneTo(n[2]),CrossRange(n[4])),ProductTopology(n[1],n[2],n[3]),ProductTopology(n[1],n[2],n[3])),Values(1,2,3,4,5,6,7,8),n)
 SphereTopology(n::Values{5,Int}) = QuotientTopology(Values(1,2,3,4,5,6,7,8,10,9),Values(ProductTopology(OneTo(n[2]),OneTo(n[3]),OneTo(n[4]),CrossRange(n[5])),ProductTopology(OneTo(n[2]),OneTo(n[3]),OneTo(n[4]),CrossRange(n[5])),ProductTopology(OneTo(n[1]),OneTo(n[3]),OneTo(n[4]),CrossRange(n[5])),ProductTopology(OneTo(n[1]),OneTo(n[3]),OneTo(n[4]),CrossRange(n[5])),ProductTopology(OneTo(n[1]),OneTo(n[2]),OneTo(n[4]),CrossRange(n[5])),ProductTopology(OneTo(n[1]),OneTo(n[2]),OneTo(n[4]),CrossRange(n[5])),ProductTopology(OneTo(n[1]),OneTo(n[2]),OneTo(n[3]),CrossRange(n[5])),ProductTopology(OneTo(n[1]),OneTo(n[2]),OneTo(n[3]),CrossRange(n[5])),ProductTopology(n[1],n[2],n[3],n[4]),ProductTopology(n[1],n[2],n[3],n[4])),Values(1,2,3,4,5,6,7,8,9,10),n)
@@ -773,7 +782,7 @@ function subtopology(m::QuotientTopology,i::NTuple{N,Int},::Colon,j::NTuple{M,In
         (p3z ? () : (ProductTopology(m.q[r[3]].v[Values(N1,L1-1,O1-1)]),))...,
         (p4z ? () : (ProductTopology(m.q[r[4]].v[Values(N1,L1-1,O1-1)]),))...,
         (p5z ? () : (ProductTopology(m.q[r[5]].v[Values(N1,M1,O1-1)]),))...,
-        (p6z ? () : (ProductTopology(m.q[r[6]].v[Values(N1,M1,O1-1)]),))...,
+       (p6z ? () : (ProductTopology(m.q[r[6]].v[Values(N1,M1,O1-1)]),))...,
         (p7z ? () : (ProductTopology(m.q[r[7]].v[Values(N1,M1,L1)]),))...,
         (p8z ? () : (ProductTopology(m.q[r[8]].v[Values(N1,M1,L1)]),))...)
     end
@@ -845,21 +854,22 @@ struct SimplexTopology{N,P<:AbstractVector{Int},F<:AbstractVector{Int},T} <: Imm
     f::F # subelements
     I::P # fullvertices
     v::P # verticesinv
-    function SimplexTopology(id::Int,t::Vector{Values{N,Int}},i::P,p::RefInt,f::F=OneTo(length(t)),I::P=i,c::Bool=length(i)==refval(p),isc::Bool=length(i)==refval(p),isf::Bool=length(f)==length(t)) where {N,P,F}
-        new{N,P,F,(c,isc,isf)}(id,t,i,refnodes(p),f,I,verticesinv(p,i,isc))
+    function SimplexTopology(id::Int,t::Vector{Values{N,Int}},i::P,p::RefInt,f::F=OneTo(length(t)),I::P=i,ist::Bool=length(i)==refval(p),isf::Bool=length(f)==length(t)) where {N,P,F}
+        new{N,P,F,(ist,isf)}(id,t,i,refnodes(p),f,I,verticesinv(p,i,ist && isf))
     end
-    function SimplexTopology(id::Int,t::Vector{Values{N,Int}},i::P,p::RefInt,f::F,I::OneTo,c::Bool=length(i)==refval(p),isc::Bool=length(i)==refval(p),isf::Bool=length(f)==length(t)) where {N,P<:DenseVector,F}
-        new{N,P,F,(c,isc,isf)}(id,t,i,refnodes(p),f,collect(I),verticesinv(p,i,isc))
+    function SimplexTopology(id::Int,t::Vector{Values{N,Int}},i::P,p::RefInt,f::F,I::OneTo,ist::Bool=length(i)==refval(p),isf::Bool=length(f)==length(t)) where {N,P<:DenseVector,F}
+        new{N,P,F,(ist,isf)}(id,t,i,refnodes(p),f,collect(I),verticesinv(p,i,ist && isf))
     end
 end
 
 function SimplexTopology(id::Int,t::Vector,i=vertices(t),p::RefInt=maximum(i))
-    isc = length(i)==refval(p)
-    SimplexTopology(id,t,i,p,subelements(t),i,isc,isc,true)
+    ist = length(i)==refval(p)
+    SimplexTopology(id,t,i,p,subelements(t),i,ist,true)
 end
 SimplexTopology(id::Int,t::Vector,p::RefInt) = SimplexTopology(id,t,vertices(t),p)
 SimplexTopology(t::Vector,i=vertices(t),p::RefInt=maximum(i)) = SimplexTopology((global top_id+=1),t,i,p)
 SimplexTopology(t::Vector,p::RefInt) = SimplexTopology(t,vertices(t),p)
+SimplexTopology(t::SimplexTopology) = t
 
 bundle(m::SimplexTopology) = m.id
 fulltopology(m::SimplexTopology) = m.t
@@ -876,43 +886,48 @@ vertices(m::SimplexTopology) = m.i
 verticesinv(m::SimplexTopology) = m.v
 
 Base.size(m::SimplexTopology) = size(subelements(m))
-Base.length(m::SimplexTopology) = length(subelements(m))
+Base.length(m::SimplexTopology) = elements(m)
 Base.axes(m::SimplexTopology) = axes(subelements(m))
 Base.getindex(m::SimplexTopology,i::Int) = getindex(fulltopology(m),getfacet(m,i))
-@pure Base.eltype(::Type{ImmersedTopology{N}}) where N = Values{N,Int}
 Grassmann.mdims(m::SimplexTopology{N}) where N = N
-
-_axes(t::SimplexTopology{N}) where N = (Base.OneTo(length(t)),Base.OneTo(N))
-
-# anything array-like gets summarized e.g. 10-element Array{Int64,1}
-Base.summary(io::IO, a::SimplexTopology) = Base.array_summary(io, a, _axes(a))
 
 getimage(m::SimplexTopology{N,<:AbstractVector} where N,i) = iscover(m) ? i : vertices(m)[i]
 getimage(m::SimplexTopology{N,<:OneTo} where N,i) = i
 getfacet(m::SimplexTopology{N,P,<:AbstractVector} where {N,P},i) = isfull(m) ? i : subelements(m)[i]
 getfacet(m::SimplexTopology{N,P,<:OneTo} where{N,P},i) = i
-istotal(m::SimplexTopology{N,P,F,T} where {N,P,F}) where T = T[1]
-isfull(m::SimplexTopology{N,P,F,T} where {N,P,F}) where T = T[3]
-iscover(m::SimplexTopology{N,P,F,T} where {N,P,F}) where T = T[2]
-subsym(x) = iscover(x) ? "⊆" : "⊂"
 
-function Base.array_summary(io::IO, a::SimplexTopology, inds::Tuple{Vararg{OneTo}})
-    print(io, Base.dims2string(length.(inds)))
-    print(io, subsym(a), totalnodes(a), " ")
-    Base.showarg(io, a, true)
-end
+"""
+    istotal(m::SimplexTopology) -> Bool
+
+Return `true` if `fulltopology(m)` is covering `totalnodes(m)`, and `false` otherwise.
+"""
+istotal(m::SimplexTopology{N,P,F,T} where {N,P,F}) where T = T[1]
+
+"""
+    isfull(m::SimplexTopology) -> Bool
+
+Return `true` if `m` is equal to `fulltopology(m)`, and `false` otherwise.
+"""
+isfull(m::SimplexTopology{N,P,F,T} where {N,P,F}) where T = T[2]
+
+"""
+    iscover(m::SimplexTopology) -> Bool
+
+Return `true` if `isfull(m) && istotal(m)`, and `false` otherwise.
+"""
+iscover(m::SimplexTopology) = isfull(m) && istotal(m)
 
 function fullimmersion(m::SimplexTopology)
     top = fulltopology(m)
-    isc = istotal(m)
-    ind = if isc
+    ist = istotal(m)
+    ind = if ist
         OneTo(totalnodes(m))
     else
         out = fullvertices(m)
         n = length(out)
         maximum(out) == n ? OneTo(n) : out
     end
-    SimplexTopology(bundle(m),top,ind,refnodes(m),OneTo(length(top)),ind,isc,isc,true)
+    SimplexTopology(bundle(m),top,ind,refnodes(m),OneTo(length(top)),ind,ist,true)
 end
 
 function Base.getindex(m::SimplexTopology,i::AbstractVector{Int})
@@ -944,18 +959,18 @@ end
 function subimmersion(m::SimplexTopology{N,<:OneTo} where N)
     iscover(m) && (return m)
     top,ind = topology(m),vertices(m)
-    SimplexTopology(0,top,ind,length(ind),OneTo(length(top)),ind,true,true,true)
+    SimplexTopology(0,top,ind,length(ind),OneTo(length(top)),ind,true,true)
 end
 function subimmersion(m::SimplexTopology{N,<:AbstractVector} where N)
     iscover(m) && (return m)
     top,ind = topology(m),vertices(m)
     p = length(ind)
     ver = OneTo(p)
-    SimplexTopology(0,subtopology(m),ver,p,OneTo(length(top)),ver,true,true,true)
+    SimplexTopology(0,subtopology(m),ver,p,OneTo(length(top)),ver,true,true)
 end
 
-verticesinv(n,ind,isc) = isc ? ind : verticesinv(n,ind)
-verticesinv(n::Base.RefValue,ind) = verticesinv(n.x,ind)
+verticesinv(n,ind,isc) = isc ? ind : verticesinv(n,ind) # isc = iscover
+verticesinv(n::Base.RefValue,ind) = verticesinv(refval(n),ind)
 verticesinv(n::Int,ind::OneTo) = ind
 function verticesinv(n::Int,ind)
     out = zeros(Int,n)
@@ -967,14 +982,440 @@ refine(m::SimplexTopology{N,<:AbstractVector,<:AbstractVector}) where N = m
 function refine(m::SimplexTopology{N,<:OneTo,<:AbstractVector}) where N
     i = collect(vertices(m))
     fi = vertices(m)≠fullvertices(m) ? collect(fullvertices(m)) : i
-    SimplexTopology(bundle(m),fulltopology(m),i,refnodes(m),subelements(m),fi,istotal(m),iscover(m),isfull(m))
+    SimplexTopology(bundle(m),fulltopology(m),i,refnodes(m),subelements(m),fi,istotal(m),isfull(m))
 end
 function refine(m::SimplexTopology{N,<:AbstractVector,<:OneTo}) where N
-    SimplexTopology(bundle(m),fulltopology(m),vertices(m),refnodes(m),collect(subelements(m)),fullvertices(m),istotal(m),iscover(m),isfull(m))
+    SimplexTopology(bundle(m),fulltopology(m),vertices(m),refnodes(m),collect(subelements(m)),fullvertices(m),istotal(m),isfull(m))
 end
 function refine(m::SimplexTopology{N,<:OneTo,<:OneTo}) where N
     i = collect(vertices(m))
     fi = vertices(m)≠fullvertices(m) ? collect(fullvertices(m)) : i
-    SimplexTopology(bundle(m),fulltopology(m),i,refnodes(m),collect(subelements(m)),fi,istotal(m),iscover(m),isfull(m))
+    SimplexTopology(bundle(m),fulltopology(m),i,refnodes(m),collect(subelements(m)),fi,istotal(m),isfull(m))
+end
+
+# DiscontinuousTopology
+
+export DiscontinuousTopology, discontinuous, disconnect, continuous
+
+struct DiscontinuousTopology{N,P<:AbstractVector{Int},T<:SimplexTopology{N}} <: ImmersedTopology{N,1}
+    id::Int # bundle
+    t::T
+    i::P # vertices
+    I::P # fullvertices
+end
+
+function DiscontinuousTopology(m::SimplexTopology)
+    DiscontinuousTopology(iszero(bundle(m)) ? 0 : (global top_id+=1),m)
+end
+function DiscontinuousTopology(m::SimplexTopology,I)
+    DiscontinuousTopology(iszero(bundle(m)) ? 0 : (global top_id+=1),m,I)
+end
+function DiscontinuousTopology(id::Int,m::SimplexTopology{N}) where N
+    n = N*totalelements(m)
+    I = zeros(Int,n)
+    cols = columns(fulltopology(m))
+    for j ∈ list(1,N)
+        I[j:N:n] = cols[j]
+    end
+    DiscontinuousTopology(id,m,I)
+end
+function DiscontinuousTopology(id::Int,m::SimplexTopology{N},I) where N
+    i = if isfull(m)
+        I
+    else
+        n = N*elements(m)
+        i = zeros(Int,n)
+        cols = columns(m)
+        for j ∈ list(1,N)
+            i[j:N:n] = cols[j]
+        end
+    end
+    DiscontinuousTopology(id,m,i,I)
+end
+SimplexTopology(m::DiscontinuousTopology) = m.t
+
+function discontinuousvertices(m::DiscontinuousTopology{N}) where N
+    n = totalnodes(m)
+    I = zeros(Int,n)
+    cols = OneTo(totalelements(m))
+    for j ∈ list(1,N)
+        I[j:N:n] = cols
+    end
+    I
+end
+
+for fun ∈ (:totalelements,:elements,:subelements,:istotal,:isfull,:iscover,:fullimmersion)
+    @eval $fun(m::DiscontinuousTopology) = $fun(SimplexTopology(m))
+end
+bundle(m::DiscontinuousTopology) = m.id
+fulltopology(m::DiscontinuousTopology) = getindex.(Ref(m),OneTo(totalelements(m)))
+topology(m::DiscontinuousTopology) = collect(m)
+totalnodes(m::DiscontinuousTopology{N}) where N = N*totalelements(m)
+nodes(m::DiscontinuousTopology{N}) where N = N*elements(m)
+fullvertices(m::DiscontinuousTopology) = m.I
+vertices(m::DiscontinuousTopology) = m.i
+
+isdiscontinuous(m::SimplexTopology) = false
+isdiscontinuous(m::DiscontinuousTopology) = true
+isdisconnected(m::SimplexTopology) = false
+isdisconnected(m::DiscontinuousTopology{N,<:OneTo} where N) = true
+isdisconnected(m::DiscontinuousTopology{N,<:AbstractVector} where N) = false
+
+Base.size(m::DiscontinuousTopology) = size(subelements(m))
+Base.length(m::DiscontinuousTopology) = elements(m)
+Base.axes(m::DiscontinuousTopology) = axes(subelements(m))
+Base.getindex(m::DiscontinuousTopology{N},i::Int) where N = list(1,N).+N*(getfacet(m,i)-1)
+Grassmann.mdims(m::DiscontinuousTopology{N}) where N = N
+
+getimage(m::DiscontinuousTopology{N,<:OneTo} where N,i) = i
+getimage(m::DiscontinuousTopology{N,<:AbstractVector} where N,i) = vertices(m)[i]
+getfacet(m::DiscontinuousTopology,i) = getfacet(SimplexTopology(m),i)
+
+function Base.getindex(m::DiscontinuousTopology,i::AbstractVector{Int})
+    DiscontinuousTopology(bundle(m),SimplexTopology(m)[i],fullvertices(m))
+end
+
+(m::DiscontinuousTopology)(i::AbstractVector{Int}) = subtopology(m,i)
+function subtopology(m::DiscontinuousTopology{N},i::AbstractVector{Int}) where N
+    DiscontinuousTopology(bundle(m),subtopology(SimplexTopology(m),i),fullvertices(m))
+end
+
+continuous(m::SimplexTopology) = m
+continuous(m::DiscontinuousTopology) = SimplexTopology(m)
+discontinuous(m::DiscontinuousTopology) = m
+discontinuous(m::SimplexTopology) = DiscontinuousTopology(0,m)
+disconnect(m::SimplexTopology) = disconnect(discontinuous(m))
+disconnect(m::DiscontinuousTopology) = DiscontinuousTopology(bundle(m),SimplexTopology(m),OneTo(totalnodes(m)))
+
+getelement(m::DiscontinuousTopology{N,P,<:SimplexTopology{N,<:OneTo}} where {N,P},i::Int) = m[i]
+function getelement(m::DiscontinuousTopology{N,P,<:SimplexTopology{N,<:AbstractVector}} where {N,P},i::Int)
+    iscover(m) ? m[i] : list(1,N).+N*(i-1)
+end
+
+subtopology(m::DiscontinuousTopology{N,P,<:SimplexTopology{N,<:OneTo}} where {N,P}) = topology(m)
+function subtopology(m::DiscontinuousTopology{N,P,<:SimplexTopology{N,<:AbstractVector}} where {N,P})
+    iscover(m) ? topology(m) : getelement.(Ref(m),OneTo(elements(m)))
+end
+
+function subimmersion(m::DiscontinuousTopology)
+    iscover(m) ? m : DiscontinuousTopology(subimmersion(SimplexTopology(m)))
+end
+
+function refine(m::DiscontinuousTopology{N,<:OneTo}) where N
+    DiscontinuousTopology(bundle(m),refine(SimplexTopology(m)),collect(vertices(m)),collect(fullvertices(m)))
+end
+function refine(m::DiscontinuousTopology{N,<:AbstractVector}) where N
+    DiscontinuousTopology(bundle(m),refine(SimplexTopology(m)),vertices(m),fullvertices(m))
+end
+
+# Multilinear topology
+
+export MultilinearTopology, linearelement, linearelements, elementfun, elementfuns
+
+abstract type MultilinearTopology{N} <: ImmersedTopology{N,1} end
+
+function linearelement(l::AbstractVector,i)
+    Values(l[i],l[i+1])
+end
+function linearelement(l::AbstractArray{T,2} where T,i,j)
+    i1,j1 = i+1,j+1
+    Values(l[i,j],l[i1,j],l[i1,j1],l[i,j1])
+end
+function linearelement(l::AbstractArray{T,3} where T,i,j,k)
+    i1,j1,k1 = i+1,j+1,k+1
+    Values(l[i,j,k],l[i1,j,k],l[i1,j1,k],l[i,j1,k],
+           l[i,j,k1],l[i1,j,k1],l[i1,j1,k1],l[i,j1,k1])
+end
+function linearelement(l::AbstractArray{T,4} where T,i,j,k,w)
+    i1,j1,k1,w1 = i+1,j+1,k+1,w+1
+    Values(l[i,j,k,w],l[i1,j,k,w],l[i1,j1,k,w],l[i,j1,k,w],
+           l[i,j,k1,w],l[i1,j,k1,w],l[i1,j1,k1,w],l[i,j1,k1,w],
+           l[i,j1,k1,w1],l[i1,j1,k1,w1],l[i1,j,k1,w1],l[i,j,k1,w1],
+           l[i,j1,k,w1],l[i1,j1,k,w1],l[i1,j,k,w1],l[i,j,k,w1])
+end
+function linearelement(l::AbstractArray{T,5} where T,i,j,k,w,v)
+    i1,j1,k1,w1,v1 = i+1,j+1,k+1,w+1,v+1
+    Values(l[i,j,k,w,v],l[i1,j,k,w,v],l[i1,j1,k,w,v],l[i,j1,k,w,v],
+           l[i,j,k1,w,v],l[i1,j,k1,w,v],l[i1,j1,k1,w,v],l[i,j1,k1,w,v],
+           l[i,j1,k1,w1,v],l[i1,j1,k1,w1,v],l[i1,j,k1,w1,v],l[i,j,k1,w1,v],
+           l[i,j1,k,w1,v],l[i1,j1,k,w1,v],l[i1,j,k,w1,v],l[i,j,k,w1,v],
+           l[i,j,k,w,v1],l[i1,j,k,w,v1],l[i1,j1,k,w,v1],l[i,j1,k,w,v1],
+           l[i,j,k1,w,v1],l[i1,j,k1,w,v1],l[i1,j1,k1,w,v1],l[i,j1,k1,w,v1],
+           l[i,j1,k1,w1,v1],l[i1,j1,k1,w1,v1],l[i1,j,k1,w1,v1],l[i,j,k1,w1,v1],
+           l[i,j1,k,w1,v1],l[i1,j1,k,w1,v1],l[i1,j,k,w1,v1],l[i,j,k,w1,v1])
+end
+
+linearelements(l::AbstractVector) = linearelement.(l,length(l)-1)
+linearelements(l::AbstractArray{T,2} where T,s=size(l)) = [linearelement(l,i,j) for i ∈ OneTo(s[1]-1), j ∈ OneTo(s[2]-1)]
+linearelements(l::AbstractArray{T,3} where T,s=size(l)) = [linearelement(l,i,j,k) for i ∈ OneTo(s[1]-1), j ∈ OneTo(s[2]-1), k ∈ OneTo(s[3]-1)]
+linearelements(l::AbstractArray{T,4} where T,s=size(l)) = [linearelement(l,i,j,k,w) for i ∈ OneTo(s[1]-1), j ∈ OneTo(s[2]-1), k ∈ OneTo(s[3]-1), w ∈ OneTo(s[3]-1)]
+linearelements(l::AbstractArray{T,5} where T,s=size(l)) = [linearelement(l,i,j,k,w,v) for i ∈ OneTo(s[1]-1), j ∈ OneTo(s[2]-1), k ∈ OneTo(s[3]-1), w ∈ OneTo(s[4]-1), v ∈ OneTo(s[5]-1)]
+
+linearelements(m::QuotientTopology) = linearelements(LinearIndices(m),m)
+linearelements(l::LinearIndices,m::QuotientTopology) = linearelements(elementfuns(l,m))
+linearelement(m::QuotientTopology,ij...) = linearelement(LinearIndices(m),m,ij...)
+function linearelement(l::LinearIndices{1},m::QuotientTopology{1},i)
+    Values(elementfun(l,m,i),elementfun(l,m,i+1))
+end
+function linearelement(l::LinearIndices{2},m::QuotientTopology{2},i,j)
+    i1,j1 = i+1,j+1
+    Values(elementfun(l,m,i,j),elementfun(l,m,i1,j),elementfun(l,m,i1,j1),elementfun(l,m,i,j1))
+end
+function linearelement(l::LinearIndices{3},m::QuotientTopology{3},i,j,k)
+    i1,j1,k1 = i+1,j+1,k+1
+    Values(elementfun(l,m,i,j,k),elementfun(l,m,i1,j,k),elementfun(l,m,i1,j1,k),elementfun(l,m,i,j1,k),
+           elementfun(l,m,i,j,k1),elementfun(l,m,i1,j,k1),elementfun(l,m,i1,j1,k1),elementfun(l,m,i,j1,k1))
+end
+function linearelement(l::LinearIndices{4},m::QuotientTopology{4},i,j,k,w)
+    i1,j1,k1,w1 = i+1,j+1,k+1,w+1
+    Values(elementfun(l,m,i,j,k,w),elementfun(l,m,i1,j,k,w),elementfun(l,m,i1,j1,k,w),elementfun(l,m,i,j1,k,w),
+           elementfun(l,m,i,j,k1,w),elementfun(l,m,i1,j,k1,w),elementfun(l,m,i1,j1,k1,w),elementfun(l,m,i,j1,k1,w),
+           elementfun(l,m,i,j1,k1,w1),elementfun(l,m,i1,j1,k1,w1),elementfun(l,m,i1,j,k1,w1),elementfun(l,m,i,j,k1,w1),
+           elementfun(l,m,i,j1,k,w1),elementfun(l,m,i1,j1,k,w1),elementfun(l,m,i1,j,k,w1),elementfun(l,m,i,j,k,w1))
+end
+function linearelement(l::LinearIndices{5},m::QuotientTopology{5},i,j,k,w,v)
+    i1,j1,k1,w1,v1 = i+1,j+1,k+1,w+1,v+1
+    Values(elementfun(l,m,i,j,k,w,v),elementfun(l,m,i1,j,k,w,v),elementfun(l,m,i1,j1,k,w,v),elementfun(l,m,i,j1,k,w,v),
+           elementfun(l,m,i,j,k1,w,v),elementfun(l,m,i1,j,k1,w,v),elementfun(l,m,i1,j1,k1,w,v),elementfun(l,m,i,j1,k1,w,v),
+           elementfun(l,m,i,j1,k1,w1,v),elementfun(l,m,i1,j1,k1,w1,v),elementfun(l,m,i1,j,k1,w1,v),elementfun(l,m,i,j,k1,w1,v),
+           elementfun(l,m,i,j1,k,w1,v),elementfun(l,m,i1,j1,k,w1,v),elementfun(l,m,i1,j,k,w1,v),elementfun(l,m,i,j,k,w1,v),
+           elementfun(l,m,i,j,k,w,v1),elementfun(l,m,i1,j,k,w,v1),elementfun(l,m,i1,j1,k,w,v1),elementfun(l,m,i,j1,k,w,v1),
+           elementfun(l,m,i,j,k1,w,v1),elementfun(l,m,i1,j,k1,w,v1),elementfun(l,m,i1,j1,k1,w,v1),elementfun(l,m,i,j1,k1,w,v1),
+           elementfun(l,m,i,j1,k1,w1,v1),elementfun(l,m,i1,j1,k1,w1,v1),elementfun(l,m,i1,j,k1,w1,v1),elementfun(l,m,i,j,k1,w1,v1),
+           elementfun(l,m,i,j1,k,w1,v1),elementfun(l,m,i1,j1,k,w1,v1),elementfun(l,m,i1,j,k,w1,v1),elementfun(l,m,i,j,k,w1,v1))
+end
+
+elementfuns(m::QuotientTopology,s::Tuple=size(m)) = elementfuns(LinearIndices(m),m,s)
+elementfuns(l::LinearIndices,m::QuotientTopology,s::Tuple=size(m)) = l
+elementfuns(l::LinearIndices{1},m::OpenTopology{1},s::Tuple=size(m)) = l
+elementfuns(l::LinearIndices{2},m::OpenTopology{2},s::Tuple=size(m)) = l
+elementfuns(l::LinearIndices{3},m::OpenTopology{3},s::Tuple=size(m)) = l
+elementfuns(l::LinearIndices{4},m::OpenTopology{4},s::Tuple=size(m)) = l
+elementfuns(l::LinearIndices{5},m::OpenTopology{5},s::Tuple=size(m)) = l
+function elementfuns(l::LinearIndices{1},m::QuotientTopology{1},s::Tuple=size(m))
+    Int[elementfun(l,m,i) for i ∈ OneTo(s[1])]
+end
+function elementfuns(l::LinearIndices{2},m::QuotientTopology{2},s::Tuple=size(m))
+    out = Int[elementfun(l,m,i,j) for i ∈ OneTo(s[1]), j ∈ OneTo(s[2])]
+    isone(m.c[1]) && (out[1,:] .= 1)
+    isone(m.c[2]) && (out[end,:] .= out[end,1])
+    isone(m.c[3]) && (out[:,1] .= 1)
+    isone(m.c[4]) && (out[:,end] .= out[1,end])
+    return out
+end
+function elementfuns(l::LinearIndices{3},m::QuotientTopology{3},s::Tuple=size(m))
+    out = Int[elementfun(l,m,i,j,k) for i ∈ OneTo(s[1]), j ∈ OneTo(s[2]), k ∈ OneTo(s[3])]
+    isone(m.c[1]) && (out[1,:,:] .= 1)
+    isone(m.c[2]) && (out[end,:,:] .= out[end,1,1])
+    isone(m.c[3]) && (out[:,1,:] .= 1)
+    isone(m.c[4]) && (out[:,end,:] .= out[1,end,1])
+    isone(m.c[5]) && (out[:,:,1] .= 1)
+    isone(m.c[6]) && (out[:,:,end] .= out[1,1,end])
+    return out
+end
+function elementfuns(l::LinearIndices{4},m::QuotientTopology{4},s::Tuple=size(m))
+    out = Int[elementfun(l,m,i,j,k,w) for i ∈ OneTo(s[1]), j ∈ OneTo(s[2]), k ∈ OneTo(s[3]), w ∈ OneTo(s[4])]
+    isone(m.c[1]) && (out[1,:,:,:] .= 1)
+    isone(m.c[2]) && (out[end,:,:,:] .= out[end,1,1,1])
+    isone(m.c[3]) && (out[:,1,:,:] .= 1)
+    isone(m.c[4]) && (out[:,end,:,:] .= out[1,end,1,1])
+    isone(m.c[5]) && (out[:,:,1,:] .= 1)
+    isone(m.c[6]) && (out[:,:,end,:] .= out[1,1,end,1])
+    isone(m.c[7]) && (out[:,:,:,1] .= 1)
+    isone(m.c[8]) && (out[:,:,:,end] .= out[1,1,1,end])
+    return out
+end
+function elementfuns(l::LinearIndices{5},m::QuotientTopology{5},s::Tuple=size(m))
+    out = Int[elementfun(l,m,i,j,k,w,v) for i ∈ OneTo(s[1]), j ∈ OneTo(s[2]), k ∈ OneTo(s[3]), w ∈ OneTo(s[4]), v ∈ OneTo(s[5])]
+    isone(m.c[1]) && (out[1,:,:,:,:] .= 1)
+    isone(m.c[2]) && (out[end,:,:,:,:] .= out[end,1,1,1,1])
+    isone(m.c[3]) && (out[:,1,:,:,:] .= 1)
+    isone(m.c[4]) && (out[:,end,:,:,:] .= out[1,end,1,1,1])
+    isone(m.c[5]) && (out[:,:,1,:,:] .= 1)
+    isone(m.c[6]) && (out[:,:,end,:,:] .= out[1,1,end,1,1])
+    isone(m.c[7]) && (out[:,:,:,1,:] .= 1)
+    isone(m.c[8]) && (out[:,:,:,end,:] .= out[1,1,1,end,1])
+    isone(m.c[9]) && (out[:,:,:,:,1] .= 1)
+    isone(m.c[10]) && (out[:,:,:,:,end] .= out[1,1,1,1,end])
+    return out
+end
+
+elementfun(m::QuotientTopology,ij...) = elementfun(LinearIndices(m),m,ij...)
+function elementfun(l::LinearIndices,m::QuotientTopology,ij...)
+    out1 = getlinear(l,m,Val(0),ij...)
+    out2 = getindex(l,ij...)
+    out1<out2 ? out1 : out2
+end
+
+mycollect2(m::QuotientTopology{2},N=Val(0),s=size(m)) = [getindex(m,N,i,j) for i ∈ OneTo(s[1]), j ∈ OneTo(s[2])]
+mycollect(m::QuotientTopology{2},N=Val(0),s=size(m)) = [getlinear(m,N,i,j) for i ∈ OneTo(s[1]), j ∈ OneTo(s[2])]
+
+#elementfun.(Ref(li),mycollect(box))
+#elementfun.(Ref(li),collect(box))
+
+#bounds(i,n) = (i > 0) && (i ≤ n)
+
+getlinear(l,m::QuotientTopology,N::Val,ij...) = getindex(l,ij...)
+getlinear(l,m::QuotientTopology{1},::Val,i::Int) = getindex(m,i)
+function getlinear(l,m::QuotientTopology{2},N::Val{n},i::Int,j::Int) where n
+    s = size(m)
+    n1,n2 = @inbounds (s[1],s[2])
+    isi,isj = (bounds(i,n1,N,Val(1)),bounds(j,n2,N,Val(2)))
+    if isj && !isi
+        if i < 2
+            #return Values(i,j)
+            r = @inbounds m.r[1]
+            if !iszero(r)
+                p = @inbounds m.p[r]
+                isodd(p) && (return getindex(l,location(m.p,m.q,r,s,i,j)...))
+            end
+        else
+            r = @inbounds m.r[2]
+            !iszero(r) && (return getindex(l,location(m.p,m.q,r,n1,s,i,j)...))
+        end
+    elseif isi && !isj
+        if j < 2
+            #return Values(i,j)
+            r = @inbounds m.r[3]
+            if !iszero(r)
+                p = @inbounds m.p[r]
+                isodd(p) && (return getindex(l,location(m.p,m.q,r,s,j,i)...))
+            end
+        else
+            r = @inbounds m.r[4]
+            !iszero(r) && (return getindex(l,location(m.p,m.q,r,n2,s,j,i)...))
+        end
+    elseif !isi && !isj && iszero(n)
+        out1 = getindex(m,Val(1),i,j)
+        out2 = getindex(m,Val(2),i,j)
+        return getindex(l,min.(out1,out2)...)
+    end
+    return getindex(l,Values(i,j)...)
+end
+
+# BilinearTopology
+
+export BilinearTopology, elementsplit, elementquad, elementtri
+
+struct BilinearTopology{Q<:QuotientTopology{2},P,V} <: MultilinearTopology{4}
+    m::Q
+    q::Vector{Values{4,Int}} # quad
+    t::Vector{Values{3,Int}} # tri
+    i::P # vertices
+    #p::Int # nodes
+    v::V # verticesinv
+    iq::Vector{Int} # quad id
+    it::Vector{Int} # tri id
+    s::Vector{Pair{Int,Int}} # elementsplit
+end
+
+MultilinearTopology(m::QuotientTopology{2}) = BilinearTopology(m)
+function BilinearTopology(m::QuotientTopology{2})
+    efs = elementfuns(m)
+    q,t,iq,it = detect_tri(vec(linearelements(efs)))
+    i = vertices(efs)
+    BilinearTopology(m,q,t,i,to_verticesinv(efs),iq,it,elementsplit(iq,it))
+end
+
+QuotientTopology(t::BilinearTopology) = t.m
+vertices(t::BilinearTopology) = t.i
+verticesinv(t::BilinearTopology) = t.v
+nodes(t::BilinearTopology) = length(verticesinv(t))
+elementsplit(t::BilinearTopology) = t.s
+elementquad(t::BilinearTopology) = t.iq
+elementtri(t::BilinearTopology) = t.it
+
+function detect_tri(quad::Vector{Values{4,Int}})
+    tri = Vector{Values{3,Int}}()
+    iq = collect(OneTo(length(quad)))
+    it = Vector{Int}()
+    i = 1
+    while i ≤ length(quad)
+        q = quad[i]
+        if @inbounds q[1]==q[2]
+            push!(it,iq[i])
+            deleteat!(iq,i)
+            deleteat!(quad,i)
+            push!(tri,@inbounds Values(q[2],q[3],q[4]))
+        elseif @inbounds q[2]==q[3]
+            push!(it,iq[i])
+            deleteat!(iq,i)
+            deleteat!(quad,i)
+            push!(tri,@inbounds Values(q[1],q[2],q[4]))
+        elseif @inbounds q[3]==q[4]
+            push!(it,iq[i])
+            deleteat!(iq,i)
+            deleteat!(quad,i)
+            push!(tri,@inbounds Values(q[1],q[2],q[3]))
+        elseif @inbounds q[4]==q[1]
+            push!(it,iq[i])
+            deleteat!(iq,i)
+            deleteat!(quad,i)
+            push!(tri,@inbounds Values(q[1],q[2],q[3]))
+        else
+            i += 1
+        end
+    end
+    return quad,tri,iq,it
+end
+function elementsplit(iq,it)
+    nq,nt = length(iq),length(it)
+    out = Vector{Pair{Int,Int}}(undef,nq+nt)
+    for j ∈ OneTo(nq)
+        i = iq[j]
+        out[i] = 4 => j
+    end
+    for j ∈ OneTo(nt)
+        i = it[j]
+        out[i] = 3 => j
+    end
+    return out
+end
+
+to_verticesinv(m) = unique(vec(m))
+to_verticesinv(m::LinearIndices) = OneTo(length(m))
+verticesinv(m::OpenTopology) = OneTo(length(m))
+verticesinv(m::QuotientTopology) = unique(vec(elementfuns(m)))
+function duplicates(m::QuotientTopology)
+    li = LinearIndices(m)
+    setdiff(vec(li),vec(elementfuns(li,m)))
+end
+function duplicatemap(m::QuotientTopology)
+    li = LinearIndices(m)
+    els = vec(elementfuns(li,m))
+    out = setdiff(OneTo(length(li)),els)
+    out.=>els[out]
+end
+function uniquemap(m::QuotientTopology)
+    els = vec(elementfuns(m))
+    out = unique(els)
+    out.=>OneTo(length(out))
+end
+vertices(m::QuotientTopology) = vertices(elementfuns(m))
+vertices(elm::LinearIndices) = elm
+function vertices(elm::Array{Int})
+    els = vec(elm)
+    dup = setdiff(OneTo(length(els)),els)
+    unq = unique(els)
+    out = zeros(Int,size(elm))
+    out[unq] .= OneTo(length(unq))
+    out[dup] .= out[els[dup]]
+    return out
+end
+
+# Common
+
+_axes(t::ImmersedTopology{N}) where N = (Base.OneTo(length(t)),Base.OneTo(N))
+
+for top ∈ (:SimplexTopology,:DiscontinuousTopology)#,:VectorTopology)
+    @eval begin
+        # anything array-like gets summarized e.g. 10-element Array{Int64,1}
+        Base.summary(io::IO, a::$top) = Base.array_summary(io, a, _axes(a))
+        function Base.array_summary(io::IO, a::$top, inds::Tuple{Vararg{OneTo}})
+            print(io, Base.dims2string(length.(inds)))
+            print(io, iscover(a) ? "⊆" : "⊂", totalnodes(a), " ")
+            Base.showarg(io, a, true)
+        end
+    end
 end
 

@@ -15,7 +15,7 @@
 export FiberProduct, FiberProductBundle, HomotopyBundle
 export GlobalFiber, LocalFiber, localfiber, globalfiber
 export base, fiber, domain, codomain, ↦, →, ←, ↤, basetype, fibertype, graph
-export fullcoordinates, fullpoints, fullmetricextensor
+export fullcoordinates, fullpoints, fullmetricextensor, isinduced
 export pointtype, metrictype, coordinates, coordinatetype
 
 # Global
@@ -29,11 +29,15 @@ struct Global{N,T} <: AbstractArray{T,N}
     Global{N}(v::T) where {T,N} = new{N,T}(v)
 end
 
-#Base.size(m::Global) = m.n
-Base.getindex(m::Global,i::Vararg{Int}) = m.v
-Base.getindex(t::Global,i::CartesianIndex) = m.v
+#Base.size(t::Global) = t.n
+Base.getindex(t::Global,i::Vararg{Int}) = t.v
+Base.getindex(t::Global,i::CartesianIndex) = t.v
+Base.setindex!(t::Global{N,InducedMetric} where N,v::InducedMetric,i::Vararg{Int}) = v
 Base.resize!(t::Global,i) = t
 @pure Base.eltype(::Type{<:Global{T}}) where T = T
+
+Base.vec(t::Global{1}) = t
+Base.vec(t::Global) = Global{1}(t.v)
 
 Base.IndexStyle(::Global) = IndexCartesian()
 function Base.getindex(A::Global, I::Int)
@@ -209,7 +213,7 @@ for type ∈ (:Coordinate,:LocalTensor)
         LinearAlgebra.norm(s::$type) = $type(base(s), norm(fiber(s)))
         LinearAlgebra.det(s::$type) = $type(base(s), det(fiber(s)))
         LinearAlgebra.tr(s::$type) = $type(base(s), tr(fiber(s)))
-        (V::Submanifold)(s::$type) = $type(base(a), V(fiber(s)))
+        (V::Submanifold)(s::$type) = $type(base(s), V(fiber(s)))
         (::Type{T})(s::$type) where T<:Real = $type(base(s), T(fiber(s)))
         (::Type{Complex})(s::$type) = $type(base(s), Complex(fiber(s)))
         (::Type{Complex{T}})(s::$type) where T = $type(base(s), Complex{T}(fiber(s)))
@@ -365,7 +369,7 @@ Base.setindex!(m::PointArray{P},s::P,i::Vararg{Int}) where P = setindex!(points(
 Base.setindex!(m::PointArray{P,G} where P,s::G,i::Vararg{Int}) where G = setindex!(metricextensor(m),s,i...)
 function Base.setindex!(m::PointArray,s::Coordinate,i::Vararg{Int})
     setindex!(points(m),point(s),i...)
-    setindex!(metricextensor(m),metricextensor(s),i...)
+    !isinduced(m) && setindex!(metricextensor(m),metricextensor(s),i...)
     return s
 end
 
@@ -432,7 +436,7 @@ Base.@pure isfiberbundle(::Any) = false
 globalfiber(x) = x
 globalfiber(x::GlobalFiber) = fiber(x)
 
-for fun ∈ (:sdims,:subimmersion,:fullimmersion,:fulltopology,:topology,:subtopology,:totalelements,:elements,:subelements,:totalnodes,:nodes,:vertices,:verticesinv,:isopen,:iscompact,:isfull,:iscover,:istotal,:immersiontype,:refnodes)
+for fun ∈ (:sdims,:subimmersion,:fullimmersion,:fulltopology,:topology,:subtopology,:totalelements,:elements,:subelements,:totalnodes,:nodes,:vertices,:verticesinv,:isopen,:iscompact,:isfull,:iscover,:istotal,:immersiontype,:refnodes,:isdisconnected,:isdiscontinuous)
     @eval export $fun
     @eval $fun(m::GlobalFiber) = $fun(immersion(m))
 end
@@ -562,10 +566,26 @@ find_gf(::Any, rest) = find_gf(rest)
 
 abstract type ElementBundle{N,C<:Coordinate,PA<:FiberBundle{C,1},TA} <: FrameBundle{C,1} end
 
+const DiscontinuousBundle{N,C,PA,TA<:DiscontinuousTopology} = ElementBundle{N,C,PA,TA}
+export DiscontinuousBundle
+
 fullcoordinates(m::ElementBundle) = m.p
 immersion(m::ElementBundle) = m.t
 immersiontype(::Type{<:ElementBundle{N,C,PA,TA} where {N,C,PA}}) where TA = TA
-affinehull(m::ElementBundle) = fullpoints(m)[topology(m)]
+function affinehull(m::ElementBundle)
+    if isdisconnected(m)
+        points(m)[immersion(m)]
+    else
+        fullpoints(m)[SimplexTopology(immersion(m))]
+    end
+end
+function affinehull(m::ElementBundle,i::Int)
+    if isdisconnected(m)
+        points(m)[immersion(m)[i]]
+    else
+        fullpoints(m)[SimplexTopology(immersion(m))[i]]
+    end
+end
 
 # SimplexBundle
 
@@ -585,13 +605,21 @@ GridBundle{1}(m::SimplexBundle) = GridBundle(getindex.(fullpoints(m),2))
 
 (p::PointCloud)(t::ImmersedTopology) = SimplexBundle(p,t)
 function coordinates(m::SimplexBundle)
-    iscover(m) ? fullcoordinates(m) : PointCloud(0,points(m),metricextensor(m))
+    if isdiscontinuous(m) ? isdisconnected(m) : iscover(m)
+        fullcoordinates(m)
+    else
+        PointCloud(0,points(m),metricextensor(m))
+    end
 end
 function points(m::SimplexBundle)
-    iscover(m) ? base(fullcoordinates(m)) : view(base(fullcoordinates(m)),vertices(m))
+    if isdiscontinuous(m) ? isdisconnected(m) : iscover(m)
+        base(fullcoordinates(m))
+    else
+        view(base(fullcoordinates(m)),vertices(m))
+    end
 end
 function metricextensor(m::SimplexBundle)
-    if iscover(m) || isinduced(m)
+    if isdisconnected(m) ? isdisconnected(m) : (iscover(m) || isinduced(m))
         fiber(fullcoordinates(m))
     else
         view(fiber(fullcoordinates(m)),vertices(m))
@@ -601,6 +629,19 @@ end
 #deletebundle!(m::SimplexBundle) = deletepointcloud!(bundle(m))
 Base.size(m::SimplexBundle) = size(vertices(m))
 refine(m::SimplexBundle) = SimplexBundle(fullcoordinates(m),refine(immersion(m)))
+function continuous(m::SimplexBundle)
+    isdiscontinuous(m) ? isdisconnected(m) ? error("disconnected") : SimplexBundle(fullcoordinates(m),continuous(immersion(m))) : m
+end
+function discontinuous(m::SimplexBundle)
+    isdiscontinuous(m) ? m : SimplexBundle(fullcoordinates(m),discontinuous(immersion(m)))
+end
+function disconnect(m::SimplexBundle)
+    if isdiscontinuous(m)
+        isdisconnected(m) ? m : SimplexBundle(coordinates(m),disconnect(immersion(m)))
+    else
+        disconnect(discontinuous(m))
+    end
+end
 
 #Base.broadcast(f,t::SimplexBundle) = SimplexBundle(f.(coordinates(t)),immersion(t))
 
@@ -608,8 +649,8 @@ refine(m::SimplexBundle) = SimplexBundle(fullcoordinates(m),refine(immersion(m))
 
 (m::SimplexBundle)(i::ImmersedTopology) = SimplexBundle(fullcoordinates(m),i)
 Base.getindex(m::SimplexBundle,i::Chain{V,1}) where V = Chain{Manifold(V),1}(points(m)[value(i)])
-Base.getindex(m::SimplexBundle,i::Values{N,Int}) where N = points(m)[i]
-getindex(m::AbstractVector,i::ImmersedTopology) = getindex.(Ref(m),topology(i))
+Base.getindex(m::SimplexBundle,i::Values{N,Int}) where N = fullpoints(m)[i]
+getindex(m::AbstractVector,i::ImmersedTopology) = getindex.(Ref(m),i)
 getindex(m::AbstractVector,i::SimplexBundle) = m[immersion(i)]
 getindex(m::SimplexBundle,i::ImmersedTopology) = fullpoints(m)[i]
 getindex(m::SimplexBundle,i::SimplexBundle) = fullpoints(m)[topology(i)]
@@ -617,7 +658,7 @@ getindex(m::SimplexBundle,i::SimplexBundle) = fullpoints(m)[topology(i)]
 @pure Base.eltype(::Type{<:SimplexBundle{N,C} where N}) where C = C
 function Base.getindex(m::SimplexBundle,i::Int)
     ind = getimage(immersion(m),i)
-    Coordinate(getindex(fullpoints(m),ind), getindex(fullmetricextensor(m),ind))
+    Coordinate(fullpoints(m)[ind],fullmetricextensor(m)[ind])
 end
 Base.setindex!(m::SimplexBundle{N,<:Coordinate{P}} where N,s::P,i::Int) where P = setindex!(fullpoints(m),s,getimage(immersion(m),i))
 Base.setindex!(m::SimplexBundle{N,<:Coordinate{P,G} where P} where N,s::G,i::Int) where G = setindex!(fullmetricextensor(m),s,getimage(immersion(m),i))
@@ -663,28 +704,115 @@ FaceBundle(m::FaceBundle) = m
 
 coordinates(m::FaceBundle) = PointCloud(0,points(m),metricextensor(m))
 #vertices(m::FaceBundle) = OneTo(length(m))
-points(m::FaceBundle) = means(topology(m),points(fullcoordinates(m)))
+function points(m::FaceBundle)
+    if isdisconnected(m)
+        fullpoints(m)
+    else
+        means(SimplexTopology(immersion(m)),fullpoints(m))
+    end
+end
 function metricextensor(m::FaceBundle)
-    if isinduced(m)
+    if isdisconnected(m) || isinduced(m)
         fullmetricextensor(m)
     else
-        means(topology(m),fullmetricextensor(m))
+        means(SimplexTopology(immersion(m)),fullmetricextensor(m))
     end
 end
 
 refine(m::FaceBundle) = FaceBundle(fullcoordinates(m),refine(immersion(m)))
-Base.size(m::FaceBundle) = size(immersion(m))
-#Base.broadcast(f,t::FaceBundle) = FaceBundle(f.(t.p),immersion(t))
+function continuous(m::FaceBundle)
+    isdiscontinuous(m) ? isdisconnected(m) ? error("disconnected") : FaceBundle(fullcoordinates(m),continuous(immersion(m))) : m
+end
+function discontinuous(m::FaceBundle)
+    isdiscontinuous(m) ? m : FaceBundle(fullcoordinates(m),discontinuous(immersion(m)))
+end
+function disconnect(m::FaceBundle)
+    if isdiscontinuous(m)
+        isdisconnected(m) ? m : FaceBundle(coordinates(SimplexBundle(m)),disconnect(immersion(m)))
+    else
+        disconnect(discontinuous(m))
+    end
+end
 
+#Base.broadcast(f,t::FaceBundle) = FaceBundle(f.(t.p),immersion(t))
+Base.size(m::FaceBundle) = size(immersion(m))
 @pure Base.eltype(::Type{<:FaceBundle{N,C} where N}) where C = C
 Base.getindex(m::FaceBundle,i::AbstractVector{Int}) = FaceBundle(fullcoordinates(m),immersion(m)[i])
 function Base.getindex(m::FaceBundle,i::Int)
-    ind = getindex(immersion(m),i)
-    Coordinate(mean(points(m.p)[ind]),
-        isinduced(m.p) ? metricextensor(m.p)[i] : mean(metricextensor(m.p)[ind]))
+    ind = isdisconnected(m) ? immersion(m)[i] : SimplexTopology(immersion(m))[i]
+    Coordinate(mean(fullpoints(m)[ind]),
+        isinduced(m) ? fullmetricextensor(m)[i] : mean(fullmetricextensor(m)[ind]))
 end
 
 Base.BroadcastStyle(::Type{<:FaceBundle{N,C,PA,TA}}) where {N,C,PA,TA} = Broadcast.ArrayStyle{FaceBundle{N,C,PA,TA}}()
+
+# MultilinearBundle
+
+export MultilinearBundle, VolumeBundle
+
+struct MultilinearBundle{N,C<:Coordinate,PA<:FiberBundle{C,N},TA<:MultilinearTopology} <: FrameBundle{C,1}
+    p::PA
+    t::TA
+end
+
+MultilinearBundle(m::GridBundle) = MultilinearBundle(fullcoordinates(m),MultilinearTopology(immersion(m)))
+GridBundle(m::MultilinearBundle) = GridBundle(fullcoordinates(m),QuotientTopology(immersion(m)))
+
+fullcoordinates(m::MultilinearBundle) = m.p
+coordinates(m::MultilinearBundle) = PointCloud(0,points(m),metricextensor(m))
+immersion(m::MultilinearBundle) = m.t
+immersiontype(::Type{<:MultilinearBundle{N,C,PA,TA} where {N,C,PA}}) where TA = TA
+points(m::MultilinearBundle) = fullpoints(m)[verticesinv(m)]
+metricextensor(m::MultilinearBundle) = isinduced(m) ? vec(fullmetricextensor(m)) : fullmetricextensor(m)[verticesinv(m)]
+
+Base.size(m::MultilinearBundle) = size(verticesinv(m))
+
+@pure Base.eltype(::Type{<:MultilinearBundle{N,C} where N}) where C = C
+function Base.getindex(m::MultilinearBundle,i::Int)
+    ind = verticesinv(immersion(m))[i]
+    Coordinate(fullpoints(m)[ind],fullmetricextensor(m)[ind])
+end
+
+# VolumeBundle
+
+struct VolumeBundle{N,C<:Coordinate,PA<:FiberBundle{C,N},TA<:MultilinearTopology} <: FrameBundle{C,1}
+    p::PA
+    t::TA
+end
+
+VolumeBundle(m::MultilinearBundle) = VolumeBundle(fullcoordinates(m),immersion(m))
+MultilinearBundle(m::VolumeBundle) = MultilinearBundle(fullcoordinates(m),immersion(m))
+VolumeBundle(m::GridBundle) = VolumeBundle(fullcoordinates(m),MultilinearTopology(immersion(m)))
+GridBundle(m::VolumeBundle) = GridBundle(fullcoordinates(m),QuotientTopology(immersion(m)))
+
+fullcoordinates(m::VolumeBundle) = m.p
+coordinates(m::VolumeBundle) = PointCloud(0,points(m),metricextensor(m))
+immersion(m::VolumeBundle) = m.t
+immersiontype(::Type{<:VolumeBundle{N,C,PA,TA} where {N,C,PA}}) where TA = TA
+function points(m::VolumeBundle)
+    i = immersion(m)
+    p = vec(fullpoints(m))
+    vcat(mean.(p[i.q]),mean.(p[i.t]))[last.(i.s)]
+end
+function metricextensor(m::VolumeBundle)
+    if isinduced(m)
+        vec(fullmetricextensor(m))
+    else
+        i = immersion(m)
+        p = vec(fullmetricextensor(m))
+        vcat(mean.(p[i.q]),mean.(p[i.t]))[last.(i.s)]
+    end
+end
+
+Base.size(m::VolumeBundle) = (prod(size(QuotientTopology(immersion(m))).-1),)
+
+@pure Base.eltype(::Type{<:VolumeBundle{N,C} where N}) where C = C
+function Base.getindex(m::VolumeBundle{N,C,PA,<:BilinearTopology} where {N,C,PA},i::Int)
+    s = elementsplit(immersion(m))[i]
+    ind = (first(s) ≠ 3 ? immersion(m).q : immersion(m).t)[last(s)]
+    met = isinduced(m) ? fullmetricextensor(m).v : mean(fullmetricextensor(m)[ind])
+    Coordinate(mean(fullpoints(m)[ind]),met)
+end
 
 # FiberProductBundle
 

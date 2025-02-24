@@ -188,7 +188,7 @@ function SparseArrays.sparse(t::SimplexTopology,cols::Values{N}=reducedcolumns(t
     return A
 end
 
-edges(t,cols::Values,np=totalnodees(t)) = edges(t,adjacency(t,cols,np))
+edges(t,cols::Values,np=totalnodes(t)) = edges(t,adjacency(t,cols,np))
 edges(t::ElementBundle) = t(edges(immersion(t)))
 edges(t::ElementBundle,adj::AbstractMatrix) = t(edges(immersion(t),adj))
 edges(t::SimplexTopology{2}) = t
@@ -201,6 +201,18 @@ edgetopology(t) = edgetopology(adjacency(t,columns(immersion(t)),totalnodes(t)))
 function edgetopology(adj::AbstractMatrix=adjacency(t))
     f = findall((!)∘iszero,LinearAlgebra.triu(adj))
     Values{2,Int}[Values{2,Int}(@inbounds f[n].I) for n ∈ 1:length(f)]
+end
+function edges(t::DiscontinuousTopology{3},args...)
+    nt = elements(t)
+    out = Vector{Values{2,Int}}(undef,3nt)
+    for i ∈ 1:nt
+        ti = t[i]
+        n = 3(i-1)
+        out[n+1] = Values(ti[1],ti[2])
+        out[n+2] = Values(ti[2],ti[3])
+        out[n+3] = Values(ti[3],ti[1])
+    end
+    return SimplexTopology(0,out,OneTo(3nt),3nt)
 end
 
 function facetsinterior(t::SimplexTopology{M}) where M
@@ -268,14 +280,14 @@ Grassmann.∂(t::Tuple{<:ElementBundle,Vector{Int}}) = ∂(t[1],t[2])
 Grassmann.∂(t::Tuple{<:SimplexTopology,Vector{Int}}) = ∂(t[1],t[2])
 Grassmann.∂(t::SimplexBundle,u::Vector{Int}) = t(∂(immersion(t),u))
 function Grassmann.∂(t::SimplexTopology,u::Vector{Int})
-    f = facets(t,u)
-    f[1][findall((!)∘iszero,f[2])]
+    top,bnd = facets(t,u)
+    top[findall((!)∘iszero,bnd)]
 end
 Grassmann.∂(t::ElementBundle) = t(∂(immersion(t)))
 function Grassmann.∂(t::SimplexTopology{N}) where N
     if N≠3
-        f = facetsinterior(t)
-        f[1][setdiff(1:length(f[1]),f[2])]
+        top,bnd = facetsinterior(t)
+        top[setdiff(OneTo(length(top)),bnd)]
     else
         edges(t,adjacency(t).%2)
     end
@@ -294,6 +306,19 @@ import Grassmann: Leibniz
 skeleton(t::SimplexBundle) = skeleton(immersion(t))
 @generated skeleton(t::SimplexTopology{N}) where N = :(faces.(Ref(t),Ref(ones(Int,elements(t))),$(Val.(list(1,N+1))),abs))
 #@generated skeleton(t::SimplexTopology{N}) where N = :(faces.(Ref(t),$(Val.(list(1,N+1)))))
+
+isedge(e) = t -> isedge(e,t)
+isedge(e,t) = prod(e .∈ Ref(t))
+function discontinuousboundary(dt,e)
+    t = SimplexTopology(dt)
+    out = copy(topology(e))
+    for i ∈ OneTo(elements(e))
+        ei = e[i]
+        j = findfirst(isedge(ei),topology(t))
+        out[i] = dt[j][invmap.(Ref(topology(t)[j]),ei)]
+    end
+    SimplexTopology(out,totalnodes(dt))
+end
 
 const array_cache = (Array{T,2} where T)[]
 const array_top_cache = (Array{T,2} where T)[]
@@ -317,7 +342,22 @@ function array(m::SimplexTopology)
     isempty(array_top_cache[B]) && (array_top_cache[B] = array(fulltopology(m)))
     return isfull(m) ? array_top_cache[B] : view(array_top_cache[B],subelements(m),:)
 end
+function array(m::DiscontinuousTopology)
+    B = bundle(m)
+    if iszero(B)
+        return array(topology(m))
+    end
+    for k ∈ length(array_top_cache):B
+        push!(array_top_cache,Array{Any,2}(undef,0,0))
+    end
+    isempty(array_top_cache[B]) && (array_top_cache[B] = array(fulltopology(m)))
+    return isfull(m) ? array_top_cache[B] : view(array_top_cache[B],subelements(m),:)
+end
 function array!(m::SimplexTopology)
+    B = bundle(m)
+    length(array_top_cache) ≥ B && (array_top_cache[B] = Array{Any,2}(undef,0,0))
+end
+function array!(m::DiscontinuousTopology)
     B = bundle(m)
     length(array_top_cache) ≥ B && (array_top_cache[B] = Array{Any,2}(undef,0,0))
 end
@@ -337,8 +377,11 @@ end
 
 const submesh_cache = (Array{T,2} where T)[]
 submesh(m) = [m[i][j] for i∈1:length(m),j∈list(2,mdims(Manifold(m)))]
-submesh(m::SimplexBundle) = submesh(fullcoordinates(m))
 submesh!(m::SimplexBundle) = submesh!(fullcoordinates(m))
+function submesh(m::SimplexBundle)
+    out = submesh(fullcoordinates(m))
+    (isdiscontinuous(m) ? isdisconnected(m) : iscover(m)) ? out : view(out,vertices(m),:)
+end
 function submesh(m::PointCloud)
     B = bundle(m)
     iszero(B) && (return submesh(points(m)))
@@ -392,8 +435,17 @@ for op ∈ (:mean,:barycenter,:curl)
         export $op, $ops
         Grassmann.$ops(m::ElementBundle,u) = Grassmann.$ops(immersion(m),u)
         Grassmann.$ops(m::SimplexBundle) = Grassmann.$ops(FaceBundle(m))
-        Grassmann.$ops(m::FaceBundle) = TensorField(m,Grassmann.$op.(affinehull(m)))
-        Grassmann.$ops(m::SimplexMap) = TensorField(FaceBundle(base(m)),Grassmann.$ops(subimmersion(m),fiber(m)))
+        function Grassmann.$ops(m::FaceBundle)
+            p,i = if isdisconnected(m)
+                points(m),immersion(m)
+            else
+                fullpoints(m),SimplexTopology(immersion(m))
+            end
+            TensorField(m,Grassmann.$ops(i,p))
+        end
+        function Grassmann.$ops(m::SimplexMap)
+            TensorField(FaceBundle(base(m)),Grassmann.$ops(subimmersion(m),fiber(m)))
+        end
     end
 end
 
@@ -419,23 +471,24 @@ end
 
 function laplacian(t::ElementMap,m=volumes(domain(t)),g=gradienthat(domain(t),m))
     out = gradient(t,m,g)
-    TensorField(base(t),Real.(abs.(fiber(out))))
+    TensorField(base(out),Real.(abs.(fiber(out))))
 end
 function gradient(t::SimplexMap,m=volumes(t),g=gradienthat(t,m))
-    TensorField(base(t),interp(gradient_2(t,m,g)))
+    out = gradient_2(t,m,g)
+    pt = continuous(base(out))
+    TensorField(SimplexBundle(pt),interp(pt,fiber(out)))
 end
 function gradient(t::FaceMap,m=volumes(t),g=gradienthat(t,m))
-    gradient_2(base(t),interp(t),m,g)
+    pt = continuous(base(t))
+    gradient_2(pt,interp(pt,fiber(t)),m,g)
 end
-function gradient_2(t::ElementMap,m=volumes(t),g=gradienthat(t,m))
+function gradient_2(t::SimplexMap,m=volumes(t),g=gradienthat(t,m))
     gradient_2(base(t),fiber(t),m,g)
 end
-function gradient_2(t::SimplexBundle,u,m=volumes(t),g=gradienthat(t,m))
-    gradient_2(FaceBundle(t),u,m,g)
-end
-function gradient_2(t::FaceBundle,u,m=volumes(t),g=gradienthat(t,m))
-    T = topology(t)
-    TensorField(t,[fiber(u)[T[k]]⋅value(value(fiber(g)[k])) for k ∈ 1:length(T)])
+function gradient_2(t::ElementBundle,u,m=volumes(t),g=gradienthat(t,m))
+    T = immersion(t)
+    pt = FaceBundle(t)
+    TensorField(pt,[fiber(u)[T[k]]⋅value(value(fiber(g)[k])) for k ∈ 1:length(T)])
 end
 
 for T ∈ (:Values,:Variables)
@@ -473,7 +526,7 @@ assembleincidence(t,f,m=volumes(t),v::Val=Val(false)) = assembleincidence(t,iter
 function assembleincidence(X::FrameBundle,f,m,v::Val=Val(false))
     assembleincidence(immersion(X),f,m,v)
 end
-function assembleincidence(t::SimplexTopology,f::AbstractVector,m::AbstractVector,::Val{T}=Val{false}()) where T
+function assembleincidence(t::ImmersedTopology,f::AbstractVector,m::AbstractVector,::Val{T}=Val{false}()) where T
     typ = fibertype(T ? m : f)
     b = zeros(typ<:Int ? Float64 : typ,totalnodes(t))
     for k ∈ 1:elements(t)
@@ -483,7 +536,7 @@ function assembleincidence(t::SimplexTopology,f::AbstractVector,m::AbstractVecto
     return b
 end
 incidence(t::FrameBundle) = incidence(subimmersion(t),cols)
-function incidence(t::SimplexTopology,cols::Values{N}=columns(t)) where N
+function incidence(t::ImmersedTopology,cols::Values{N}=columns(t)) where N
     np,nt = totalnodes(t),elements(t)
     A = spzeros(Int,np,nt)
     for i ∈ list(1,N)
@@ -494,12 +547,39 @@ end # node-element incidence, A[i,j]=1 -> i∈t[j]
 
 assembleload(t,f=1,m=volumes(t)) = assembleincidence(t,iterpts(t,f)/sdims(t),m,Val(true))
 
-interp(t::FaceMap) = interp(subimmersion(t),fiber(t))
+interp(t::FaceMap) = TensorField(SimplexBundle(base(t)),interp(subimmersion(t),fiber(t)))
 interp(t,B::SparseMatrixCSC=incidence(t)) = Diagonal(weights(t,B))*B
-interp(t,b,w=weights(t)) = assembleincidence(t,w,b,Val(true))
+interp(t::FaceBundle,args...) = interp(subimmersion(t),args...)
+interp(t::DiscontinuousTopology,b,w) = interp(t,b)
+interp(t::DiscontinuousTopology,b) = view(b,discontinuousvertices(t))
+interp(t::SimplexTopology,b,w=weights(t)) = assembleincidence(t,w,b,Val(true))
 pretni(t::SimplexMap) = means(t)
 pretni(t,B::SparseMatrixCSC=incidence(t)) = interp(t,sparse(B'))
 pretni(t,ut) = means(t,ut) #interp(t,ut,B::SparseMatrixCSC) = B*ut
+
+interpCR(pt,m) = interpCR(pt,edges(pt),m)
+interpCR(pt,ed,m) = interpCR(pt,discontinuous(immersion(pt)),ed,m)
+function interpCR(pt,dt::DiscontinuousTopology,ed,m::TensorField)
+    ei = base(m)
+    nt = elements(dt)
+    b = zeros(totalnodes(dt))
+    for k ∈ OneTo(nt)
+        dk = dt[k]
+        tk = immersion(pt)[k]
+        nk = immersion(ei)[k]
+        ek = immersion(ed)[nk]
+        for j ∈ Values(1,2,3)
+            ekj = invmap.(Ref(tk),ek[j])
+            mj = fiber(m)[nk[j]]
+            b[dk[ekj]] .+= ones(Values{2,Int}).*mj
+            b[dk[findmissing(ekj)]] -= mj
+        end
+    end
+    TensorField(SimplexBundle(fullcoordinates(pt),dt),b)
+end
+
+invmap(t::Values{3,Int},n::Int) = n == t[1] ? 1 : n == t[2] ? 2 : 3
+findmissing(n::Values{2,Int}) = 1 ∉ n ? 1 : 2 ∉ n ? 2 : 3
 
 interior(e) = interior(totalnodes(e),vertices(e))
 interior(fixed,neq) = sort!(setdiff(1:neq,fixed))
@@ -514,12 +594,15 @@ function edgesindices(t::SimplexBundle,ed::SimplexBundle,cols=columns(topology(t
     edgesindices(t,FaceBundle(ed),cols)
 end
 function edgesindices(t::SimplexBundle,e::FaceBundle,cols=columns(immersion(t)))
-    np,nt = nodes(t),elements(t)
-    et = fulltopology(e); ne = totalelements(e); i,j,k = cols
+    et = fullimmersion(e)
+    met = isinduced(e) ? metricextensor(e) : means(et,fullmetricextensor(e))
+    PointCloud(0,means(et,fullpoints(e)),met)(edgesindices(immersion(t),et,cols))
+end
+function edgesindices(t::SimplexTopology,et::SimplexTopology=edges(t),cols=columns(t))
+    np,nt,ne = nodes(t),elements(t),totalelements(et); i,j,k = cols
     A = sparse(columns(et)...,OneTo(ne),np,np); A += A'
     ei = [Values(A[j[n],k[n]],A[i[n],k[n]],A[i[n],j[n]]) for n ∈ 1:nt]
-    met = isinduced(e) ? metricextensor(e) : means(et,fullmetricextensor(e))
-    PointCloud(0,means(et,fullpoints(e)),met)(SimplexTopology(0,ei,OneTo(ne),ne))
+    SimplexTopology(0,ei,OneTo(ne),ne)
 end
 
 function neighbor(k::Int,ab...)::Int
@@ -537,6 +620,8 @@ end
         Expr(:call,:Values,b...))
 end
 
+neighbors(t::DiscontinuousTopology) = neighbors(SimplexTopology(t))
+neighbors(t::DiscontinuousTopology,n2e) = neighbors(SimplexTopology(t),n2e)
 function neighbors(t::SimplexTopology{N},n2e=incidence(t)) where N
     A = sparse(n2e')
     nt = elements(t)
