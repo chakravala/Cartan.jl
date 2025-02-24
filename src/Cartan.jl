@@ -48,6 +48,7 @@ function elastic(T,itr)
 end
 
 include("topology.jl")
+include("quotient.jl")
 include("fiber.jl")
 
 export ElementMap, SimplexMap, FaceMap
