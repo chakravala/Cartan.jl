@@ -248,6 +248,33 @@ function faces(t::SimplexTopology{M},::Val{N}) where {N,M}
     end
     return SimplexTopology(0,out,ver,refnodes(t))
 end
+function _facetsindices(t::SimplexTopology{M}) where M
+    N = M-1
+    ver = vertices(t)
+    N == 2 && (e = edges(t); return (e,edgesindices(t,e)))
+    #N == 1 && (return SimplexTopology(Values.(ver),ver,refnodes(t)))
+    #N == 0 && (return list(2,1))
+    out = Values{N,Int}[]
+    outi = zeros(Values{M,Int},elements(t))
+    bas = Values([Int.(isequal(j).(list(1,M))) for j ∈ list(1,M)])
+    fw = list(1,M)
+    bw = reverse(fw) # reverse order for opposing edge vertex
+    for i ∈ OneTo(elements(t))
+        c = Values{N}.(Leibniz.combinations(topology(t)[i],N))
+        for j ∈ fw
+            cj = @inbounds sort(c[j])
+            k = findfirst(isequal(cj),out)
+            if isnothing(k)
+                push!(out,cj)
+                outi[i] += length(out)*bas[bw[j]]
+            else
+                outi[i] += k*bas[bw[j]]
+            end
+        end
+    end
+    ne = length(out)
+    return SimplexTopology(0,out,ver,refnodes(t)),SimplexTopology(0,outi,OneTo(ne),ne)
+end
 function faces(t::SimplexTopology{M},h,::Val{N},g=identity) where {N,M}
     #N == 0 && (return [list(1,N)],Int[sum(h)])
     out = Values{N,Int}[]
@@ -584,25 +611,39 @@ findmissing(n::Values{2,Int}) = 1 ∉ n ? 1 : 2 ∉ n ? 2 : 3
 interior(e) = interior(totalnodes(e),vertices(e))
 interior(fixed,neq) = sort!(setdiff(1:neq,fixed))
 
-facesindices(t,cols=columns(t)) = mdims(t) == 3 ? edgesindices(t,cols) : throw(error())
+facesindices(t) = mdims(t) == 3 ? edgesindices(t) : throw(error())
 
-function edgesindices(t::SimplexBundle)
-    cols = columns(topology(t))
-    edgesindices(t,edges(t,cols),cols)
+edgesindices(t::SimplexBundle) = edgesindices(t,edges(t))
+function edgesindices(t::SimplexBundle,ed::SimplexBundle)
+    edgesindices(t,FaceBundle(ed))
 end
-function edgesindices(t::SimplexBundle,ed::SimplexBundle,cols=columns(topology(t)))
-    edgesindices(t,FaceBundle(ed),cols)
-end
-function edgesindices(t::SimplexBundle,e::FaceBundle,cols=columns(immersion(t)))
+function edgesindices(t::SimplexBundle,e::FaceBundle)
     et = fullimmersion(e)
     met = isinduced(e) ? metricextensor(e) : means(et,fullmetricextensor(e))
-    PointCloud(0,means(et,fullpoints(e)),met)(edgesindices(immersion(t),et,cols))
+    PointCloud(0,means(et,fullpoints(e)),met)(edgesindices(immersion(t),et))
 end
-function edgesindices(t::SimplexTopology,et::SimplexTopology=edges(t),cols=columns(t))
-    np,nt,ne = nodes(t),elements(t),totalelements(et); i,j,k = cols
+function edgesindices(t::SimplexTopology,et::SimplexTopology{2}=edges(t))
+    np,nt,ne = nodes(t),elements(t),totalelements(et)
     A = sparse(columns(et)...,OneTo(ne),np,np); A += A'
-    ei = [Values(A[j[n],k[n]],A[i[n],k[n]],A[i[n],j[n]]) for n ∈ 1:nt]
+    ei = [localedge(A,t[n]) for n ∈ 1:nt]
     SimplexTopology(0,ei,OneTo(ne),ne)
+end
+function localedge(A,v::Values{2})
+    v1,v2 = @inbounds (v[1],v[2])
+    Values(A[v1,v2])
+end
+function localedge(A,v::Values{3})
+    v1,v2,v3 = @inbounds (v[1],v[2],v[3])
+    Values(A[v2,v3],A[v1,v3],A[v1,v2])
+end
+function localedge(A,v::Values{4})
+    v1,v2,v3,v4 = @inbounds (v[1],v[2],v[3],v[4])
+    Values(A[v1,v2],A[v1,v3],A[v1,v4],A[v2,v3],A[v2,v4],A[v3,v4])
+end
+function localedge(A,v::Values{5})
+    v1,v2,v3,v4,v5 = @inbounds (v[1],v[2],v[3],v[4],v[5])
+    Values(A[v1,v2],A[v1,v3],A[v1,v4],A[v1,v5],
+        A[v2,v3],A[v2,v4],A[v2,v5],A[v3,v4],A[v3,v5],A[v4,v5])
 end
 
 function neighbor(k::Int,ab...)::Int
@@ -620,6 +661,7 @@ end
         Expr(:call,:Values,b...))
 end
 
+neighbors(t::ElementBundle,args...) = neighbors(immersion(t),args...)
 neighbors(t::DiscontinuousTopology) = neighbors(SimplexTopology(t))
 neighbors(t::DiscontinuousTopology,n2e) = neighbors(SimplexTopology(t),n2e)
 function neighbors(t::SimplexTopology{N},n2e=incidence(t)) where N
@@ -634,18 +676,250 @@ end
 
 facetsign(i::Int,ni) = i<ni ? 1 : -1
 facetsigns(i::Values,ni) = facetsign.(i,ni)
-facetsigns(t::SimplexTopology) = facetsigns.(neighbors(t),OneTo(elements(t)))
+facetsigns(t::SimplexTopology,nbrs=neighbors(t)) = facetsigns.(nbrs,OneTo(elements(t)))
+facetsigns(t::SimplexBundle,args...) = facetsigns(immersion(t),args...)
 
-function centroidvectors(t,m=means(t))
-    p,nt = fullpoints(t),elements(t)
-    V = Manifold(p)(2,3)
-    c = Vector{Values{3,Chain{V,1,Float64,2}}}(undef,nt)
-    δ = Vector{Values{3,Float64}}(undef,nt)
-    ah = affinehull(t)
-    for k ∈ 1:nt
-        c[k] = V.(fiber(m)[k].-ah[k])
-        δ[k] = value.(abs.(c[k]))
-    end
-    return c,δ
+edgesigns(i::Values{2,Int}) = @inbounds i[1] < i[2] ? 1 : -1
+edgesigns(i::Values{3,Int}) = @inbounds Values(i[2]<i[3] ? 1 : -1,i[3]<i[1] ? 1 : -1,i[1]<i[2] ? 1 : -1)
+edgesigns(i::Values{4,Int}) = @inbounds Values(i[1]<i[2] ? 1 : -1,i[1]<i[3] ? 1 : -1,i[1]<i[4] ? 1 : -1,i[2]<i[3] ? 1 : -1,i[2]<i[4] ? 1 : -1,i[3]<i[4] ? 1 : -1)
+edgesigns(i::Values{5,Int}) = @inbounds Values(i[1]<i[2] ? 1 : -1,i[1]<i[3] ? 1 : -1,i[1]<i[4] ? 1 : -1,i[1]<i[5] ? 1 : -1,i[2]<i[3] ? 1 : -1,i[2]<i[4] ? 1 : -1,i[2]<i[5] ? 1 : -1,i[3]<i[4] ? 1 : -1,i[3]<i[5] ? 1 : -1,i[4]<i[5] ? 1 : -1)
+
+facets(i::Values{2,Int}) = @inbounds Values(Values(i[2]),Values(i[1]))
+facets(i::Values{3,Int}) = @inbounds Values(Values(i[2],i[3]),Values(i[3],i[1]),Values(i[1],i[2]))
+facets(i::Values{4,Int}) = @inbounds Values(Values(i[2],i[3],i[4]),Values(i[4],i[3],i[1]),Values(i[1],i[2],i[4]),Values(i[3],i[2],i[1]))
+facets(i::Values{5,Int}) = @inbounds Values(Values(i[2],i[3],i[4],i[5]),Values(i[5],i[3],i[2],i[1]),Values(i[1],i[2],i[4],i[5]),Values(i[5],i[4],i[3],i[1]),Values(i[1],i[2],i[3],i[4],i[5]))
+
+# LagrangeBundle
+
+export LagrangeBundle, LagrangeBundle!
+
+LagrangeBundle(pt) = LagrangeBundle(fullcoordinates(pt),immersion(pt))
+LagrangeBundle(p,t) = LagrangeBundle!(PointCloud(0,copy(points(p))),t)
+LagrangeBundle!(pt) = LagrangeBundle!(fullcoordinates(pt),immersion(pt))
+
+function LagrangeBundle!(p::PointCloud,t::LagrangeEdges{2})
+    ed = topology(t) # get element edges as nodes
+    resize!(p,nodes(t))
+    c = isinduced(p) ? fullpoints(p) : fullcoordinates(p)
+    i,j = columns(cornertopology(pt))
+    c[getindex.(ed,3)] = (c[i]+c[j])/2 # edge node coordinates
+    return p(t)
 end
+function LagrangeBundle!(p::PointCloud,t::LagrangeEdges{M}) where M
+    ed = topology(t) # get element edges as nodes
+    resize!(p,nodes(t))
+    c = isinduced(p) ? fullpoints(p) : fullcoordinates(p)
+    i,j = columns(cornertopology(pt))
+    ci,cj = c[i],c[j]
+    cij = (cj-ci)/M
+    c[getindex.(ed,3)] = cj+cij
+    for x ∈ list(4,M+1)
+        c[getindex.(ed,x)] = ci+(x-2)*cij
+    end
+    return p(t)
+end
+
+function LagrangeBundle!(p::PointCloud,t::LagrangeTriangles{2})
+    ed = topology(t) # get element edges as nodes
+    resize!(p,nodes(t))
+    c = isinduced(p) ? fullpoints(p) : fullcoordinates(p)
+    i,j,k = columns(cornertopology(t))
+    ci,cj,ck = c[i],c[j],c[k]
+    c[getindex.(ed,4)] = (cj+ck)/2 # edge node coordinates
+    c[getindex.(ed,5)] = (ci+ck)/2
+    c[getindex.(ed,6)] = (ci+cj)/2
+    return p(t)
+end
+function LagrangeBundle!(p::PointCloud,t::LagrangeTriangles{M}) where M
+    ed = topology(t) # get element edges as nodes
+    resize!(p,nodes(t))
+    c = isinduced(p) ? fullpoints(p) : fullcoordinates(p)
+    x,y = columns(edges(t))
+    cx = c[x]
+    Δe = (c[y]-cx)/M
+    i,j,k = columns(cornertopology(t))
+    ci,cj,ck = c[i],c[j],c[k]
+    cjk,cik,cij = (ck-cj)/M,(ck-ci)/M,(cj-ci)/M
+    edg = getedge.(Ref(t),OneTo(totaledges(t)))
+    for x ∈ list(1,M-1)
+        c[getindex.(edg,x)] = cx+x*Δe
+    end
+    start = 3M+1
+    #c[getindex.(ed,start)] = ci+cik+cij
+    for x ∈ list(1,M-2)
+        ls = lagrangesimplex(3,x-2)
+        Y = start+ls:start+ls+x-1
+        bw = reverse(OneTo(x))
+        for y ∈ OneTo(x)
+            c[getindex.(ed,Y[y])] = ci+bw[y]*cik+y*cij
+        end
+    end
+    return p(t)
+end
+
+function LagrangeBundle!(p::PointCloud,t::LagrangeTetrahedra{M}) where M
+    ed = topology(t) # get element edges as nodes
+    resize!(p,nodes(t))
+    c = isinduced(p) ? fullpoints(p) : fullcoordinates(p)
+    i,j,k,l = columns(cornertopology(t))
+    ci,cj,ck,cl = c[i],c[j],c[k],c[l]
+    cij,cik,cil,cjk,cjl,ckl = (cj-ci)/M,(ck-ci)/M,(cl-ci)/M,(ck-cj)/M,(cl-cj)/M,(cl-ck)/M
+    for x ∈ list(1,M-1)
+        c[getindex.(ed,1+4+6(x-1))] = ci+x*cij
+        c[getindex.(ed,2+4+6(x-1))] = ci+x*cik
+        c[getindex.(ed,3+4+6(x-1))] = ci+x*cil
+        c[getindex.(ed,4+4+6(x-1))] = cj+x*cjk
+        c[getindex.(ed,5+4+6(x-1))] = cj+x*cjl
+        c[getindex.(ed,6+4+6(x-1))] = ck+x*ckl
+    end
+    start = 4+6(M-1)+1
+    for x ∈ list(1,M-2)
+        ls = lagrangesimplex(3,x-2)
+        Y = start+4ls:4:start+4ls+4x
+        bw = reverse(OneTo(x))
+        for y ∈ OneTo(x)
+            c[getindex.(ed,Y[y])] = cj+bw[y]*cjk+y*cjl # jkl
+            c[getindex.(ed,Y[y]+1)] = ci+bw[y]*cik+y*cil # ikl
+            c[getindex.(ed,Y[y]+2)] = ci+bw[y]*cil+y*cij # ijl
+            c[getindex.(ed,Y[y]+3)] = ci+bw[y]*cik+y*cij # ijk
+        end
+    end
+    start += 4*facetsimplex(4,M)
+    rz = reverse(OneTo(M-3))
+    for z ∈ OneTo(M-3)
+        ls1 = lagrangesimplex(4,z-2)
+        for x ∈ OneTo(z)
+            ls = ls1+lagrangesimplex(4,x-2)
+            Y = start+ls:start+ls+x-1
+            bw = reverse(OneTo(x))
+            for y ∈ OneTo(x)
+                c[getindex.(ed,Y[y])] = ci+rz[z]*cij+bw[y]*cik+y*cil
+            end
+        end
+    end
+    return p(t)
+end
+
+#=printlagrange(N::Int,M::Int) = printlagrange(Val(N),Val(M))
+function printlagrange(::Val{2},::Val{M}) where M
+    println("c[getindex.(ed,1)] = ci")
+    println("c[getindex.(ed,2)] = cj")
+    for x ∈ list(3,M+1)
+        println("c[getindex.(ed,$x)] = ci+$(x-2)*cij")
+    end
+end
+function printlagrange(::Val{3},::Val{M}) where M
+    println("c[getindex.(ed,1)] = ci")
+    println("c[getindex.(ed,2)] = cj")
+    println("c[getindex.(ed,3)] = ck")
+    for x ∈ list(1,M-1)
+        println("c[getindex.(ed,$(3+x))] = cj+$x*cjk")
+        println("c[getindex.(ed,$(3+(M-1)+x))] = ci+$x*cik")
+        println("c[getindex.(ed,$(3+2(M-1)+x))] = ci+$x*cij")
+    end
+    start = 3M+1
+    for x ∈ list(1,M-2)
+        ls = lagrangesimplex(3,x-2)
+        Y = start+ls:start+ls+x-1
+        bw = reverse(OneTo(x))
+        for y ∈ OneTo(x)
+            println("c[getindex.(ed,$(Y[y]))] = ci+$(bw[y])*cik+$y*cij")
+        end
+    end
+end
+function printlagrange(::Val{4},::Val{M}) where M
+    println("c[getindex.(ed,1)] = ci")
+    println("c[getindex.(ed,2)] = cj")
+    println("c[getindex.(ed,3)] = ck")
+    println("c[getindex.(ed,4)] = cl")
+    for x ∈ list(1,M-1)
+        println("c[getindex.(ed,$(1+4+6(x-1)))] = ci+$x*cij")
+        println("c[getindex.(ed,$(2+4+6(x-1)))] = ci+$x*cik")
+        println("c[getindex.(ed,$(3+4+6(x-1)))] = ci+$x*cil")
+        println("c[getindex.(ed,$(4+4+6(x-1)))] = cj+$x*cjk")
+        println("c[getindex.(ed,$(5+4+6(x-1)))] = cj+$x*cjl")
+        println("c[getindex.(ed,$(6+4+6(x-1)))] = ck+$x*ckl")
+    end
+    start = 4+6(M-1)+1
+    for x ∈ list(1,M-2)
+        ls = lagrangesimplex(3,x-2)
+        Y = start+4ls:4:start+4ls+4x
+        bw = reverse(OneTo(x))
+        for y ∈ OneTo(x)
+            println("c[getindex.(ed,$(Y[y]))] = cj+$(bw[y])*cik+$y*cil") # jkl
+            println("c[getindex.(ed,$(Y[y]+1))] = ci+$(bw[y])*cik+$y*cil") # ikl
+            println("c[getindex.(ed,$(Y[y]+2))] = ci+$(bw[y])*cil+$y*cij") # ijl
+            println("c[getindex.(ed,$(Y[y]+3))] = ci+$(bw[y])*cik+$y*cij") # ijk
+        end
+    end
+    start += 4*facetsimplex(4,M)
+    rz = reverse(OneTo(M-3))
+    for z ∈ OneTo(M-3)
+        ls1 = lagrangesimplex(4,z-2)
+        for x ∈ OneTo(z)
+            ls = ls1+lagrangesimplex(4,x-2)
+            Y = start+ls:start+ls+x-1
+            bw = reverse(OneTo(x))
+            for y ∈ OneTo(x)
+                println("c[getindex.(ed,$(Y[y]))] = ci+$(rz[z])*cij+$(bw[y])*cik+$y*cil")
+            end
+        end
+    end
+end=#
+
+# refinement
+
+refinement(t::LagrangeTriangles{1}) = cornertopology(t)
+function refinement(t::LagrangeTriangles)
+    out = reduce(vcat,refinetriangle.(topology(t)))
+    SimplexTopology(0,out,vertices(t),nodes(t))
+end
+
+refinetriangle(t::Values{3}) = [t]
+function refinetriangle(t::Values{6})
+    [Values(t[1],t[6],t[5]),
+     Values(t[2],t[4],t[6]),
+     Values(t[3],t[5],t[4]),
+     Values(t[4],t[5],t[6])]
+end
+
+function refinetriangle(t::Values{10})
+    [Values(t[1],t[8],t[7]),
+     Values(t[2],t[4],t[9]),
+     Values(t[3],t[6],t[5]),
+     Values(t[8],t[9],t[10]),
+     Values(t[9],t[4],t[10]),
+     Values(t[4],t[5],t[10]),
+     Values(t[5],t[6],t[10]),
+     Values(t[6],t[7],t[10]),
+     Values(t[7],t[8],t[10])]
+end
+function refinetriangle(t::Values{15})
+    [Values(t[1],t[10],t[9]),
+     Values(t[2],t[4],t[12]),
+     Values(t[3],t[7],t[6]),
+     Values(t[11],t[12],t[15]),
+     Values(t[12],t[4],t[15]),
+     Values(t[4],t[5],t[15]),
+     Values(t[5],t[6],t[14]),
+     Values(t[6],t[7],t[14]),
+     Values(t[7],t[8],t[14]),
+     Values(t[8],t[9],t[13]),
+     Values(t[9],t[10],t[13]),
+     Values(t[10],t[11],t[13]),
+     Values(t[11],t[15],t[13]),
+     Values(t[5],t[14],t[15]),
+     Values(t[8],t[13],t[14]),
+     Values(t[13],t[15],t[14])]
+end
+
+# refine tetrahedron
+
+refinement(t::LagrangeTetrahedra{1}) = cornertopology(t)
+function refinement(t::LagrangeTetrahedra)
+    out = reduce(vcat,refinetetrahedron.(topology(t)))
+    SimplexTopology(0,out,vertices(t),nodes(t))
+end
+
+refinetetrahedron(t::Values{4}) = [t]
 

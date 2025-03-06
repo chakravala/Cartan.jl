@@ -336,16 +336,21 @@ Return `true` if `isfull(m) && istotal(m)`, and `false` otherwise.
 """
 iscover(m::SimplexTopology) = isfull(m) && istotal(m)
 
-function fullimmersion(m::SimplexTopology)
-    top = fulltopology(m)
-    ist = istotal(m)
-    ind = if ist
+function untotal(t::SimplexTopology,p)
+    SimplexTopology(bundle(t),topology(t),vertices(t),p,subelements(t),fullvertices(t),false,true)
+end
+
+function fullimmersion_vertices(m::ImmersedTopology)
+    if istotal(m)
         OneTo(totalnodes(m))
     else
         out = fullvertices(m)
         n = length(out)
         maximum(out) == n ? OneTo(n) : out
     end
+end
+function fullimmersion(m::SimplexTopology)
+    top,ind,ist = fulltopology(m),fullimmersion_vertices(m),istotal(m)
     SimplexTopology(bundle(m),top,ind,refnodes(m),OneTo(length(top)),ind,ist,true)
 end
 
@@ -382,8 +387,7 @@ function subimmersion(m::SimplexTopology{N,<:OneTo} where N)
 end
 function subimmersion(m::SimplexTopology{N,<:AbstractVector} where N)
     iscover(m) && (return m)
-    top,ind = topology(m),vertices(m)
-    p = length(ind)
+    top,p = topology(m),nodes(m)
     ver = OneTo(p)
     SimplexTopology(0,subtopology(m),ver,p,OneTo(length(top)),ver,true,true)
 end
@@ -463,11 +467,11 @@ function discontinuousvertices(m::DiscontinuousTopology{N}) where N
     I
 end
 
-for fun ∈ (:totalelements,:elements,:subelements,:istotal,:isfull,:iscover,:fullimmersion)
+for fun ∈ (:totalelements,:elements,:subelements,:istotal,:isfull,:iscover)
     @eval $fun(m::DiscontinuousTopology) = $fun(SimplexTopology(m))
 end
 bundle(m::DiscontinuousTopology) = m.id
-fulltopology(m::DiscontinuousTopology) = getindex.(Ref(m),OneTo(totalelements(m)))
+fulltopology(m::DiscontinuousTopology) = topology(fullimmersion(m))
 topology(m::DiscontinuousTopology) = collect(m)
 totalnodes(m::DiscontinuousTopology{N}) where N = N*totalelements(m)
 nodes(m::DiscontinuousTopology{N}) where N = N*elements(m)
@@ -489,6 +493,11 @@ Grassmann.mdims(m::DiscontinuousTopology{N}) where N = N
 getimage(m::DiscontinuousTopology{N,<:OneTo} where N,i) = i
 getimage(m::DiscontinuousTopology{N,<:AbstractVector} where N,i) = vertices(m)[i]
 getfacet(m::DiscontinuousTopology,i) = getfacet(SimplexTopology(m),i)
+
+function fullimmersion(m::DiscontinuousTopology)
+    ind = fullimmersion_vertices(m)
+    DiscontinuousTopology(bundle(m),fullimmersion(SimplexTopology(m)),ind,ind)
+end
 
 function Base.getindex(m::DiscontinuousTopology,i::AbstractVector{Int})
     DiscontinuousTopology(bundle(m),SimplexTopology(m)[i],fullvertices(m))
@@ -595,11 +604,445 @@ end
 
 refine(m::VectorTopology) = VectorTopology(bundle(m),refine(SimplexTopology(m)))=#
 
+# LagrangeTopology
+
+export LagrangeTopology, LagrangeTriangles, LagrangeTetrahedra, cornertopology
+export totalcornernodes, totaledgesnodes, totalcenternodes
+export cornernodes, edgesnodes, centernodes
+
+@pure simplexnumber(N,n) = Grassmann.binomial(n+N-1,N) # n-th N-Simplex number
+trinum(n) = simplexnumber(2,n) # triangular number
+tetnum(n) = simplexnumber(3,n) # tetrahedral number
+
+abstract type LagrangeTopology{M,N,P,F,T} <: ImmersedTopology{N,1} end
+
+for fun ∈ (:totalelements,:elements,:subelements,:istotal,:isfull,:iscover,:isdiscontinuous,:isdisconnected)
+    @eval $fun(m::LagrangeTopology) = $fun(cornertopology(m))
+end
+bundle(m::LagrangeTopology) = m.id
+fulltopology(m::LagrangeTopology) = topology(fullimmersion(m))
+topology(m::LagrangeTopology) = collect(m)
+totaledges(m::LagrangeTopology) = totalnodes(edgesindices(m))
+totalfacets(m::LagrangeTopology) = totalnodes(facetsindices(m))
+totalcornernodes(m::LagrangeTopology) = totalnodes(cornertopology(m))
+totaledgesnodes(m::LagrangeTopology{M}) where M = (M-1)*totaledges(m)
+totalfacetsnodes(m::LagrangeTopology) = facetsimplex(m)*totalfacets(m)
+totalcenternodes(m::LagrangeTopology) = centersimplex(m)*totalelements(m)
+cornernodes(m::LagrangeTopology) = nodes(cornertopology(m))
+edgesnodes(m::LagrangeTopology{M}) where M= (M-1)*nodes(edgesindices(m))
+facetsnodes(m::LagrangeTopology) = facetsimplex(m)*nodes(facetsindices(m))
+centernodes(m::LagrangeTopology) = centersimplex(m)*elements(m)
+@pure lagrangesimplex(m::LagrangeTopology{M}) where M = lagrangesimplex(mdims(m),M)
+@pure centersimplex(m::LagrangeTopology{M}) where M = centersimplex(mdims(m),M)
+@pure facetsimplex(m::LagrangeTopology{M}) where M = facetsimplex(mdims(m),M)
+@pure edgesimplex(m::LagrangeTopology{M}) where M = M-1
+@pure lagrangesimplex(N,M) = simplexnumber(N-1,M+1)
+@pure centersimplex(N,M) = simplexnumber(N-1,M-N+1)
+@pure facetsimplex(N,M) = centersimplex(N-1,M)
+@pure edgesimplex(N,M) = M-1
+fullvertices(m::LagrangeTopology) = m.I
+vertices(m::LagrangeTopology) = m.i
+#verticesinv(m::LagrangeTopology) = m.v
+
+Base.size(m::LagrangeTopology) = size(subelements(m))
+Base.length(m::LagrangeTopology) = elements(m)
+Base.axes(m::LagrangeTopology) = axes(subelements(m))
+Grassmann.mdims(m::LagrangeTopology) = mdims(cornertopology(m))
+
+getimage(m::LagrangeTopology{M,N,<:AbstractVector} where {M,N},i) = iscover(m) ? i : vertices(m)[i]
+getimage(m::LagrangeTopology{M,N,<:OneTo} where {M,N},i) = i
+getfacet(m::LagrangeTopology,i) = getfacet(cornertopology(m),i)
+
+subtopology(m::LagrangeTopology{M,N,<:OneTo} where {M,N}) = topology(m)
+function subtopology(m::LagrangeTopology{M,N,<:AbstractVector} where {M,N})
+    iscover(m) ? topology(m) : getelement.(Ref(m),OneTo(elements(m)))
+end
+
+# LagrangeEdges, LagrangeTriangles, LagrangeTetrahedra
+
+struct LagrangeEdges{M,N,P<:AbstractVector{Int},F<:AbstractVector{Int},T} <: LagrangeTopology{M,N,P,F,T}
+    id::Int # bundle
+    t::SimplexTopology{2,P,F,T}
+    i::P # vertices
+    I::P # fullvertices
+    function LagrangeEdges{M}(id::Int,t::SimplexTopology{2,P,F,T},i::P,I::P=i) where {M,P<:AbstractVector{Int},F<:AbstractVector{Int},T}
+        new{M,lagrangesimplex(2,M),P,F,T}(id,t,i,I)
+    end
+    function LagrangeEdges{M}(id::Int,t::SimplexTopology{2,P,F,T},i::P,I::OneTo) where {M,P<:Vector{Int},F<:AbstractVector{Int},T}
+        new{M,lagrangesimplex(2,M),P,F,T}(id,t,i,collect(I))
+    end
+end
+
+struct LagrangeTriangles{M,N,P<:AbstractVector{Int},F<:AbstractVector{Int},T} <: LagrangeTopology{M,N,P,F,T}
+    id::Int # bundle
+    t::SimplexTopology{3,P,F,T}
+    e::SimplexTopology{2,P,F,T}
+    ei::SimplexTopology{3,P,F,T}
+    i::P # vertices
+    I::P # fullvertices
+    function LagrangeTriangles{M}(id::Int,t::SimplexTopology{3,P,F,T},e::SimplexTopology{2,P,F,T},ei::SimplexTopology{3,P,F,T},i::P,I::P=i) where {M,P<:AbstractVector{Int},F<:AbstractVector{Int},T}
+        new{M,lagrangesimplex(3,M),P,F,T}(id,t,e,ei,i,I)
+    end
+    function LagrangeTriangles{M}(id::Int,t::SimplexTopology{3,P,F,T},e::SimplexTopology{2,P,F,T},ei::SimplexTopology{3,P,F,T},i::P,I::OneTo) where {M,P<:Vector{Int},F<:AbstractVector{Int},T}
+        new{M,lagrangesimplex(3,M),P,F,T}(id,t,e,ei,i,collect(I))
+    end
+end
+
+struct LagrangeTetrahedra{M,N,P<:AbstractVector{Int},F<:AbstractVector{Int},T} <: LagrangeTopology{M,N,P,F,T}
+    id::Int # bundle
+    t::SimplexTopology{4,P,F,T}
+    f::SimplexTopology{3,P,F,T}
+    e::SimplexTopology{2,P,F,T}
+    fi::SimplexTopology{4,P,F,T}
+    ei::SimplexTopology{6,P,F,T}
+    i::P # vertices
+    I::P # fullvertices
+    function LagrangeTetrahedra{M}(id::Int,t::SimplexTopology{4,P,F,T},f::SimplexTopology{3,P,F,T},e::SimplexTopology{2,P,F,T},fi::SimplexTopology{4,P,F,T},ei::SimplexTopology{6,P,F,T},i::P,I::P=i) where {M,P<:AbstractVector{Int},F<:AbstractVector{Int},T}
+        new{M,lagrangesimplex(4,M),P,F,T}(id,t,f,e,fi,ei,i,I)
+    end
+    function LagrangeTetrahedra{M}(id::Int,t::SimplexTopology{4,P,F,T},f::SimplexTopology{3,P,F,T},e::SimplexTopology{2,P,F,T},fi::SimplexTopology{4,P,F,T},ei::SimplexTopology{6,P,F,T},i::P,I::OneTo) where {M,P<:Vector{Int},F<:AbstractVector{Int},T}
+        new{M,lagrangesimplex(4,M),P,F,T}(id,t,f,e,fi,ei,i,collect(I))
+    end
+end
+
+LagrangeEdges{M}(t::SimplexTopology{2}) where M = LagrangeEdges{M}((global top_id += 1),t)
+function LagrangeEdges{M}(id::Int,t::SimplexTopology{2}) where M
+    np,ne = totalnodes(t),totalelements(t)
+    I = OneTo(np+(M-1)*ne)
+    i = iscover(t) ? I : lagrangevertices2(t,np,Val(M))
+    LagrangeEdges{M}(id,t,i,iscover(t) ? I : collect(I))
+end
+
+function LagrangeTriangles{M}(t::SimplexTopology{3},e=edges(t),ei=edgesindices(t,e)) where M
+    LagrangeTriangles{M}((global top_id += 1),t,e,ei)
+end
+function LagrangeTriangles{M}(id::Int,t::SimplexTopology{3},e=edges(t),ei=edgesindices(t,e)) where M
+    np,ne,nc = totalnodes(t),totalnodes(ei),totalelements(t)*simplexnumber(2,M-2)
+    I = OneTo(np+(M-1)*ne+nc)
+    i = iscover(t) ? I : lagrangevertices3(t,ei,np,ne,Val(M))
+    LagrangeTriangles{M}(id,t,e,edgesindices(t,e),i,iscover(t) ? I : collect(I))
+end
+
+function LagrangeTetrahedra{M}(t::SimplexTopology{4}) where M
+    LagrangeTetrahedra{M}((global top_id += 1),t)
+end
+function LagrangeTetrahedra{M}(id::Int,t::SimplexTopology{4}) where M
+    e = edges(t)
+    f,fi = _facetsindices(t)
+    LagrangeTetrahedra{M}(id,t,f,e,fi,edgesindices(t,e))
+end
+function LagrangeTetrahedra{M}(t::SimplexTopology{4},f,e,fi,ei) where M
+    LagrangeTetrahedra{M}((global top_id += 1),t,f,e,fi,ei)
+end
+function LagrangeTetrahedra{M}(id::Int,t::SimplexTopology{4},f,e,fi,ei) where M
+    np,ne,nc = totalnodes(t),totalnodes(ei),totalelements(t)*simplexnumber(2,M-2)
+    I = OneTo(np+(M-1)*ne+nc)
+    i = iscover(t) ? I : lagrangevertices4(t,ei,np,ne,Val(M))
+    LagrangeTetrahedra{M}(id,t,f,e,fi,ei,i,iscover(t) ? I : collect(I))
+end
+
+cornertopology(m::LagrangeTopology) = m.t
+edges(m::LagrangeEdges) = m.t
+edges(m::LagrangeTriangles) = m.e
+edges(m::LagrangeTetrahedra) = m.e
+edgesindices(m::LagrangeEdges) = Values.(subelements(edges(m))) # refine later
+edgesindices(m::LagrangeTriangles) = m.ei
+edgesindices(m::LagrangeTetrahedra) = m.ei
+facets(m::LagrangeEdges) = Values.(vertices(edges(m))) # refine later
+facets(m::LagrangeTriangles) = m.e
+facets(m::LagrangeTetrahedra) = m.f
+facetsindices(m::LagrangeEdges) = facets(m)
+facetsindices(m::LagrangeTriangles) = m.ei
+facetsindices(m::LagrangeTetrahedra) = m.fi
+
+totalnodes(m::LagrangeEdges) = totalcornernodes(m)+totaledgesnodes(m)
+totalnodes(m::LagrangeTriangles) = totalcornernodes(m)+totaledgesnodes(m)+totalcenternodes(m)
+totalnodes(m::LagrangeTetrahedra) = totalcornernodes(m)+totaledgesnodes(m)+totalfacetsnodes(m)+totalcenternodes(m)
+nodes(m::LagrangeEdges) = cornernodes(m)+edgesnodes(m)
+nodes(m::LagrangeTriangles) = cornernodes(m)+edgesnodes(m)+centernodes(m)
+nodes(m::LagrangeTetrahedra) = cornernodes(m)+edgesnodes(m)+facetsnodes(m)+centernodes(m)
+
+lagrangevertices2(t,M::Val) = lagrangevertices2(t,totalnodes(t),M)
+lagrangevertices2(t,np::Int,M::Val{1}) = vertices(t)
+function lagrangevertices2(t,np::Int,M::Val)
+    vcat(vertices(t),centerindex(subelements(t),np,M))
+end
+
+lagrangevertices3(t,ei,M::Val) = lagrangevertices3(t,ei,totalnodes(t),totalnodes(ei),M)
+lagrangevertices3(t,ei,np::Int,ne::Int,M::Val{1}) = vertices(t)
+function lagrangevertices3(t,ei,np::Int,ne::Int,M::Val)
+    vcat(vertices(t),edgesindex(vertices(ei),np,M),centerindex(subelements(t),np,ne,M))
+end
+
+lagrangevertices4(t,ei,fi,M::Val) = lagrangevertices4(t,ei,fi,totalnodes(t),totalnodes(ei),totalnodes(fi),M)
+lagrangevertices4(t,ei,fi,np::Int,ne::Int,nf::Int,M::Val{1}) = vertices(t)
+function lagrangevertices4(t,ei,fi,np::Int,ne::Int,nf::Int,M::Val)
+    vcat(vertices(t),edgesindex(vertices(ei),np,M),
+        facetsindex(vertices(fi),np,ne,M),centerindex(subelements(t),np,ne,nf,M))
+end
+
+@generated function edgesindex(ei,np,::Val{M}) where M
+    isone(M) && (return typeof(ei)<:Values ? Values{0,Int}() : Vector{Int}())
+    M == 2 && (return :(ei.+np))
+    es = M-1
+    Expr(:block,:(Mei = $es*ei),Expr(:call,:vcat,
+        [:(Mei.+(np-$(es-i))) for i ∈ list(1,es-1)]...,:(Mei.+np)))
+end
+@generated function edgesindex(ei::Values{N},σ::Values{N},np,::Val{M}) where {M,N}
+    isone(M) && (return Values{0,Int}())
+    M == 2 && (return :(ei.+np))
+    es = M-1
+    Expr(:block,:(Mei = $es*(ei.-1).+np),:((f,r) = ($(list(1,es)),$(reverse(list(1,es))))),Expr(:call,:vcat,
+            [:(@inbounds Mei[$i] .+ (isone(σ[$i]) ? f : r)) for i ∈ list(1,N)]...))
+end
+@generated function facetsindex(fi,np,ne,::Val{M}) where M
+    (isone(M) || M==2) && (return typeof(fi)<:Values ? Values{0,Int}() : Vector{Int}())
+    M == 3 && (return :(fi.+(np+$(M-1)*ne)))
+    es,fs = M-1,facetsimplex(4,M)
+    Expr(:block,:(Mfi = $fs*fi),:(n = np+$es*ne),
+        Expr(:call,:vcat,[:(Mfi.+(n-$(fs-i))) for i ∈ list(1,fs-1)]...,:(Mfi.+n)))
+end
+@generated function centerindex(i::AbstractVector,np,::Val{M}) where M
+    isone(M) && (return Vector{Int}())
+    cs = M-1 # centersimplex(2,M)
+    M == 2 && (return :(i.+np))
+    Expr(:block,:(csi = $cs*(i.-1)),
+        Expr(:call,:vcat,[:(($i+np).+csi) for i ∈ list(1,cs)]...))
+end
+@generated function centerindex(i::AbstractVector,np,ne,::Val{M}) where M
+    (isone(M) || M==2) && (return Vector{Int}())
+    es,cs = M-1,centersimplex(3,M)
+    M == 3 && (return :(i.+(np+$es*ne)))
+    Expr(:block,:(csi = $cs*(i.-1)),:(n = np+$es*ne),
+        Expr(:call,:vcat,[:(($i+n).+csi) for i ∈ list(1,cs)]...))
+end
+@generated function centerindex(i::AbstractVector,np,ne,nf,::Val{M}) where M
+    (isone(M) || M==2 || M==3) && (return Vector{Int}())
+    es,cs,fs = M-1,centersimplex(4,M),facetsimplex(4,M)
+    M == 4 && (return :(i.+(np+$es*ne+$fs*nf)))
+    Expr(:block,:(csi = $cs*(i.-1)),:(n = np+$es*ne+$fs*nf),
+        Expr(:call,:vcat,[:(($i+n).+csi) for i ∈ list(1,cs)]...))
+end
+@generated function centerindex(i::Int,np,::Val{M}) where M # N = 2
+    isone(M) && (return Values{0,Int}())
+    cs = M-1 # centersimplex(2,M)
+    M == 2 && (return :(Values(np+i)))
+    return :($(list(1,cs)).+(np+$cs*(i-1)))
+end
+@generated function centerindex(i::Int,np,ne,::Val{M}) where M # N = 3
+    (isone(M) || M==2) && (return Values{0,Int}())
+    es,cs = M-1,centersimplex(3,M)
+    M == 3 && (return :(Values((np+$es*ne)+i)))
+    return :($(list(1,cs)).+((np+$es*ne)+$cs*(i-1)))
+end
+@generated function centerindex(i::Int,np,ne,nf,::Val{M}) where M # N = 4
+    (isone(M) || M==2 || M==3) && (return Values{0,Int}())
+    es,cs,fs = M-1,centersimplex(4,M),facetsimplex(4,M)
+    M == 4 && (return :(Values((np+$es*ne+$fs*nf)+i)))
+    return :($(list(1,cs)).+((np+$es*ne+$fs*nf)+$cs*(i-1)))
+end
+function getedge(m::LagrangeTopology{M},i::Int) where M
+    edgesindex(Values(getfacet(edges(m),i)),totalnodes(cornertopology(m)),Val(M))
+end
+getlagrange1(m::LagrangeTopology,i::Int) = cornertopology(m)[i]
+function getlagrange2(m::LagrangeTopology{M},i::Int) where M
+    t,e = cornertopology(m),edgesindices(m)
+    np,ind = totalnodes(t),getfacet(t,i)
+    ti,ei = fulltopology(t)[ind],fulltopology(e)[ind]
+    vcat(ti,edgesindex(ei,np,Val(M)))
+end
+function getlagrange3(m::LagrangeTopology{M},i::Int) where M
+    t,e = cornertopology(m),edgesindices(m)
+    np,ne,ind = totalnodes(t),totalnodes(e),getfacet(t,i)
+    ti,ei = fulltopology(t)[ind],fulltopology(e)[ind]
+    vcat(ti,edgesindex(ei,edgesigns(ti),np,Val(M)),centerindex(i,np,ne,Val(M)))
+end
+function getlagrange4(m::LagrangeTetrahedra{M},i::Int) where M
+    t,e,f = cornertopology(m),edgesindices(m),facetsindices(m)
+    np,ne,nf,ind,N = totalnodes(t),totalnodes(e),totalnodes(f),getfacet(t,i),Val(M)
+    ti,ei,fi = fulltopology(t)[ind],fulltopology(e)[ind],fulltopology(f)[ind]
+    vcat(ti,edgesindex(ei,np,N),facetsindex(fi,np,ne,N),centerindex(i,np,ne,nf,N))
+end
+Base.getindex(m::LagrangeEdges{1},i::Int) = getlagrange1(m,i)
+Base.getindex(m::LagrangeEdges{M},i::Int) where M = getlagrange2(m,i)
+Base.getindex(m::LagrangeTriangles{1},i::Int) = getlagrange1(m,i)
+Base.getindex(m::LagrangeTriangles{2},i::Int) = getlagrange2(m,i)
+Base.getindex(m::LagrangeTriangles{M},i::Int) where M = getlagrange3(m,i)
+Base.getindex(m::LagrangeTetrahedra{1},i::Int) = getlagrange1(m,i)
+Base.getindex(m::LagrangeTetrahedra{2},i::Int) = getlagrange2(m,i)
+Base.getindex(m::LagrangeTetrahedra{3},i::Int) = getlagrange4(m,i)
+Base.getindex(m::LagrangeTetrahedra{M},i::Int) where M = getlagrange4(m,i)
+
+function fullimmersion(m::LagrangeEdges{M}) where M
+    ind = fullimmersion_vertices(m)
+    LagrangeEdges{M}(bundle(m),fullimmersion(cornertopology(m)),ind,ind)
+end
+function fullimmersion(m::LagrangeTriangles{M}) where M
+    ind = fullimmersion_vertices(m)
+    LagrangeTriangles{M}(bundle(m),fullimmersion(cornertopology(m)),fullimmersion(edges(m)),fullimmersion(edgesindices(m)),ind,ind)
+end
+function fullimmersion(m::LagrangeTetrahedra{M}) where M
+    ind = fullimmersion_vertices(m)
+    LagrangeTetrahedra{M}(bundle(m),fullimmersion(cornertopology(m)),fullimmersion(facets(m)),fullimmersion(edges(m)),fullimmersion(facetsindices(m)),fullimmersion(edgesindices(m)),ind,ind)
+end
+
+function Base.getindex(m::LagrangeEdges{M},i::AbstractVector{Int}) where M
+    t = cornertopology(m)[i]
+    I = fullvertices(m)
+    i = iscover(t) ? I : lagrangevertices2(t,Val(M))
+    LagrangeEdges{M}(bundle(m),t,i,I)
+end
+function Base.getindex(m::LagrangeTriangles{M},i::AbstractVector{Int}) where M
+    t = cornertopology(m)[i]
+    ei = edgesindices(m)[i]
+    e = edges(m)[vertices(ei)]
+    I = fullvertices(m)
+    i = iscover(t) ? I : lagrangevertices3(t,ei,Val(M))
+    LagrangeTriangles{M}(bundle(m),t,e,ei,i,I)
+end
+function Base.getindex(m::LagrangeTetrahedra{M},i::AbstractVector{Int}) where M
+    t = cornertopology(m)[i]
+    fi = refine(facetsindices(m)[i])
+    ei = edgesindices(m)[i]
+    f = refine(facets(m)[vertices(fi)])
+    e = edges(m)[vertices(ei)]
+    I = fullvertices(m)
+    i = iscover(t) ? I : lagrangevertices4(t,ei,fi,Val(M))
+    LagrangeTetrahedra{M}(bundle(m),t,f,e,fi,ei,i,I)
+end
+
+(m::LagrangeTopology)(i::AbstractVector{Int}) = subtopology(m,i)
+#=function subtopology(m::LagrangeTopology{N},i::AbstractVector{Int}) where N
+    t = cornertopology(m)(i)
+    ei = edgesindices(m)[subelements(t)]
+    e = edges(m)[vertices(ei)]
+    LagrangeTopology(bundle(m),subtopology(SimplexTopology(m),i),fullvertices(m))
+end=#
+
+function _getelement(t::ImmersedTopology,ind::Values)
+    if iscover(t)
+        fulltopology(t)[ind]
+    else
+        getindex.(Ref(verticesinv(t)),fulltopology(t)[ind])
+    end
+end
+
+getelement1(m::LagrangeTopology{M,N,<:OneTo},i::Int) where {M,N} = m[i]
+getelement1(m::LagrangeTopology{M,N,<:AbstractVector},i::Int) where {M,N} = getelement(cornertopology(m),i)
+getelement2(m::LagrangeTopology{M,N,<:OneTo},i::Int) where {M,N} = m[i]
+function getelement2(m::LagrangeTopology{M,N,<:AbstractVector},i::Int) where {M,N}
+    t,e = cornertopology(m),edgesindices(m)
+    np,ind = nodes(t),getfacet(t,i)
+    ti,ei = _getelemeent(t,ind),fulltopology(e)[ind]
+    vcat(ti,edgesindex(ei,np,Val(M)))
+end
+getelement3(m::LagrangeTopology{M,N,<:OneTo},i::Int) where {M,N} = m[i]
+function getelement3(m::LagrangeTopology{M,N,<:AbstractVector},i::Int) where {M,N}
+    t,e = cornertopology(m),edgesindices(m)
+    np,ne,ind = nodes(t),nodes(e),getfacet(t,i)
+    ti,ei = _getelemeent(t,ind),fulltopology(e)[ind]
+    vcat(ti,edgesindex(ei,np,Val(M)),centerindex(i,np,ne,Val(M)))
+end
+getelement4(m::LagrangeTopology{M,N,<:OneTo},i::Int) where {M,N} = m[i]
+function getelement4(m::LagrangeTetrahedra{M,N,<:AbstractVector} where N,i::Int) where M
+    t,e,f = cornertopology(m),edgesindices(m),facetsindices(m)
+    np,ne,nf,ind,N = nodes(t),nodes(e),nodes(f),getfacet(t,i),Val(M)
+    ti,ei,fi = _getelement(t,ind),fulltopology(e)[ind],fulltopology(f)[ind]
+    vcat(ti,edgesindex(ei,np,N),facetsindex(fi,np,ne,N),centerindex(i,np,ne,nf,N))
+end
+getelement(m::LagrangeEdges{1},i::Int) = getelement1(m,i)
+getelement(m::LagrangeEdges{M},i::Int) where M = getelement2(m,i)
+getelement(m::LagrangeTriangles{1},i::Int) = getelement1(m,i)
+getelement(m::LagrangeTriangles{2},i::Int) = getelement2(m,i)
+getelement(m::LagrangeTriangles{M},i::Int) where M = getelment3(m,i)
+getelement(m::LagrangeTetrahedra{1},i::Int) = getelement1(m,i)
+getelement(m::LagrangeTetrahedra{2},i::Int) = getelement2(m,i)
+getelement(m::LagrangeTetrahedra{3},i::Int) = getelement3(m,i)
+getelement(m::LagrangeTetrahedra{M},i::Int) where M = getelement4(m,i)
+
+function subimmersion(m::LagrangeEdges{M,N,<:OneTo} where {M,N})
+    iscover(m) && (return m)
+    ind = vertices(m)
+    LagrangeEdges{M}(0,subimmersion(cornertopology(m)),ind,ind)
+end
+function subimmersion(m::LagrangeEdges{M,N,<:AbstractVector} where {M,N})
+    iscover(m) && (return m)
+    ver = OneTo(nodes(m))
+    LagrangeEdges{M}(0,subimmersion(cornertopology(m)),ver,ver)
+end
+
+function subimmersion(m::LagrangeTriangles{M,N,<:OneTo} where {M,N})
+    iscover(m) && (return m)
+    ind = vertices(m)
+    LagrangeTriangles{M}(0,subimmersion(cornertopology(m)),subimmersion(edges(m)),subimmersion(edgesindices(m)),ind,ind)
+end
+function subimmersion(m::LagrangeTriangles{M,N,<:AbstractVector} where {M,N})
+    iscover(m) && (return m)
+    ver = OneTo(nodes(m))
+    LagrangeTriangles{M}(0,subimmersion(cornertopology(m)),subimmersion(edges(m)),subimmersion(edgesindices(m)),ver,ver)
+end
+
+function subimmersion(m::LagrangeTetrahedra{M,N,<:OneTo} where {M,N})
+    iscover(m) && (return m)
+    ind = vertices(m)
+    LagrangeTriangles{M}(0,subimmersion(cornertopology(m)),subimmersion(facets(m)),subimmersion(edges(m)),subimmersion(facetsindices(m)),subimmersion(edgesindices(m)),ind,ind)
+end
+function subimmersion(m::LagrangeTetrahedra{M,N,<:AbstractVector} where {M,N})
+    iscover(m) && (return m)
+    ver = OneTo(nodes(m))
+    LagrangeTetrahedra{M}(0,subimmersion(cornertopology(m)),subimmersion(facets(m)),subimmersion(edges(m)),subimmersion(facetsindices(m)),subimmersion(edgesindices(m)),ver,ver)
+end
+
+refine(m::LagrangeEdges{M,N,<:AbstractVector,<:AbstractVector}) where {M,N} = m
+function refine(m::LagrangeEdges{M,N,<:OneTo,<:AbstractVector}) where {M,N}
+    i = collect(vertices(m))
+    fi = vertices(m)≠fullvertices(m) ? collect(fullvertices(m)) : i
+    LagrangeEdges{M}(bundle(m),refine(cornertopology(m)),i,fi)
+end
+function refine(m::LagrangeEdges{M,N,<:AbstractVector,<:OneTo}) where {M,N}
+    LagrangeEdges{M}(bundle(m),refine(cornertopology(m)),vertices(m),fullvertices(m))
+end
+function refine(m::LagrangeEdges{M,N,<:OneTo,<:OneTo}) where {M,N}
+    i = collect(vertices(m))
+    fi = vertices(m)≠fullvertices(m) ? collect(fullvertices(m)) : i
+    LagrangeEdges{M}(bundle(m),refine(cornertopology(m)),i,fi)
+end
+
+refine(m::LagrangeTriangles{M,N,<:AbstractVector,<:AbstractVector}) where {M,N} = m
+function refine(m::LagrangeTriangles{M,N,<:OneTo,<:AbstractVector}) where {M,N}
+    i = collect(vertices(m))
+    fi = vertices(m)≠fullvertices(m) ? collect(fullvertices(m)) : i
+    LagrangeTriangles{M}(bundle(m),refine(cornertopology(m)),refine(edges(m)),refine(edgesindices(m)),i,fi)
+end
+function refine(m::LagrangeTriangles{M,N,<:AbstractVector,<:OneTo}) where {M,N}
+    LagrangeTriangles{M}(bundle(m),refine(cornertopology(m)),refine(edges(m)),refine(edgesindices(m)),vertices(m),fullvertices(m))
+end
+function refine(m::LagrangeTriangles{M,N,<:OneTo,<:OneTo}) where {M,N}
+    i = collect(vertices(m))
+    fi = vertices(m)≠fullvertices(m) ? collect(fullvertices(m)) : i
+    LagrangeTriangles{M}(bundle(m),refine(cornertopology(m)),refine(edges(m)),refine(edgesindices(m)),i,fi)
+end
+
+refine(m::LagrangeTetrahedra{M,N,<:AbstractVector,<:AbstractVector}) where {M,N} = m
+function refine(m::LagrangeTetrahedra{M,N,<:OneTo,<:AbstractVector}) where {M,N}
+    i = collect(vertices(m))
+    fi = vertices(m)≠fullvertices(m) ? collect(fullvertices(m)) : i
+    LagrangeTetrahedra{M}(bundle(m),refine(cornertopology(m)),refine(facets(m)),refine(edges(m)),refine(facetsindices(m)),refine(edgesindices(m)),i,fi)
+end
+function refine(m::LagrangeTetrahedra{M,N,<:AbstractVector,<:OneTo}) where {M,N}
+    LagrangeTetrahedra{M}(bundle(m),refine(cornertopology(m)),refine(facets(m)),refine(edges(m)),refine(facetsindices(m)),refine(edgesindices(m)),vertices(m),fullvertices(m))
+end
+function refine(m::LagrangeTetrahedra{M,N,<:OneTo,<:OneTo}) where {M,N}
+    i = collect(vertices(m))
+    fi = vertices(m)≠fullvertices(m) ? collect(fullvertices(m)) : i
+    LagrangeTetrahedra{M}(bundle(m),refine(cornertopology(m)),refine(facets(m)),refine(edges(m)),refine(facetsindices(m)),refine(edgesindices(m)),i,fi)
+end
+
 # Common
 
 _axes(t::ImmersedTopology{N}) where N = (Base.OneTo(length(t)),Base.OneTo(N))
 
-for top ∈ (:SimplexTopology,:DiscontinuousTopology)#,:VectorTopology)
+for top ∈ (:SimplexTopology,:DiscontinuousTopology,:LagrangeTopology)#,:VectorTopology)
     @eval begin
         # anything array-like gets summarized e.g. 10-element Array{Int64,1}
         Base.summary(io::IO, a::$top) = Base.array_summary(io, a, _axes(a))

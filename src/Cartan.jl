@@ -959,7 +959,7 @@ function __init__()
         function TetGen.JLTetGenIO(mesh::SimplexBundle;
                 marker = :markers, holes = TetGen.Point{3, Float64}[])
             f = TetGen.TriangleFace{Cint}.(immersion(mesh))
-            kw_args = Any[:facets => GeometryBasics.metafree(f),:holes => holes]
+            kw_args = Any[:facets => f,:holes => holes]
             if hasproperty(f, marker)
                 push!(kw_args, :facetmarkers => getproperty(f, marker))
             end
