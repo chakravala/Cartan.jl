@@ -14,6 +14,16 @@
 
 # QuotientTopology
 
+"""
+    QuotientTopology{N} <: ImmersedTopology{N,N}
+
+Generalizing upon the `ProductTopology`, the `QuotientTopology` defines a quotient identification across the boundary fluxes of the region, from which the differential topology induced compact local substructure is derived.
+```Julia
+isopen(t) # true if open topology
+iscompact(t) # true if compact topology
+```
+Common instances include `OpenTopology`, `CompactTopology`, `RibbonTopology`, `MobiusTopology`, `WingTopology`, `MirrorTopology`, `ClampedTopology`, `TorusTopology`, `HopfTopology`, `KleinTopology`, `ConeTopology`, `PolarTopology`, `SphereTopology`, `GeographicTopology`.
+"""
 struct QuotientTopology{N,L,M,O,LA<:ImmersedTopology{L,L}} <: ImmersedTopology{N,N}
     p::Values{O,Int}
     q::Values{O,LA}

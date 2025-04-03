@@ -22,6 +22,19 @@ export pointtype, metrictype, coordinates, coordinatetype
 
 export Global
 
+"""
+    Global{N,T} <: AbstractArray{T,N}
+
+Represents an `AbstractArray` where every local value is globally the same.
+```julia
+julia> Global{1}(InducedMetric())
+Global{1}(InducedMetric())
+
+julia> ans[1]
+InducedMetric()
+```
+For example, `Global{N,InducedMetric}` is commonly used for a globally induced metric.
+"""
 struct Global{N,T} <: AbstractArray{T,N}
     v::T
     #n::NTuple{N,Int}
@@ -56,6 +69,18 @@ refmetric(x) = ref(metricextensor(x))
 
 # LocalFiber
 
+"""
+    LocalFiber{B,F} <: Number
+
+Defines abstract bundled type with `basetype` of `B` and `fibertype` of `F` in a manifold.
+```Julia
+base(s) # ::B
+fiber(s) # ::F
+basetype(s) # B
+fibertype(s) # F
+```
+A `LocalFiber{B,F}` consists of two components: `B`, which represents the `base` manifold, and `F`, which represents the `fiber` bundle over `B`.
+"""
 abstract type LocalFiber{B,F} <: Number end
 Base.@pure isfiber(::LocalFiber) = true
 Base.@pure isfiber(::Any) = false
@@ -102,6 +127,18 @@ end
 
 export Coordinate, point
 
+"""
+    Coordinate{P,G} <: LocalFiber{P,G} <: Number
+
+Defines a `Coordinate` bundled type with `pointtype` of `P` and `metrictype` of `G`.
+```Julia
+point(s) # ::P
+metricextensor(s) # ::G
+pointtype(s) # P
+metrictype(s) # G
+```
+A `Coordinate{P,G}` consists of two components: `P`, which represents the `point` manifold, and `G`, which represents the `metricextensor` bundle over `P`.
+"""
 struct Coordinate{P,G} <: LocalFiber{P,G}
     v::Pair{P,G}
     Coordinate(v::Pair{P,G}) where {P,G} = new{P,G}(v)
@@ -140,6 +177,18 @@ const ComplexSpace{N,P<:Chain{V,1,<:Complex} where V,G} = AbstractArray{<:Coordi
 
 # LocalTensor
 
+"""
+    LocalTensor{B,F} <: LocalFiber{B,F} <: Number
+
+Defines a local bundled type with `basetype` of `B` and `fibertype` of `F`.
+```Julia
+base(s) # ::B
+fiber(s) # ::F
+basetype(s) # B
+fibertype(s) # F
+```
+A `LocalTensor{B,F}` consists of two components: `B`, which represents the `base` manifold, and `F`, which represents the `fiber` bundle over `B`.
+"""
 struct LocalTensor{B,F} <: LocalFiber{B,F}
     v::Pair{B,F}
     LocalTensor(v::Pair{B,F}) where {B,F} = new{B,F}(v)
@@ -225,26 +274,112 @@ end
 
 # FiberBundle
 
+"""
+    FiberBundle{T,N} <: Number
+
+Defines a global `FiberBundle` type with `basetype` and `fibertype` over `N` dimensions.
+"""
 abstract type FiberBundle{T,N} <: AbstractArray{T,N} end
+
+
+"""
+    CoordinateBundle{P,G,N} <: FiberBundle{Coordinate{P,G},N} <: Number
+
+Defines a `FiberBundle` type with `pointtype` of `P` and `metrictype` of `G`.
+```Julia
+coordinates(s) # ::AbstractArray{Coordinate{P,G},N}
+points(s) # ::AbstractArray{P,N}
+metricextensor(s) # ::AbstractArray{G,N}
+coordinatetype(s) # Coordinate{P,G}
+pointtype(s) # P
+metrictype(s) # G
+```
+Various methods work on any `CoordinateBundle`, such as `base`, `fiber`, `coordinates`, `points`, `metricextensor`, `basetype`, `fibertype`, `coordinatetype`, `pointtype`, `metrictype`.
+"""
 const Coordinates{P,G,N} = FiberBundle{Coordinate{P,G},N}
+
+"""
+    coordinates(m::FiberBundle) -> FiberBundle{Coordinate{P,G}}
+
+Return a `FiberBundle{Coordinate{P,G}}` if object `m` is defined as a `FiberBundle`.
+"""
 const coordinates = Coordinates
 
+"""
+    base(m::LocalFiber{B,F}) -> B
+
+Return the `base` of a `FiberBundle` or `LocalSection`.
+"""
 base(t::FiberBundle) = t.dom
+
+"""
+    fiber(m::LocalFiber{B,F}) -> F
+
+Return the `fiber` of a `FiberBundle` or `LocalSection`.
+"""
 fiber(t::FiberBundle) = t.cod
 base(t::Array) = ProductSpace(Values(axes(t)))
 fiber(t::Array) = t
+
+"""
+    basetype(m::LocalFiber{B,F}) -> DataType
+
+Return the `basetype` of a `FiberBundle` or `LocalSection`.
+"""
 basetype(::Array{T}) where T = T
+
+"""
+    fibertype(m::LocalFiber{B,F}) -> DataType
+
+Return the `fibertype` of a `FiberBundle` or `LocalSection`.
+"""
 fibertype(::Array{T}) where T = T
+
+"""
+    pointtype(m::Coordinate{P,G}) -> DataType
+
+Return the `pointtype` of a `FiberBundle` or `LocalSection`.
+"""
 pointtype(m::FiberBundle) = basetype(coordinatetype(m))
 pointtype(m::Type{<:FiberBundle}) = basetype(coordinatetype(m))
+
+"""
+    metrictype(m::Coordinate{P,G}) -> DataType
+
+Return the `metrictype` of a `FiberBundle` or `LocalSection`.
+"""
 metrictype(m::FiberBundle) = fibertype(coordinatetype(m))
 metrictype(m::Type{<:FiberBundle}) = fibertype(coordinatetype(m))
+
+"""
+    coordinatetype(m::Coordinate{P,G}) -> DataType
+
+Return the `coordinatetype` of a `FiberBundle` or `LocalSection`.
+"""
 coordinatetype(m::Coordinates) = eltype(m)
 coordinatetype(m::Type{<:Coordinates}) = eltype(m)
 
 coordinates(m::Coordinates) = m
+
+"""
+    fullcoordinates(m::FiberBundle) -> FiberBundle{Coordinate{P,G}}
+
+Return full `FiberBundle{Coordinate{P,G}}` instead of a possible subspace of it.
+"""
 fullcoordinates(m::Coordinates) = m
+
+"""
+    fullpoints(m::FiberBundle) -> AbstractArray{P}
+
+Return full `AbstractArray{P}` instead of a possible subspace of it.
+"""
 fullpoints(m::FiberBundle) = base(fullcoordinates(m))
+
+"""
+    fullmetricextensor(m::FiberBundle) -> AbstractArray{G}
+
+Return full `AbstractArray{G}` instead of a possible subspace of it.
+"""
 fullmetricextensor(m::FiberBundle) = fiber(fullcoordinates(m))
 fullmetrictensor(m::FiberBundle) = submetric(fullmetricextensor(m))
 metrictensor(m::FiberBundle) = submetric(metricextensor(m))
@@ -252,6 +387,12 @@ submetric(x::Global) = x
 submetric(x::AbstractArray) = submetric.(x)
 submetric(x::DiagonalOperator) = DiagonalOperator(getindex(x,1))
 submetric(x::Outermorphism) = TensorOperator(getindex(x,1))
+
+"""
+    isinduced(m) -> Bool
+
+Return `true` if the `metrictype` is an `InducedMetric` type.
+"""
 isinduced(m::FiberBundle) = isinduced(fullcoordinates(m))
 isinduced(::DenseArray) = false
 isinduced(::Global) = false
@@ -271,6 +412,20 @@ export PointArray, PointVector, PointMatrix, PointCloud, Coordinates, FiberBundl
 
 point_id = 0
 
+"""
+    PointArray{P,G,N} <: FiberBundle{Coordinate{P,G},N} <: Number
+
+Defines a `FiberBundle` type with `pointtype` of `P` and `metrictype` of `G`.
+```Julia
+coordinates(s) # ::PointArray{P,G,N}
+points(s) # ::AbstractArray{P,N}
+metricextensor(s) # ::AbstractArray{G,N}
+coordinatetype(s) # ::Coordinate{P,G}
+pointtype(s) # P
+metrictype(s) # G
+```
+Various methods work on any `PointArray`, such as `base`, `fiber`, `coordinates`, `points`, `metricextensor`, `basetype`, `fibertype`, `coordinatetype`, `pointtype`, `metrictype`.
+"""
 struct PointArray{P,G,N,PA<:AbstractArray{P,N},GA<:AbstractArray{G,N}} <: FiberBundle{Coordinate{P,G},N}
     id::Int
     dom::PA
@@ -295,7 +450,14 @@ PointArray(dom::AbstractArray,fun::Function) = PointArray(dom, fun.(dom))
 
 totalnodes(m::PointArray) = length(m)
 nodes(m::PointArray) = length(m)
+
+"""
+    points(m) -> AbstractArray{P}
+
+Return the `points` as an `AbstractArray{P}`.
+"""
 points(m::PointArray) = base(m)
+
 metricextensor(m::PointArray) = fiber(m)
 isinduced(t::PointArray) = isinduced(metricextensor(t))
 basetype(::PointArray{B}) where B = B
@@ -386,7 +548,7 @@ function Base.similar(bc::Broadcast.Broadcasted{Broadcast.ArrayStyle{PointArray{
     PointArray(similar(Array{ElType,N}, axes(bc)), metricextensor(t))
 end
 
-"`A = find_pa(As)` returns the first PointArray among the arguments."
+#"`A = find_pa(As)` returns the first PointArray among the arguments."
 find_pa(bc::Base.Broadcast.Broadcasted) = find_pa(bc.args)
 find_pa(bc::Base.Broadcast.Extruded) = find_pa(bc.x)
 find_pa(args::Tuple) = find_pa(find_pa(args[1]), Base.tail(args))
@@ -399,6 +561,11 @@ find_pa(::Any, rest) = find_pa(rest)
 
 export FiberProduct
 
+"""
+    FiberProduct{P,N} <: FiberBundle{Coordinate{P,InducedMetric},N}
+
+Represents a `FiberProduct` over a `base` and `fiber` with `InducedMetric`.
+"""
 struct FiberProduct{P,N,PA<:AbstractArray{F,N} where F,FA<:AbstractArray} <: FiberBundle{Coordinate{P,InducedMetric},N}
     p::PA
     f::FA
@@ -429,6 +596,11 @@ end
 
 # GlobalFiber
 
+"""
+    GlobalFiber{E,N} <: FiberBundle{E,N} <: Number
+
+Defines a `FiberBundle` type with `basetype` and `fibertype`.
+"""
 abstract type GlobalFiber{E,N} <: FiberBundle{E,N} end
 Base.@pure isfiberbundle(::GlobalFiber) = true
 Base.@pure isfiberbundle(::Any) = false
@@ -456,6 +628,21 @@ resize_lastdim!(m::GlobalFiber,i) = ((resize_lastdim!(domain(m),i),resize_lastdi
 export FrameBundle, GridBundle, SimplexBundle, FaceBundle, ElementBundle
 export IntervalRange, AlignedRegion, AlignedSpace
 
+"""
+    FrameBundle{C,N} <: GlobalFiber{C,N} <: FiberBundle{C,N}
+
+Defines a `GlobalFiber` type with `coordinatetype` of `C` and `immersion`.
+```Julia
+coordinates(s) # ::AbstractArray{C,N}
+points(s) # ::AbstractArray{P,N}
+metricextensor(s) # ::AbstractArray{G,N}
+coordinatetype(s) # C
+pointtype(s) # P
+metrictype(s) # G
+immersion(s) # ::ImmersedTopology
+```
+Various methods work on any `FrameBundle`, such as `isbundle`, `base`, `fiber`, `coordinates`, `points`, `metricextensor`, `basetype`, `fibertype`, `coordinatetype`, `pointtype`, `metrictype`, `immersion`.
+"""
 abstract type FrameBundle{C,N} <: GlobalFiber{C,N} end
 
 base(m::FrameBundle) = points(m)
@@ -477,6 +664,26 @@ Base.size(m::FrameBundle) = size(points(m))
 
 # GridBundle
 
+"""
+    GridBundle{N,C} <: FrameBundle{C,N} <: FiberBundle{C,N}
+
+Defines a `FrameBundle` over grid points with `coordinatetype` of `C` and `immersion`.
+```Julia
+coordinates(s) # ::AbstractArray{C,N}
+points(s) # ::AbstractArray{P,N}
+metricextensor(s) # ::AbstractArray{G,N}
+coordinatetype(s) # C
+pointtype(s) # P
+metrictype(s) # G
+immersion(s) # ::QuotientTopology
+```
+Various methods work on any `FrameBundle`, such as `isbundle`, `base`, `fiber`, `coordinates`, `points`, `metricextensor`, `basetype`, `fibertype`, `coordinatetype`, `pointtype`, `metrictype`, `immersion`.
+```Julia
+IntervalRange{P, G, PA, GA} where {P<:Real, G, PA<:AbstractRange, GA} (alias for GridBundle{1, Coordinate{P, G}, <:PointArray{P, G, 1, PA, GA}} where {P<:Real, G, PA<:AbstractRange, GA})
+AlignedRegion{N} where N (alias for GridBundle{N, Coordinate{P, G}, PointArray{P, G, N, PA, GA}} where {N, P<:Chain, G<:InducedMetric, PA<:(ProductSpace{V, <:Real, N, N, <:AbstractRange} where V), GA<:Global})
+AlignedSpace{N} where N (alias for GridBundle{N, Coordinate{P, G}, PointArray{P, G, N, PA, GA}} where {N, P<:Chain, G<:InducedMetric, PA<:(ProductSpace{V, <:Real, N, N, <:AbstractRange} where V), GA})
+```
+"""
 struct GridBundle{N,C<:Coordinate,PA<:FiberBundle{C,N},TA<:ImmersedTopology} <: FrameBundle{C,N}
     p::PA
     t::TA
@@ -553,7 +760,7 @@ end
     GridBundle(similar(Array{ElType,N}, axes(bc)), metricextensor(t))
 end=#
 
-"`A = find_gf(As)` returns the first GridBundle among the arguments."
+#"`A = find_gf(As)` returns the first GridBundle among the arguments."
 find_gf(bc::Base.Broadcast.Broadcasted) = find_gf(bc.args)
 find_gf(bc::Base.Broadcast.Extruded) = find_gf(bc.x)
 find_gf(args::Tuple) = find_gf(find_gf(args[1]), Base.tail(args))
@@ -589,6 +796,21 @@ end
 
 # SimplexBundle
 
+"""
+    SimplexBundle{N,C} <: FrameBundle{C,1} <: FiberBundle{C,1}
+
+Defines a `FrameBundle` over simplex vertices with `coordinatetype` of `C` and `immersion`.
+```Julia
+coordinates(s) # ::AbstractArray{C,N}
+points(s) # ::AbstractArray{P,N}
+metricextensor(s) # ::AbstractArray{G,N}
+coordinatetype(s) # C
+pointtype(s) # P
+metrictype(s) # G
+immersion(s) # ::ImmersedTopology
+```
+Various methods work on any `FrameBundle`, such as `isbundle`, `base`, `fiber`, `coordinates`, `points`, `metricextensor`, `basetype`, `fibertype`, `coordinatetype`, `pointtype`, `metrictype`, `immersion`.
+"""
 struct SimplexBundle{N,C<:Coordinate,PA<:FiberBundle{C,1},TA<:ImmersedTopology} <: ElementBundle{N,C,PA,TA}
     p::PA
     t::TA
@@ -688,6 +910,21 @@ end
 
 # FaceBundle
 
+"""
+    FaceBundle{N,C} <: FrameBundle{C,1} <: FiberBundle{C,1}
+
+Defines a `FrameBundle` over element faces with `coordinatetype` of `C` and `immersion`.
+```Julia
+coordinates(s) # ::AbstractArray{C,N}
+points(s) # ::AbstractArray{P,N}
+metricextensor(s) # ::AbstractArray{G,N}
+coordinatetype(s) # C
+pointtype(s) # P
+metrictype(s) # G
+immersion(s) # ::ImmersedTopology
+```
+Various methods work on any `FrameBundle`, such as `isbundle`,`base`, `fiber`, `coordinates`, `points`, `metricextensor`, `basetype`, `fibertype`, `coordinatetype`, `pointtype`, `metrictype`, `immersion`.
+"""
 struct FaceBundle{N,C<:Coordinate,PA<:FiberBundle{C,1},TA<:ImmersedTopology} <: ElementBundle{N,C,PA,TA}
     p::PA
     t::TA
@@ -816,6 +1053,11 @@ end
 
 # FiberProductBundle
 
+"""
+    FiberProductBundle{P,N} <: FrameBundle{Coordinate{P,InducedMetric},N}
+
+Represents a `FiberProductBundle` over a `base` and `fiber` with `InducedMetric`.
+"""
 struct FiberProductBundle{P,N,SA<:AbstractArray,PA<:AbstractArray} <: FrameBundle{Coordinate{P,InducedMetric},N}
     s::SA
     g::PA
@@ -865,6 +1107,11 @@ TimeParameter(m,fixed::Function,time::AbstractVector) = TimeParameter(m,findall(
 
 # HomotopyBundle
 
+"""
+    HomotopyBundle{P,N} <: FrameBundle{Coordinate{P,InducedMetric},N}
+
+Represents a `HomotopyBundle` over a `base` and `fiber` with `InducedMetric`.
+"""
 struct HomotopyBundle{P,N,PA<:AbstractArray{F,N} where F,FA<:AbstractArray,TA<:ImmersedTopology} <: FrameBundle{Coordinate{P,InducedMetric},N}
     p::FiberProduct{P,N,PA,FA}
     t::TA

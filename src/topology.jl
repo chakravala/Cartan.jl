@@ -23,6 +23,22 @@ affmanifold(N::Int) = Submanifold(N+2)(list(2,N+1)...)
     :(Chain{$(V(list(1,mdims(V)+1)...))}(Values(one(T),$([:(@inbounds p[$i]) for i ∈ list(1,mdims(V))]...))))
 end
 
+"""
+    ProductSpace{V,T,N,M,S} <: AbstractArray{Chain{V,1,T,N},N}
+
+Can be constructed with `\\oplus` operation `⊕` and `AbstractRange`,
+```julia
+julia> (0:0.1:1)⊕(0:0.1:1)
+11×11 ProductSpace{⟨_11_⟩, Float64, 2, 2, StepRangeLen{Float64, Base.TwicePrecision{Float64}, Base.TwicePrecision{Float64}, Int64}}:
+...
+```
+generating a lazy array of `Chain{V,1}` point vectors from the input ranges.
+```Julia
+Rectangle (alias for ProductSpace{V, T, 2, 2} where {V, T})
+Hyperrectangle (alias for ProductSpace{V, T, 3, 3} where {V, T})
+RealRegion{V, T} where {V, T<:Real} (alias for ProductSpace{V, T, N, N, S} where {V, T<:Real, N, S<:AbstractArray{T, 1}})
+```
+"""
 struct ProductSpace{V,T,N,M,S} <: AbstractArray{Chain{V,1,T,N},N}
     v::Values{M,S} # how to deal with T???
     ProductSpace{V,T,N}(v::Values{M,S}) where {V,T,N,M,S} = new{V,T,N,M,S}(v)
@@ -48,6 +64,11 @@ Base.iterate(t::RealRegion,state) = (s=state+1; s≤length(t) ? (getindex(t,s),s
 
 resize_lastdim!(m::ProductSpace,i) = (resize!(m.v[end],i); m)
 
+"""
+    resample(m,i...)
+
+Resamples a ranged `ProductSpace` or related objects.
+"""
 resample(m::OneTo,i::Int) = LinRange(1,m.stop,i)
 resample(m::UnitRange,i::Int) = LinRange(m.start,m.stop,i)
 resample(m::StepRange,i::Int) = LinRange(m.start,m.stop,i)
@@ -76,6 +97,11 @@ function Base._ind2sub(A::RealRegion, ind)
     Base._ind2sub(axes(A), ind)
 end
 
+"""
+    ⊕(v::AbstractVector{<:Real}...)
+
+Constructs a direct sum basis space using the Cartesian `ProductSpace` implementation.
+"""
 ⊕(a::AbstractVector{<:Real}...) = RealRegion(Values(a))
 ⊕(a::ProductSpace,b::AbstractVector{<:Real}) = RealRegion(Values(a.v...,b))
 ⊕(a::AbstractVector{<:Real},b::ProductSpace) = RealRegion(Values(a,b.v...))
@@ -162,13 +188,43 @@ export ImmersedTopology, ProductTopology, SimplexTopology, SimplexManifold
 export QuotientTopology, OpenTopology, CompactTopology
 export topology, immersion, vertices, iscover
 
+"""
+    ImmersedTopology{N,M} = AbstractArray{Values{N,Int},M}
+
+Any `ImmersedTopology{N,M}` is also an `M`-dimensional `AbstractArray` of `Values{N,Int}`.
+"""
 const ImmersedTopology{N,M} = AbstractArray{Values{N,Int},M}
+
+"""
+    immersion(m) -> ImmersedTopology
+
+Returns the associated `ImmersedTopology` of any `FrameBundle` or related object.
+"""
 const immersion = ImmersedTopology
 
+"""
+    sdims(::ImmersedTopology{N}) where N = N
+
+Dimension `N` of the associated immersed simplex.
+"""
 sdims(m::ImmersedTopology{N}) where N = N
 sdims(m::Type{<:ImmersedTopology{N}}) where N = N
+
+"""
+    immersiontype(m) -> DataType
+
+Returns the `typeof` the `immersion` of `m`.
+"""
 immersiontype(m::ImmersedTopology) = typeof(m)
+
+
+"""
+    fullimmersion(m) -> ImmersedTopology
+
+Returns full associated `ImmersedTopology` of subspace `FrameBundle` or related object.
+"""
 fullimmersion(m::ImmersedTopology) = m
+
 topology(m::ImmersedTopology{N,1}) where N = m
 subelements(m::ImmersedTopology{N,1}) where N = OneTo(length(m))
 
@@ -176,6 +232,20 @@ subelements(m::ImmersedTopology{N,1}) where N = OneTo(length(m))
 
 # ProductTopology
 
+"""
+    ProductTopology{N} <: ImmersedTopology{N,N}
+
+Define basic `ProductTopology` by ranges of integers,
+```julia
+julia> ProductTopology(11,11)
+11×11 ProductTopology{2, OneTo{Int64}}:
+...
+
+julia> ProductTopology(1:11,1:11)
+11×11 ProductTopology{2, UnitRange{Int64}}:
+...
+```
+"""
 struct ProductTopology{N,S<:AbstractVector{Int}} <: ImmersedTopology{N,N}
     v::Values{N,S}
     ProductTopology(v::Values{N,S}) where {N,S<:AbstractVector{Int}} = new{N,S}(v)
@@ -265,6 +335,21 @@ refnodes(p::Int) = Ref(p)
 refnodes(p::Base.RefValue) = p
 const RefInt = Union{Base.RefValue{Int},Int}
 
+"""
+    SimplexTopology{N} <: ImmersedTopology{N,1}
+
+Defines continuous subspaces of a `fulltopology` over `N`-dimensional `Simplex` spaces having `vertices` and  `subelements` defined and indexed in its simplicial complex.
+```Julia
+bundle(t) # cache identification
+fulltopology(t) # full element list
+vertices(t) # # subspace vertices
+totalnodes(t) # full node count
+subelements(t) # list of elements
+fullvertices(t) # fulltopology vertices
+verticesinv(t) # inverted data of vertices
+```
+Related methods include `bundle`, `fulltopology`, `topology`, `fullvertices`, `vertices`, `totalelements`, `elements`, `subelements`, `totalnodes`, `nodes`, `istotal`, `isfull`, `iscover`, `fullimmersion`, `subimmersion`.
+"""
 struct SimplexTopology{N,P<:AbstractVector{Int},F<:AbstractVector{Int},T} <: ImmersedTopology{N,1}
     id::Int # bundle
     t::Vector{Values{N,Int}} # fulltopology
@@ -290,17 +375,82 @@ SimplexTopology(t::Vector,i=vertices(t),p::RefInt=maximum(i)) = SimplexTopology(
 SimplexTopology(t::Vector,p::RefInt) = SimplexTopology(t,vertices(t),p)
 SimplexTopology(t::SimplexTopology) = t
 
+"""
+    bundle(m::ImmersedTopology) -> Int
+
+Returns integer identification of `bundle` cache.
+"""
 bundle(m::SimplexTopology) = m.id
+
+"""
+    fulltopology(m) -> Vector{Values{N,Int}}
+
+Returns the `fulltopology` regardless of whether the `ImmersedTopology` subset `isfull`.
+"""
 fulltopology(m::SimplexTopology) = m.t
+
+"""
+    topology(m) -> AbstractVector{Values{N,Int}}
+
+Returns a `view` into the `fulltopology` based on `subelements(m)` structure.
+"""
 topology(m::SimplexTopology) = isfull(m) ? fulltopology(m) : view(fulltopology(m),subelements(m))
+
+"""
+    totalelements(m) -> Int
+
+Return the total number of elements in the `fulltopology(m)`.
+"""
 totalelements(m::SimplexTopology) = length(fulltopology(m))
+
+"""
+    elements(m) -> Int
+
+Return the number of `subelements(m)`.
+"""
 elements(m::SimplexTopology) = length(subelements(m))
+
+"""
+    subelements(m) -> AbstractVector{Int}
+
+Return the subspace element indices associated to `fulltopology(m)`.
+"""
 subelements(m::SimplexTopology) = m.f
+
+"""
+    refnodes(m) -> Base.RefValaue{Int}
+
+Return the shared mutable `Base.RefValue{Int}` which counts `nodes(m)`.
+"""
 refnodes(m::SimplexTopology) = m.p
 totalnodes!(m::SimplexTopology,p) = (refnodes(m).x = p)
+
+"""
+    totalnodes(m) -> Int
+
+Return the number which counts the total number of `nodes` regardless of subspace.
+"""
 totalnodes(m::SimplexTopology) = refval(refnodes(m))
+
+"""
+    nodes(m) -> Int
+
+Return the number of `vertices(m)` associated to the subspace `immersion(m)`.
+"""
 nodes(m::SimplexTopology) = length(vertices(m))
+
+"""
+    fullvertices(m) -> AbstractVector{Int}
+
+Return the list of `vertices(m)` associated to the `fullimmersion(m)`.
+"""
 fullvertices(m::SimplexTopology) = m.I
+
+"""
+    vertices(m) -> AbstractVector{Int}
+
+Return the list of `vertices(m)` associated to the subspace `immersion(m)`.
+"""
 vertices(m::SimplexTopology) = m.i
 verticesinv(m::SimplexTopology) = m.v
 
@@ -310,8 +460,19 @@ Base.axes(m::SimplexTopology) = axes(subelements(m))
 Base.getindex(m::SimplexTopology,i::Int) = getindex(fulltopology(m),getfacet(m,i))
 Grassmann.mdims(m::SimplexTopology{N}) where N = N
 
+"""
+    getimage(m,i) -> Int
+
+Return the index of vertex subspace `immersion` in reference to the `fullimmersion`.
+"""
 getimage(m::SimplexTopology{N,<:AbstractVector} where N,i) = iscover(m) ? i : vertices(m)[i]
 getimage(m::SimplexTopology{N,<:OneTo} where N,i) = i
+
+"""
+    getfacet(m,i) -> Int
+
+Return the index of `subelements` in reference to the `fullimmersion`.
+"""
 getfacet(m::SimplexTopology{N,P,<:AbstractVector} where {N,P},i) = isfull(m) ? i : subelements(m)[i]
 getfacet(m::SimplexTopology{N,P,<:OneTo} where{N,P},i) = i
 
@@ -349,6 +510,7 @@ function fullimmersion_vertices(m::ImmersedTopology)
         maximum(out) == n ? OneTo(n) : out
     end
 end
+
 function fullimmersion(m::SimplexTopology)
     top,ind,ist = fulltopology(m),fullimmersion_vertices(m),istotal(m)
     SimplexTopology(bundle(m),top,ind,refnodes(m),OneTo(length(top)),ind,ist,true)
@@ -380,6 +542,11 @@ function subtopology(m::SimplexTopology{N,<:AbstractVector} where N)
     iscover(m) ? topology(m) : getelement.(Ref(m),OneTo(elements(m)))
 end
 
+"""
+    subimmersion(m) -> ImmersedTopology
+
+Return a modified `subimmersion` with all vertices re-indexed based on the subspace.
+"""
 function subimmersion(m::SimplexTopology{N,<:OneTo} where N)
     iscover(m) && (return m)
     top,ind = topology(m),vertices(m)
@@ -420,6 +587,17 @@ end
 
 export DiscontinuousTopology, discontinuous, disconnect, continuous
 
+"""
+    DiscontinuousTopology{N} <: ImmersedTopology{N,1}
+
+Defines discontinuous subspace of a `fulltopology` over `N`-dimensional `Simplex` spaces having `vertices` and  `subelements` defined and indexed in its simplicial complex.
+```Julia
+isdiscontinuous(t) # true if DiscontinuousTopology
+isdisconnected(t) # true if graph of discontinuous
+```
+Calling `DiscontinuousToppology(::SimplexTopology)` initializes a discontinuous variant, while `SimplexTopology(::DiscontinuousTopology)` returns the initial continuous data.
+Related methods include `bundle`, `fulltopology`, `topology`, `fullvertices`, `vertices`, `totalelements`, `elements`, `subelements`, `totalnodes`, `nodes`, `istotal`, `isfull`, `iscover`, `fullimmersion`, `subimmersion`, `isdiscontinuous`, `isdisconnected`, `continuous`, `discontinuous`, `disconnect`.
+"""
 struct DiscontinuousTopology{N,P<:AbstractVector{Int},T<:SimplexTopology{N}} <: ImmersedTopology{N,1}
     id::Int # bundle
     t::T
@@ -478,8 +656,19 @@ nodes(m::DiscontinuousTopology{N}) where N = N*elements(m)
 fullvertices(m::DiscontinuousTopology) = m.I
 vertices(m::DiscontinuousTopology) = m.i
 
+"""
+    isdiscontinuous(m) -> Bool
+
+Return `true` if `m` is a `DiscontinuousTopology`.
+"""
 isdiscontinuous(m::SimplexTopology) = false
 isdiscontinuous(m::DiscontinuousTopology) = true
+
+"""
+    isdiscontinuous(m) -> Bool
+
+Return `true` if `m` is a disconnected `DiscontinuousTopology`.
+"""
 isdisconnected(m::SimplexTopology) = false
 isdisconnected(m::DiscontinuousTopology{N,<:OneTo} where N) = true
 isdisconnected(m::DiscontinuousTopology{N,<:AbstractVector} where N) = false
@@ -508,10 +697,27 @@ function subtopology(m::DiscontinuousTopology{N},i::AbstractVector{Int}) where N
     DiscontinuousTopology(bundle(m),subtopology(SimplexTopology(m),i),fullvertices(m))
 end
 
+"""
+    continuous(m) -> ImmersedTopology
+
+Return the original `continuous` data of possibly a `DiscontinuousTopology`.
+"""
 continuous(m::SimplexTopology) = m
 continuous(m::DiscontinuousTopology) = SimplexTopology(m)
+
+"""
+    discontinuous(m) -> DiscontinuousTopology
+
+Return a derived `DiscontinuousTopology` from a `SimplexTopology`.
+"""
 discontinuous(m::DiscontinuousTopology) = m
 discontinuous(m::SimplexTopology) = DiscontinuousTopology(0,m)
+
+"""
+    disconnect(m) -> DiscontinuousTopology
+
+Return a disconnected variant of a `DiscontinuousTopology`.
+"""
 disconnect(m::SimplexTopology) = disconnect(discontinuous(m))
 disconnect(m::DiscontinuousTopology) = DiscontinuousTopology(bundle(m),SimplexTopology(m),OneTo(totalnodes(m)))
 
@@ -632,9 +838,9 @@ cornernodes(m::LagrangeTopology) = nodes(cornertopology(m))
 edgesnodes(m::LagrangeTopology{M}) where M= (M-1)*nodes(edgesindices(m))
 facetsnodes(m::LagrangeTopology) = facetsimplex(m)*nodes(facetsindices(m))
 centernodes(m::LagrangeTopology) = centersimplex(m)*elements(m)
-@pure lagrangesimplex(m::LagrangeTopology{M}) where M = lagrangesimplex(mdims(m),M)
-@pure centersimplex(m::LagrangeTopology{M}) where M = centersimplex(mdims(m),M)
-@pure facetsimplex(m::LagrangeTopology{M}) where M = facetsimplex(mdims(m),M)
+@pure lagrangesimplex(m::LagrangeTopology{M}) where M = lagrangesimplex(sdims(cornertopology(m)),M)
+@pure centersimplex(m::LagrangeTopology{M}) where M = centersimplex(sdims(cornertopology(m)),M)
+@pure facetsimplex(m::LagrangeTopology{M}) where M = facetsimplex(sdims(cornertopology(m)),M)
 @pure edgesimplex(m::LagrangeTopology{M}) where M = M-1
 @pure lagrangesimplex(N,M) = simplexnumber(N-1,M+1)
 @pure centersimplex(N,M) = simplexnumber(N-1,M-N+1)

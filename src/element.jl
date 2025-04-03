@@ -48,7 +48,7 @@ edgelength(v) = value(abs(v[2]-v[1]))
 Grassmann.volumes(t::TensorField) = volumes(base(t))
 Grassmann.volumes(t::SimplexBundle) = volumes(FaceBundle(t))
 function Grassmann.volumes(t::FaceBundle)
-    if mdims(immersion(t))≠2
+    if sdims(immersion(t))≠2
         out = Grassmann.detsimplex(t)
         TensorField(t,Real.(abs.(fiber(out))))
     else
@@ -611,7 +611,7 @@ findmissing(n::Values{2,Int}) = 1 ∉ n ? 1 : 2 ∉ n ? 2 : 3
 interior(e) = interior(totalnodes(e),vertices(e))
 interior(fixed,neq) = sort!(setdiff(1:neq,fixed))
 
-facesindices(t) = mdims(t) == 3 ? edgesindices(t) : throw(error())
+facesindices(t) = sdims(t) == 3 ? edgesindices(t) : throw(error())
 
 edgesindices(t::SimplexBundle) = edgesindices(t,edges(t))
 function edgesindices(t::SimplexBundle,ed::SimplexBundle)
