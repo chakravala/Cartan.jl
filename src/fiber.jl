@@ -283,7 +283,7 @@ abstract type FiberBundle{T,N} <: AbstractArray{T,N} end
 
 
 """
-    CoordinateBundle{P,G,N} <: FiberBundle{Coordinate{P,G},N} <: Number
+    Coordinates{P,G,N} <: FiberBundle{Coordinate{P,G},N} <: Number
 
 Defines a `FiberBundle` type with `pointtype` of `P` and `metrictype` of `G`.
 ```Julia
@@ -294,7 +294,7 @@ coordinatetype(s) # Coordinate{P,G}
 pointtype(s) # P
 metrictype(s) # G
 ```
-Various methods work on any `CoordinateBundle`, such as `base`, `fiber`, `coordinates`, `points`, `metricextensor`, `basetype`, `fibertype`, `coordinatetype`, `pointtype`, `metrictype`.
+Various methods work on any `Coordinates`, such as `base`, `fiber`, `coordinates`, `points`, `metricextensor`, `basetype`, `fibertype`, `coordinatetype`, `pointtype`, `metrictype`.
 """
 const Coordinates{P,G,N} = FiberBundle{Coordinate{P,G},N}
 

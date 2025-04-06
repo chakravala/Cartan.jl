@@ -517,6 +517,12 @@ function gradient_2(t::ElementBundle,u,m=volumes(t),g=gradienthat(t,m))
     pt = FaceBundle(t)
     TensorField(pt,[fiber(u)[T[k]]⋅value(value(fiber(g)[k])) for k ∈ 1:length(T)])
 end
+function gradient_2(t::ElementBundle,u::AbstractVector{<:Chain},m=volumes(t),g=gradienthat(t,m))
+    T = immersion(t)
+    pt = FaceBundle(t)
+    V = Manifold(t)
+    TensorField(pt,[fiber(g)[k]⋅transpose(TensorOperator(Chain{V}(fiber(u)[T[k]]))) for k ∈ 1:length(T)])
+end
 
 for T ∈ (:Values,:Variables)
     @eval function assemblelocal!(M,mat,m,tk::$T{N}) where N
