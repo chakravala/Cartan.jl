@@ -151,6 +151,7 @@ TensorField(dom::AbstractArray,fun::Function) = TensorField(dom, fun.(dom))
 TensorField(dom::FrameBundle,fun::Function) = fun.(dom)
 TensorField(dom::AbstractArray,fun::Number) = TensorField(dom, fill(fun,size(dom)...))
 TensorField(dom::AbstractArray) = TensorField(dom, dom)
+TensorField(f::F,r::AbstractVector{<:Real}=-2π:0.0001:2π) where F<:Function = TensorField(r,vector.(f.(r)))
 base(t::TensorField) = t.dom
 fiber(t::TensorField) = t.cod
 coordinatetype(t::TensorField) = basetype(t)
@@ -897,7 +898,7 @@ function __init__()
             nm = size(points(m))
             faces = GeometryBasics.Tesselation(GeometryBasics.Rect(0, 0, 1, 1), nm)
             uv = Chain(0.0,0.0):map(inv,Chain((nm.-1)...)):Chain(1.0,1.0)
-            GeometryBasics.Mesh(GeometryBasics.meta(GeometryBasics.Point.(vec(points(m))); uv=GeometryBasics.Vec{2}.(value.(vec(uv)))), GeometryBasics.decompose(GeometryBasics.QuadFace{GeometryBasics.GLIndex}, faces))
+            GeometryBasics.Mesh(GeometryBasics.Point.(vec(points(m))), GeometryBasics.decompose(GeometryBasics.QuadFace{GeometryBasics.GLIndex}, faces), uv=GeometryBasics.Vec{2}.(value.(vec(uv))))
         end
         function SimplexBundle(m::GeometryBasics.Mesh)
             c,f = GeometryBasics.coordinates(m),GeometryBasics.faces(m)

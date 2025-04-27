@@ -4,7 +4,7 @@ makedocs(
     # options
     modules = [Cartan],#Adapode],
     doctest = false,
-    format = Documenter.HTML(prettyurls = get(ENV, "CI", nothing) == "true"),
+    format = Documenter.HTML(prettyurls = true), #get(ENV, "CI", nothing) == "true"),
     remotes = nothing,
     sitename = "Cartan.jl",
     authors = "Michael Reed",
