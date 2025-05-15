@@ -60,7 +60,7 @@ export ScalarMap, GradedField, QuaternionField, PhasorField
 export GlobalFrame, DiagonalField, EndomorphismField, OutermorphismField
 export ParametricMap, RectangleMap, HyperrectangleMap, AbstractCurve
 export metrictensorfield, metricextensorfield
-export alteration, variation, modification
+export alteration, variation, modification, alteration!, variation!, modification!
 
 # TensorField
 
@@ -140,7 +140,7 @@ const VectorField = GradedField{1}
 const BivectorField = GradedField{2}
 const TrivectorField = GradedField{3}
 
-TensorField(dom,fun::BitArray) = TensorField(dom, Float64.(fun))
+TensorField(dom::AbstractArray,fun::BitArray) = TensorField(dom, Float64.(fun))
 TensorField(dom,fun::TensorField) = TensorField(dom, fiber(fun))
 TensorField(dom::TensorField,fun) = TensorField(base(dom), fun)
 TensorField(dom::TensorField,fun::DenseArray) = TensorField(base(dom), fun)
@@ -255,7 +255,7 @@ find_tf(::Any, rest) = find_tf(rest)
 
 (m::TensorField{B,F,N,<:SimplexBundle} where {B,F,N})(i::ImmersedTopology) = TensorField(coordinates(m)(i),fiber(m)[vertices(i)])
 (m::TensorField{B,F,N,<:GridBundle} where {B,F,N})(i::ImmersedTopology) = TensorField(base(m)(i),fiber(m))
-for fun ∈ (:Open,:Mirror,:Clamped,:Torus,:Ribbon,:Wing,:Mobius,:Klein,:Cone,:Polar,:Sphere,:Geographic,:Hopf)
+for fun ∈ (:Open,:Mirror,:Clamped,:Torus,:Cylinder,:Wing,:Mobius,:Klein,:Cone,:Polar,:Sphere,:Geographic,:Hopf)
     for top ∈ (Symbol(fun,:Topology),)
         @eval begin
             $top(m::TensorField{B,F,N,<:GridBundle} where {B,F,N}) = TensorField($top(base(m)),fiber(m))
@@ -337,7 +337,7 @@ end
 for fun ∈ (:exp,:exp2,:exp10,:log,:log2,:log10,:sinh,:cosh,:abs,:sqrt,:cbrt,:cos,:sin,:tan,:cot,:sec,:csc,:asec,:acsc,:sech,:csch,:asech,:tanh,:coth,:asinh,:acosh,:atanh,:acoth,:asin,:acos,:atan,:acot,:sinc,:cosc,:cis,:abs2,:inv)
     @eval Base.$fun(t::TensorField) = TensorField(domain(t), $fun.(codomain(t),ref(metricextensor(t))))
 end
-for fun ∈ (:reverse,:clifford,:even,:odd,:scalar,:vector,:bivector,:volume,:value,:complementleft,:realvalue,:imagvalue,:outermorphism,:Outermorphism,:DiagonalOperator,:TensorOperator,:eigen,:eigvecs,:eigvals,:eigvalsreal,:eigvalscomplex,:eigvecsreal,:eigvecscomplex,:eigpolys,:∧)
+for fun ∈ (:reverse,:clifford,:even,:odd,:scalar,:vector,:bivector,:volume,:value,:complementleft,:realvalue,:imagvalue,:outermorphism,:Outermorphism,:DiagonalOperator,:TensorOperator,:eigen,:eigvecs,:eigvals,:eigvalsreal,:eigvalscomplex,:eigvecsreal,:eigvecscomplex,:eigpolys,:∧,:↑,:↓)
     @eval Grassmann.$fun(t::TensorField) = TensorField(domain(t), $fun.(codomain(t)))
 end
 for fun ∈ (:⋆,:angle,:radius,:complementlefthodge,:pseudoabs,:pseudoabs2,:pseudoexp,:pseudolog,:pseudoinv,:pseudosqrt,:pseudocbrt,:pseudocos,:pseudosin,:pseudotan,:pseudocosh,:pseudosinh,:pseudotanh,:metric,:unit)
@@ -406,13 +406,13 @@ function variation(v::Variation,t,fun::Function,args...)
         sleep(t)
     end
 end
-function variation(v::Variation,t,fun::Function,fun!::Function,args...)
+function variation(v::Variation,t,fun::Function,fun!::Function,::Val{T},args...) where T
     out = fun(v.cod[1],args...)
     fig,ax,plt = out
     display(out)
     sleep(t)
     for i ∈ 2:length(v)
-        empty!(ax)
+        T && empty!(ax)
         fun!(v.cod[i],args...)
         sleep(t)
     end
@@ -423,16 +423,17 @@ function variation(v::TensorField,t,fun::Function,args...)
         sleep(t)
     end
 end
-function variation(v::TensorField,t,fun::Function,fun!::Function,args...)
+function variation(v::TensorField,t,fun::Function,fun!::Function,::Val{T},args...) where T
     out = fun(leaf(v,1),args...)
     fig,ax,plt = out
     display(out)
     sleep(t)
     for i ∈ 2:length(points(v).v[end])
-        empty!(ax)
+        T && empty!(ax)
         fun!(leaf(v,i),args...)
         sleep(t)
     end
+    return out
 end
 function variation(v::TensorField{B,F,2,<:FiberProductBundle} where {B,F},t,fun::Function,args...)
     for i ∈ 1:length(base(v).g.v[1])
@@ -440,16 +441,28 @@ function variation(v::TensorField{B,F,2,<:FiberProductBundle} where {B,F},t,fun:
         sleep(t)
     end
 end
-function variation(v::TensorField{B,F,2,<:FiberProductBundle} where {B,F},t,fun::Function,fun!::Function,args...)
+function variation(v::TensorField{B,F,2,<:FiberProductBundle} where {B,F},t,fun::Function,fun!::Function,::Val{T},args...) where T
     out = fun(leaf(v,1),args...)
     fig,ax,plt = out
     display(out)
     sleep(t)
     for i ∈ 2:length(base(v).g.v[1])
-        empty!(ax)
+        T && empty!(ax)
         fun!(leaf(v,i),args...)
         sleep(t)
     end
+end
+
+for fun ∈ (:variation,:alteration,:modification)
+    let fun! = Symbol(fun,:!)
+    @eval begin
+        $fun(v::TensorField,t,fun::Function,fun!::Function,args...) = $fun(v,t,fun,fun!,Val(true),args...)
+        $fun!(v::TensorField,fun::Function,args...) = $fun(v,0.0,fun,args...)
+        $fun!(v::TensorField,fun::Function,fun!::Function,args...) = $fun!(v,0.0,fun,fun!,args...)
+        $fun!(v::TensorField,fun::Function,fun!::Function,f::Function,args...) = $fun!(v,0.0,fun,fun!,f,args...)
+        $fun!(v::TensorField,t,fun::Function,args...) = $fun(v,t,fun,args...)
+        $fun!(v::TensorField,t,fun::Function,fun!::Function,args...) = $fun(v,t,fun,fun!,Val(false),args...)
+    end end
 end
 
 alteration(v::TensorField,fun::Function,args...) = alteration(v,0.0,fun,args...)
@@ -461,16 +474,14 @@ function alteration(v::TensorField,t,fun::Function,args...)
         sleep(t)
     end
 end
-function alteration(v::TensorField,t,fun::Function,fun!::Function,args...)
-    out = fun(leaf(v,1,1),args...)
+function _alteration(out,v::TensorField,t,fun::Function,fun!::Function,::Val{T},args...) where T
     fig,ax,plt = out
-    display(out)
-    sleep(t)
-    for i ∈ 2:length(points(v).v[1])
-        empty!(ax)
+    for i ∈ 1:length(points(v).v[1])
+        T && empty!(ax)
         fun!(leaf(v,i,1),args...)
         sleep(t)
     end
+    return out
 end
 
 modification(v::TensorField,fun::Function,args...) = modification(v,0.0,fun,args...)
@@ -482,15 +493,32 @@ function modification(v::TensorField,t,fun::Function,args...)
         sleep(t)
     end
 end
-function modification(v::TensorField,t,fun::Function,fun!::Function,args...)
+function modification(v::TensorField,t,fun::Function,fun!::Function,::Val{T},args...) where T
     out = fun(leaf(v,1,2),args...)
     fig,ax,plt = out
     display(out)
     sleep(t)
     for i ∈ 2:length(points(v).v[2])
-        empty!(ax)
+        T && empty!(ax)
         fun!(leaf(v,i,2),args...)
         sleep(t)
+    end
+end
+
+export tensorfield
+tensorfield(t,V=Manifold(t),W=V) = p->V(vector(↓(↑((V∪Manifold(t))(fiber(p)))⊘t)))
+function tensorfield(t,ϕ::T) where T<:AbstractVector
+    M = Manifold(t)
+    V = Manifold(M)
+    z = mdims(V) ≠ 4 ? Chain{V,1}(0.0,0.0) : Chain{V,1}(0.0,0.0,0.0)
+    p->begin
+        P = Chain{V,1}(one(valuetype(p)),value(p)...)
+        for i ∈ 1:length(t)
+            ti = value(t[i])
+            Pi = Chain{V,1}(M[ti])
+            P ∈ Pi && (return (Pi\P)⋅Chain{V,1}(ϕ[ti]))
+        end
+        return z
     end
 end
 
@@ -629,9 +657,22 @@ function __init__()
                 Makie.streamplot!(getindex.(t,i),m;args...)
             end
         end
-        Makie.volume(t::VolumeGrid;args...) = Makie.volume(points(t).v...,Real.(codomain(t));args...)
-        Makie.volume!(t::VolumeGrid;args...) = Makie.volume!(points(t).v...,Real.(codomain(t));args...)
-        Makie.volumeslices(t::VolumeGrid;args...) = Makie.volumeslices(points(t).v...,Real.(codomain(t));args...)
+        function Makie.volume(t::VolumeGrid;args...)
+            p = points(t).v
+            Makie.volume(p[1][1]..p[1][end],p[2][1]..p[2][end],p[3][1]..p[3][end],Real.(codomain(t));args...)
+        end
+        function Makie.volume!(t::VolumeGrid;args...)
+            p = points(t).v
+            Makie.volume!(p[1][1]..p[1][end],p[2][1]..p[2][end],p[3][1]..p[3][end],Real.(codomain(t));args...)
+        end
+        function Makie.volumeslices(t::VolumeGrid;args...)
+            p = points(t).v
+            Makie.volumeslices(p[1][1]..p[1][end],p[2][1]..p[2][end],p[3][1]..p[3][end],Real.(codomain(t));args...)
+        end
+        function Makie.volumeslices!(t::VolumeGrid;args...)
+            p = points(t).v
+            Makie.volumeslices!(p[1][1]..p[1][end],p[2][1]..p[2][end],p[3][1]..p[3][end],Real.(codomain(t));args...)
+        end
         for fun ∈ (:surface,:surface!)
             @eval begin
                 Makie.$fun(t::SurfaceGrid,f::Function=gradient_fast;args...) = Makie.$fun(points(t).v...,Real.(codomain(t));color=Real.(abs.(codomain(f(Real(t))))),args...)
@@ -759,12 +800,12 @@ function __init__()
             @eval Makie.$fun(M::GridBundle;args...) = Makie.$fun(GeometryBasics.Mesh(M);args...)
         end
         function linegraph(M::TensorField{B,<:Chain,2,<:GridBundle} where B,f::Function=speed;args...)
-            variation(M,Makie.lines,Makie.lines!,f;args...)
-            alteration(M,Makie.lines!,Makie.lines!,f;args...)
+            out = variation!(M,Makie.lines,Makie.lines!,f;args...)
+            _alteration(out,M,0.0,Makie.lines!,Makie.lines!,Val(false),f;args...)
         end
         function linegraph!(M::TensorField{B,<:Chain,2,<:GridBundle} where B,f::Function=speed;args...)
-            variation(M,Makie.lines!,Makie.lines!,f;args...)
-            alteration(M,Makie.lines!,Makie.lines!,f;args...)
+            out = variation!(M,Makie.lines!,Makie.lines!,f;args...)
+            _alteration(out,M,0.0,Makie.lines!,Makie.lines!,f,Val(false);args...)
         end
         function linegraph(v::TensorField{B,<:Chain,3,<:GridBundle} where B,f::Function=speed;args...)
             display(Makie.lines(leaf2(v,1,1,1),f;args...))

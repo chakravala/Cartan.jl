@@ -48,7 +48,7 @@ QuotientTopology(n::ProductTopology) = OpenTopology(n.v)
 OpenTopology(n::ProductTopology) = OpenTopology(n.v)
 OpenTopology(n::QuotientTopology) = OpenTopology(size(n))
 OpenTopology(n::Values{N,Int}) where N = QuotientTopology(Values{0,Int}(),Values{0,Array{Values{N-1,Int},N-1}}(),zeros(Values{2N,Int}),n)
-RibbonTopology(n::Values{2,Int}) = QuotientTopology(Values(2,1),Values(ProductTopology(n[2]),ProductTopology(n[2])),Values(1,2,0,0),n)
+CylinderTopology(n::Values{2,Int}) = QuotientTopology(Values(2,1),Values(ProductTopology(n[2]),ProductTopology(n[2])),Values(1,2,0,0),n)
 MobiusTopology(n::Values{2,Int}) = QuotientTopology(Values(2,1),Values(ProductTopology(n[2]:-1:1),ProductTopology(n[2]:-1:1)),Values(1,2,0,0),n)
 WingTopology(n::Values{2,Int}) = QuotientTopology(Values(1,2),Values(ProductTopology(n[2]:-1:1),ProductTopology(n[2]:-1:1)),Values(1,2,0,0),n)
 MirrorTopology(n::Values{1,Int}) = QuotientTopology(Values((1,)),Array{Values{0,Int},0}.(Values((undef,))),Values(1,0),n)
@@ -84,7 +84,7 @@ OpenParameter(n::Values{2,Int}) = OpenTopology(LinRange(0,1,n[1])⊕LinRange(0,1
 OpenParameter(n::Values{3,Int}) = OpenTopology(LinRange(0,1,n[1])⊕LinRange(0,1,n[2])⊕LinRange(0,1,n[3]))
 OpenParameter(n::Values{4,Int}) = OpenTopology(LinRange(0,1,n[1])⊕LinRange(0,1,n[2])⊕LinRange(0,1,n[3])⊕LinRange(0,1,n[4]))
 OpenParameter(n::Values{5,Int}) = OpenTopology(LinRange(0,1,n[1])⊕LinRange(0,1,n[2])⊕LinRange(0,1,n[3])⊕LinRange(0,1,n[4])⊕LinRange(0,1,n[5]))
-RibbonParameter(n::Values{2,Int}) = RibbonTopology(LinRange(0,2π,n[1])⊕LinRange(-1,1,n[2]))
+CylinderParameter(n::Values{2,Int}) = CylinderTopology(LinRange(0,2π,n[1])⊕LinRange(-1,1,n[2]))
 MobiusParameter(n::Values{2,Int}) = MobiusTopology(LinRange(0,2π,n[1])⊕LinRange(-1,1,n[2]))
 WingParameter(n::Values{2,Int}) = WingParameter(LinRange(0,1,n[1])⊕LinRange(-1,1,n[2]))
 MirrorParameter(n::Values{1,Int}) = MirrorTopology(PointArray(0,LinRange(0,2π,n[1])))
@@ -114,7 +114,7 @@ SphereParameter(n::Values{4,Int}) = SphereTopology(LinRange(0,π,n[1])⊕LinRang
 SphereParameter(n::Values{5,Int}) = SphereTopology(LinRange(0,π,n[1])⊕LinRange(0,π,n[2])⊕LinRange(0,π,n[3])⊕LinRange(0,π,n[4])⊕LinRange(0,2π,n[5]))
 GeographicParameter(n::Values{2,Int}) = GeographicTopology(LinRange(-π,π,n[1])⊕LinRange(-π/2,π/2,n[2]))
 
-for fun ∈ (:Open,:Ribbon,:Mobius,:Wing,:Mirror,:Clamped,:Torus,:Hopf,:Klein,:Cone,:Polar,:Sphere,:Geographic)
+for fun ∈ (:Open,:Cylinder,:Mobius,:Wing,:Mirror,:Clamped,:Torus,:Hopf,:Klein,:Cone,:Polar,:Sphere,:Geographic)
     for typ ∈ (Symbol(fun,:Topology),Symbol(fun,:Parameter))
         @eval begin
             export $typ
@@ -142,7 +142,7 @@ for mod ∈ (:Topology,:Parameter)
             end
         end
     end
-    for (fun,n,m) ∈ ((:Ribbon,60,20),(:Wing,60,20),(:Mobius,60,20),(:Klein,60,60),(:Cone,30,:(2n+1)),(:Polar,30,:(2n)),(:Sphere,30,:(2n+1)),(:Geographic,61,:(n÷2)))
+    for (fun,n,m) ∈ ((:Cylinder,60,20),(:Wing,60,20),(:Mobius,60,20),(:Klein,60,60),(:Cone,30,:(2n+1)),(:Polar,30,:(2n)),(:Sphere,30,:(2n+1)),(:Geographic,61,:(n÷2)))
         for typ ∈ (Symbol(fun,mod),)
             @eval begin
                 $typ(n=$n,m=$m) = $typ(Values(n,m))
@@ -150,6 +150,8 @@ for mod ∈ (:Topology,:Parameter)
         end
     end
 end
+
+const RibbonTopology,RibbonParameter = CylinderTopology,CylinderParameter
 
 isopen(t::QuotientTopology) = false
 isopen(t::OpenTopology) = true

@@ -41,8 +41,8 @@ RealRegion{V, T} where {V, T<:Real} (alias for ProductSpace{V, T, N, N, S} where
 """
 struct ProductSpace{V,T,N,M,S} <: AbstractArray{Chain{V,1,T,N},N}
     v::Values{M,S} # how to deal with T???
-    ProductSpace{V,T,N}(v::Values{M,S}) where {V,T,N,M,S} = new{V,T,N,M,S}(v)
-    ProductSpace{V,T}(v::Values{M,S}) where {V,T,M,S} = new{V,T,mdims(V),M,S}(v)
+    ProductSpace{V,T,N}(v::Values{M,S}) where {V,T,N,M,S} = new{Grassmann.DirectSum.submanifold(V),T,N,M,S}(v)
+    ProductSpace{V,T}(v::Values{M,S}) where {V,T,M,S} = new{Grassmann.DirectSum.submanifold(V),T,mdims(V),M,S}(v)
 end
 
 const RealRegion{V,T<:Real,N,S<:AbstractVector{T}} = ProductSpace{V,T,N,N,S}
@@ -75,6 +75,7 @@ resample(m::StepRange,i::Int) = LinRange(m.start,m.stop,i)
 resample(m::LinRange,i::Int) = LinRange(m.start,m.stop,i)
 resample(m::StepRangeLen,i::Int) = StepRangeLen(m.ref,(m.step*(m.len-1))/(i-1),i)
 resample(m::AbstractRange,i::NTuple{1,Int}) = resample(m,i...)
+resample(m::AbstractArray{T,0},::Tuple{}) where T = m
 resample(m::ProductSpace,i::NTuple) = ProductSpace(resample.(m.v,i))
 
 @generated Base.size(m::RealRegion{V}) where V = :(($([:(size(@inbounds m.v[$i])...) for i ∈ 1:mdims(V)]...),))
@@ -108,6 +109,11 @@ Constructs a direct sum basis space using the Cartesian `ProductSpace` implement
 ⊕(a::ProductSpace,b::ProductSpace) = RealRegion(Values(a.v...,b.v...))
 cross(a::ProductSpace,b::AbstractVector{<:Real}) = a⊕b
 cross(a::ProductSpace,b::ProductSpace) = a⊕b
+
+RealRegion(a::AbstractVector{<:Real}...) = RealRegion(Values(a))
+ProductSpace(a::AbstractVector{<:Real}...) = ProductSpace(Values(a))
+RealRegion{V}(a::AbstractVector{<:Real}...) where V = RealRegion{V}(Values(a))
+ProductSpace{V}(a::AbstractVector{<:Real}...) where V = ProductSpace{V}(Values(a))
 
 @generated ⧺(a::Real...) = :(Chain($([:(a[$i]) for i ∈ 1:length(a)]...)))
 @generated ⧺(a::Complex...) = :(Chain($([:(a[$i]) for i ∈ 1:length(a)]...)))

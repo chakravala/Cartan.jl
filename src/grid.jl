@@ -119,6 +119,8 @@ end
 (m::GridBundle{2})(t::Chain) = bilinterp(m,t)
 (m::GridBundle{2})(x::AbstractFloat,y::AbstractFloat) = bilinterp(m,Chain(x,y))
 (m::TensorField{B,F,N,<:RealSpace{2}} where {B,F,N})(t::Chain) = bilinterp(m,t)
+(m::TensorField{B,F,N,<:RealSpace{2}} where {B,F,N})(t::Complex) = m(real(t),imag(t))
+(m::TensorField{B,F,N,<:RealSpace{2}} where {B,F,N})(t::PseudoCouple) = m(Grassmann.realvalue(t),Grassmann.imagvalue(t))
 (m::TensorField{B,F,N,<:RealSpace{2}} where {B,F,N})(x,y) = bilinterp(m,Chain(x,y))
 function bilinterp(m,t::Chain{V,G,T,2} where {G,T}) where V
     x,y,f,t1,t2 = @inbounds (points(m).v[1],points(m).v[2],fiber(m),t[1],t[2])
@@ -132,9 +134,7 @@ function bilinterp(m,t::Chain{V,G,T,2} where {G,T}) where V
         if (i01 && iq1) || (i02 && iq2) || (j01 && jq1) || (j02 && jq2)
             return zero(fibertype(m))
         else
-            i1,i2,j1,j2 = (
-                i01 && !iq1,i02 && !iq2,
-                j01 && !jq1,j02 && !jq2)
+            i1,i2,j1,j2 = (i01 && !iq1,i02 && !iq2,j01 && !jq1,j02 && !jq2)
             if i1 || i2 || j1 || j2
                 return m(Chain{V}(
                     (@inbounds reposition(i1,i2,q.p[1],q.p[2],x,t1)),
@@ -668,7 +668,7 @@ trapz(f::IntervalMap,j::Val{1}) = trapz(f)
 trapz(f::ParametricMap,j::Int) = trapz(f,Val(j))
 trapz(f::ParametricMap,j::Val{J}) where J = remove(domain(f),j) → trapz2(codomain(f),j,diff(points(f).v[J]))
 trapz(f::ParametricMap{B,F,N,<:AlignedSpace} where {B,F,N},j::Val{J}) where J = remove(domain(f),j) → trapz1(codomain(f),j,step(points(f).v[J]))
-gentrapz1(n,j,h=:h,f=:f) = :($h*(($(select1(n,j,1))+$(select1(n,j,:(size(f)[$j]))))/2+$(select1(n,j,1,:(sum($(select1(n,j,:(2:$(:end)-1),f)),dims=$j))))))
+gentrapz1(n,j,h=:h,f=:f) = :($h*(($(select1(n,j,1,f))+$(select1(n,j,:(size(f)[$j]),f)))/2+$(select1(n,j,1,:(sum($(select1(n,j,:(2:$(:end)-1),f)),dims=$j))))))
 @generated function trapz1(f::DenseArray{T,N} where T,::Val{J},h::Real,s::Tuple=size(f)) where {N,J}
     gentrapz1(N,J)
 end

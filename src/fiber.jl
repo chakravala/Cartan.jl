@@ -214,7 +214,7 @@ Base.inv(a::LocalTensor{B,<:Real} where B) = LocalTensor(base(a), inv(fiber(a)))
 Base.inv(a::LocalTensor{B,<:Complex} where B) = LocalTensor(base(a), inv(fiber(a)))
 Base.:/(a::LocalTensor,b::LocalTensor{B,<:Real} where B) = LocalTensor(base(a), fiber(a)/fiber(b))
 Base.:/(a::LocalTensor,b::LocalTensor{B,<:Complex} where B) = LocalTensor(base(a), fiber(a)/fiber(b))
-LinearAlgebra.:×(a::LocalTensor{R},b::LocalTensor{R}) where R = TensorField(base(a), ⋆(fiber(a)∧fiber(b),metricextensor(base(a))))
+LinearAlgebra.:×(a::LocalTensor{R},b::LocalTensor{R}) where R = TensorField(base(a), ⋆(fiber(a)∧fiber(b),metricextensor(a)))
 Grassmann.compound(t::LocalTensor,i::Val) = LocalTensor(base(t), compound(fiber(t),i))
 Grassmann.compound(t::LocalTensor,i::Int) = LocalTensor(base(t), compound(fiber(t),i))
 Grassmann.eigen(t::LocalTensor,i::Val) = LocalTensor(base(t), eigen(fiber(t),i))
@@ -224,6 +224,12 @@ Grassmann.eigvals(t::LocalTensor,i::Int) = LocalTensor(base(t), eigvals(fiber(t)
 Grassmann.eigvecs(t::LocalTensor,i::Val) = LocalTensor(base(t), eigvecs(fiber(t),i))
 Grassmann.eigvecs(t::LocalTensor,i::Int) = LocalTensor(base(t), eigvecs(fiber(t),i))
 Grassmann.eigpolys(t::LocalTensor,G::Val) = LocalTensor(base(t), eigpolys(fiber(t),G))
+Base.:<(a::LocalTensor{R},b::LocalTensor{R}) where R = Base.:>(b,a)
+Base.:<(a::Number,b::LocalTensor) = Base.:>(b,a)
+Base.:<(a::LocalTensor,b::Number) = Base.:>(b,a)
+for fun ∈ (:inv,:exp,:exp2,:exp10,:log,:log2,:log10,:sinh,:cosh,:abs,:sqrt,:cbrt,:cos,:sin,:tan,:cot,:sec,:csc,:asec,:acsc,:sech,:csch,:asech,:tanh,:coth,:asinh,:acosh,:atanh,:acoth,:asin,:acos,:atan,:acot,:sinc,:cosc,:cis,:abs2)
+    @eval Base.$fun(s::LocalTensor) = LocalTensor(base(s), $fun(fiber(s),metricextensor(s)))
+end
 for type ∈ (:Coordinate,:LocalTensor)
     for tensor ∈ (:Single,:Couple,:PseudoCouple,:Chain,:Spinor,:AntiSpinor,:Multivector,:DiagonalOperator,:TensorOperator,:Outermorphism)
         @eval (T::Type{<:$tensor})(s::$type) = $type(base(s), T(fiber(s)))
@@ -231,14 +237,11 @@ for type ∈ (:Coordinate,:LocalTensor)
     for fun ∈ (:-,:!,:~,:real,:imag,:conj,:deg2rad,:transpose)
         @eval Base.$fun(s::$type) = $type(base(s), $fun(fiber(s)))
     end
-    for fun ∈ (:inv,:exp,:exp2,:exp10,:log,:log2,:log10,:sinh,:cosh,:abs,:sqrt,:cbrt,:cos,:sin,:tan,:cot,:sec,:csc,:asec,:acsc,:sech,:csch,:asech,:tanh,:coth,:asinh,:acosh,:atanh,:acoth,:asin,:acos,:atan,:acot,:sinc,:cosc,:cis,:abs2)
-        @eval Base.$fun(s::$type) = $type(base(s), $fun(fiber(s),metricextensor(base(s))))
-    end
-    for fun ∈ (:reverse,:involute,:clifford,:even,:odd,:scalar,:vector,:bivector,:volume,:value,:curl,:∂,:d,:complementleft,:realvalue,:imagvalue,:outermorphism,:Outermorphism,:DiagonalOperator,:TensorOperator,:eigen,:eigvecs,:eigvals,:eigvalsreal,:eigvalscomplex,:eigvecsreal,:eigvecscomplex,:eigpolys,:∧)
+    for fun ∈ (:reverse,:involute,:clifford,:even,:odd,:scalar,:vector,:bivector,:volume,:value,:curl,:∂,:d,:complementleft,:realvalue,:imagvalue,:outermorphism,:Outermorphism,:DiagonalOperator,:TensorOperator,:eigen,:eigvecs,:eigvals,:eigvalsreal,:eigvalscomplex,:eigvecsreal,:eigvecscomplex,:eigpolys,:∧,:↑,:↓)
         @eval Grassmann.$fun(s::$type) = $type(base(s), $fun(fiber(s)))
     end
     for fun ∈ (:⋆,:angle,:radius,:complementlefthodge,:pseudoabs,:pseudoabs2,:pseudoexp,:pseudolog,:pseudoinv,:pseudosqrt,:pseudocbrt,:pseudocos,:pseudosin,:pseudotan,:pseudocosh,:pseudosinh,:pseudotanh,:metric,:unit)
-        @eval Grassmann.$fun(s::$type) = $type(base(s), $fun(fiber(s),metricextensor(base(s))))
+        @eval Grassmann.$fun(s::$type) = $type(base(s), $fun(fiber(s),metricextensor(s)))
     end
     for op ∈ (:+,:-,:&,:∧,:∨)
         let bop = op ∈ (:∧,:∨) ? :(Grassmann.$op) : :(Base.$op)
@@ -251,9 +254,9 @@ for type ∈ (:Coordinate,:LocalTensor)
     for (op,mop) ∈ ((:*,:wedgedot_metric),(:wedgedot,:wedgedot_metric),(:veedot,:veedot_metric),(:⋅,:contraction_metric),(:>,:contraction_metric),(:⊘,:⊘),(:>>>,:>>>),(:/,:/),(:^,:^))
         let bop = op ∈ (:*,:>,:>>>,:/,:^) ? :(Base.$op) : :(Grassmann.$op)
         @eval begin
-            $bop(a::$type{R},b::$type{R}) where R = $type(base(a),Grassmann.$mop(fiber(a),fiber(b),metricextensor(base(a))))
+            $bop(a::$type{R},b::$type{R}) where R = $type(base(a),Grassmann.$mop(fiber(a),fiber(b),metricextensor(a)))
             $bop(a::Number,b::$type) = $type(base(b), Grassmann.$op(a,fiber(b)))
-            $bop(a::$type,b::Number) = $type(base(a), Grassmann.$op(fiber(a),b,$((op≠:^ ? () : (:(metricextensor(base(a))),))...)))
+            $bop(a::$type,b::Number) = $type(base(a), Grassmann.$op(fiber(a),b,$((op≠:^ ? () : (:(metricextensor(a)),))...)))
         end end
     end
     @eval begin
@@ -308,14 +311,14 @@ const coordinates = Coordinates
 """
     base(m::LocalFiber{B,F}) -> B
 
-Return the `base` of a `FiberBundle` or `LocalSection`.
+Return the `base` of a `FiberBundle` or `LocalFiber`.
 """
 base(t::FiberBundle) = t.dom
 
 """
     fiber(m::LocalFiber{B,F}) -> F
 
-Return the `fiber` of a `FiberBundle` or `LocalSection`.
+Return the `fiber` of a `FiberBundle` or `LocalFiber`.
 """
 fiber(t::FiberBundle) = t.cod
 base(t::Array) = ProductSpace(Values(axes(t)))
@@ -324,21 +327,21 @@ fiber(t::Array) = t
 """
     basetype(m::LocalFiber{B,F}) -> DataType
 
-Return the `basetype` of a `FiberBundle` or `LocalSection`.
+Return the `basetype` of a `FiberBundle` or `LocalFiber`.
 """
 basetype(::Array{T}) where T = T
 
 """
     fibertype(m::LocalFiber{B,F}) -> DataType
 
-Return the `fibertype` of a `FiberBundle` or `LocalSection`.
+Return the `fibertype` of a `FiberBundle` or `LocalFiber`.
 """
 fibertype(::Array{T}) where T = T
 
 """
     pointtype(m::Coordinate{P,G}) -> DataType
 
-Return the `pointtype` of a `FiberBundle` or `LocalSection`.
+Return the `pointtype` of a `FiberBundle` or `LocalFiber`.
 """
 pointtype(m::FiberBundle) = basetype(coordinatetype(m))
 pointtype(m::Type{<:FiberBundle}) = basetype(coordinatetype(m))
@@ -346,7 +349,7 @@ pointtype(m::Type{<:FiberBundle}) = basetype(coordinatetype(m))
 """
     metrictype(m::Coordinate{P,G}) -> DataType
 
-Return the `metrictype` of a `FiberBundle` or `LocalSection`.
+Return the `metrictype` of a `FiberBundle` or `LocalFiber`.
 """
 metrictype(m::FiberBundle) = fibertype(coordinatetype(m))
 metrictype(m::Type{<:FiberBundle}) = fibertype(coordinatetype(m))
@@ -354,7 +357,7 @@ metrictype(m::Type{<:FiberBundle}) = fibertype(coordinatetype(m))
 """
     coordinatetype(m::Coordinate{P,G}) -> DataType
 
-Return the `coordinatetype` of a `FiberBundle` or `LocalSection`.
+Return the `coordinatetype` of a `FiberBundle` or `LocalFiber`.
 """
 coordinatetype(m::Coordinates) = eltype(m)
 coordinatetype(m::Type{<:Coordinates}) = eltype(m)
@@ -483,7 +486,7 @@ function clearpointcache!()
         deletebundle!(P)
     end
 end
-bundle(m::PointCloud) = m.id
+bundle(m::PointArray) = m.id
 deletebundle!(m::PointCloud) = deletepointcloud!(bundle(m))
 function deletepointcloud!(P::Int)
     point_cache[P] = [Chain{Submanifold(0),0,Int}(Values(0))]

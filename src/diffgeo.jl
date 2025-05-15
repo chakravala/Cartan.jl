@@ -239,6 +239,9 @@ sectorintegrate_slow(f::TensorField) = integrate(sectordet_slow(f))/mdims(fibert
 
 area(f::VectorField) = integral(normalnorm(f))
 surfacearea(f::VectorField) = integrate(normalnorm(f))
+surfacearea(f::ElementBundle) = sum(fiber(volumes(f)))
+surfacearea(f::ScalarMap) = surfacearea(graphbundle(f))
+surfacearea(f::FaceMap) = surfacearea(interp(f))
 principals(f::VectorField) = eigvals(shape(f))
 principals(f::VectorField,i) = eigvals(shape(f),i)
 principalaxes(f::VectorField) = eigvecs(shape(f))
@@ -301,7 +304,7 @@ end
 evolute(f::AbstractCurve) = f+localevolute(f)
 Grassmann.involute(f::AbstractCurve) = f-unittangent(f)*arclength(f)
 function osculatingplane(f::AbstractCurve,d=centraldiffpoints(f),t=centraldifffiber(f,d))
-    TensorField(domain(f), TensorOperator.(Chain.(t,fiber(normal(f,t,d)))))
+    TensorField(domain(f), TensorOperator.(Chain.(t,fiber(normal(f,d,t)))))
 end
 function unitosculatingplane(f::AbstractCurve,d=centraldiffpoints(f),t=centraldifffiber(f,d))
     T = unit.(t,refmetric(f))
