@@ -451,6 +451,7 @@ function variation(v::TensorField{B,F,2,<:FiberProductBundle} where {B,F},t,fun:
         fun!(leaf(v,i),args...)
         sleep(t)
     end
+    return out
 end
 
 for fun ∈ (:variation,:alteration,:modification)
@@ -473,6 +474,18 @@ function alteration(v::TensorField,t,fun::Function,args...)
         display(fun(leaf(v,i,1),args...))
         sleep(t)
     end
+end
+function alteration(v::TensorField,t,fun::Function,fun!::Function,::Val{T},args...) where T
+    out = fun(leaf(v,1,1),args...)
+    fig,ax,plt = out
+    display(out)
+    sleep(t)
+    for i ∈ 2:length(points(v).v[1])
+        T && empty!(ax)
+        fun!(leaf(v,i,1),args...)
+        sleep(t)
+    end
+    return out
 end
 function _alteration(out,v::TensorField,t,fun::Function,fun!::Function,::Val{T},args...) where T
     fig,ax,plt = out
@@ -503,6 +516,7 @@ function modification(v::TensorField,t,fun::Function,fun!::Function,::Val{T},arg
         fun!(leaf(v,i,2),args...)
         sleep(t)
     end
+    return out
 end
 
 export tensorfield
