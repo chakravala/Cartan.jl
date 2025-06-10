@@ -10,6 +10,8 @@ makedocs(
     authors = "Michael Reed",
     pages = Any[
         "Home" => "index.md",
+        "Fiber" => "fiber.md",
+        "Videos" => "videos.md",
         "Library" => "library.md",
         "AGPL-3.0" => "agpl.md"
         ]

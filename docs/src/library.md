@@ -1,7 +1,7 @@
 # Cartan.jl Library
 
 ```@index
-Pages = ["library.md"]
+Pages = ["index.md","fiber.md","videos.md","library.md"]
 ```
 
 ```@autodocs
