@@ -536,6 +536,13 @@ function tensorfield(t,ϕ::T) where T<:AbstractVector
     end
 end
 
+function unorientedplane(p,v1,v2)
+    TensorField(base(OpenParameter(2,2)),p.+[-v1-v2 v1+v2; v1-v2 v2-v1])
+end
+function orientedplane(p,v1,v2)
+    TensorField(base(OpenParameter(2,2)),p.+[zero(v1) v1+v2; v1 v2])
+end
+
 include("grid.jl")
 include("element.jl")
 include("diffgeo.jl")
@@ -588,38 +595,126 @@ function __init__()
                 Makie.lines!(getindex.(t,i),f;args...)
             end
         end
+        function gridargs(fun)
+            quote
+                if haskey(args,:gridsize)
+                    wargs = Dict(args)
+                    delete!(wargs,:gridsize)
+                    return $fun(resample(M,args[:gridsize]),resample(t,args[:gridsize]);(;wargs...)...)
+                elseif haskey(args,:arcgridsize)
+                    wargs = Dict(args)
+                    delete!(wargs,:arcgridsize)
+                    aM = arcresample(M,args[:arcgridsize])
+                    return $fun(aM,TensorField(base(aM),t.(points(aM)));(;wargs...)...)
+                else
+                    args
+                end
+            end
+        end
+        export tangentbundle, tangentbundle!
+        for (fun,pla) ∈ ((:tangentbundle,:planesbundle),(:tangentbundle!,:planesbundle!))
+            @eval $fun(M::TensorField{B,<:Chain{V,1} where V,2} where B,t=jacobian(M);args...) = $pla(M,t;args...)
+        end
+        for (fun,arr) ∈ ((:tangentbundle,:arrowsbundle),(:tangentbundle!,:arrowsbundle!))
+            @eval $fun(M::TensorField{B,<:Chain{V,1} where V,1} where B,t::VectorField=gradient(M);args...) = $arr(M,t;args...)
+        end
+        export planesbundle, planesbundle!
+        for (fun,arr) ∈ ((:planesbundle,:arrows),(:planesbundle!,:arrows!))
+            @eval function $fun(M::VectorField,t::TensorField{B,<:TensorOperator} where B;args...)
+                kwargs = $(gridargs(fun))
+                s = spacing(M)/minimum(value(sum(map.(norm,fiber(value(t))))/length(t)))
+                display(Makie.$arr(M,TensorField(base(t),sum.(value.(value.(fiber(t)))));lengthscale=s/2,arrowsize=s/33))
+                for ij ∈ ProductTopology(size(M)...)
+                    v = fiber(t)[ij...]*(s/2)
+                    Makie.mesh!(unorientedplane(fiber(M)[ij...],v[1],v[2]))
+                end
+            end
+        end
+        export spacesbundle, spacesbundle!
+        for (fun,arr) ∈ ((:spacesbundle,:arrows),(:spacesbundle!,:arrows!))
+            @eval function $fun(M::VectorField,t::TensorField{B,<:TensorOperator} where B;args...)
+                kwargs = $(gridargs(fun))
+                s = spacing(M)/minimum(value(sum(map.(norm,fiber(value(t))))/length(t)))
+                display(Makie.$arr(M,TensorField(base(t),sum.(value.(value.(fiber(t)))));lengthscale=s/2,arrowsize=s/33))
+                for ij ∈ ProductTopology(size(M)...)
+                    p,v = fiber(M)[ij...],fiber(t)[ij...]*(s/2)
+                    Makie.mesh!(unorientedplane(p,v[1],v[2]))
+                    Makie.mesh!(unorientedplane(p,v[1],v[3]))
+                    Makie.mesh!(unorientedplane(p,v[2],v[3]))
+                end
+            end
+        end
+        export arrowsbundle, arrowsbundle!
+        for (fun,sca) ∈ ((:arrowsbundle,:scatter),(:arrowsbundle!,:scatter!))
+            @eval begin
+                function $fun(M::VectorField,t::VectorField;args...)
+                    kwargs = $(gridargs(fun))
+                    s = spacing(M)/(sum(fiber(norm(t)))/length(t))
+                    display(Makie.$sca(vec(fiber(M))))
+                    Makie.arrows!(M,t;lengthscale=s/2,arrowsize=s/33,kwargs...)
+                    Makie.arrows!(M,-t;lengthscale=s/2,arrowsize=s/33,kwargs...)
+                end
+                function $fun(M::VectorField,t::TensorField{B,<:TensorOperator} where B;args...)
+                    kwargs = $(gridargs(fun))
+                    s = spacing(M)/minimum(value(sum(map.(norm,fiber(value(t))))/length(t)))
+                    display(Makie.$sca(vec(fiber(M))))
+                    Makie.arrows!(M,t;lengthscale=s/2,arrowsize=s/33,kwargs...)
+                    Makie.arrows!(M,-t;lengthscale=s/2,arrowsize=s/33,kwargs...)
+                end
+            end
+        end
+        export scaledfield, scaledfield!, scaledbundle, scaledbundle!
+        for (fun,arr,pln,spa) ∈ ((:scaledfield,:scaledarrows,:scaledplanes,:scaledspaces),(:scaledfield!,:scaledarrows!,:scaledplanes!,:scaledspaces!),(:scaledbundle,:arrowsbundle,:planesbundle,:spacesbundle),(:scaledbundle!,:arrowsbundle!,:planesbundle!,:spacesbundle!))
+            @eval begin
+                $fun(M::VectorField,t::VectorField;args...) = $arr(M,t;args...)
+                function $fun(M::VectorField,t::TensorField{B,<:TensorOperator} where B;args...)
+                    N = mdims(fibertype(t))
+                    N==1 ? $arr(M,t;args...) : N==2 ? $pln(M,t;args...) : $spa(M,t;args...)
+                end
+            end
+        end
+        export scaledplanes, scaledplanes!, scaledspaces, scaledspaces!
+        for (fun,pla) ∈ ((:scaledplanes,:planes),(:scaledplanes!,:planes!),(:scaledspaces,:spaces),(:scaledspaces!,:spaces!))
+            @eval function $fun(M::VectorField,t::TensorField{B,<:TensorOperator} where B;args...)
+                kwargs = $(gridargs(fun))
+                s = spacing(M)/minimum(value(sum(map.(norm,fiber(value(t))))/length(t)))
+                $pla(M,t;lengthscale=s/2,kwargs...)
+            end
+        end
+        export planes, planes!
+        for (fun,arr) ∈ ((:planes,:arrows),(:planes!,:arrows!))
+            @eval function $fun(M::VectorField,t::TensorField{B,<:TensorOperator} where B;lengthscale=1,args...)
+                kwargs = $(gridargs(fun))
+                display(Makie.$arr(M,TensorField(base(t),sum.(value.(value.(fiber(t)))));lengthscale=lengthscale,arrowsize=2lengthscale/33))
+                for ij ∈ ProductTopology(size(M)...)
+                    v = fiber(t)[ij...]*lengthscale
+                    Makie.mesh!(orientedplane(fiber(M)[ij...],v[1],v[2]))
+                end
+            end
+        end
+        export spaces, spaces!
+        for (fun,arr) ∈ ((:spaces,:arrows),(:spaces!,:arrows!))
+            @eval function $fun(M::VectorField,t::TensorField{B,<:TensorOperator} where B;lengthscale=1,args...)
+                kwargs = $(gridargs(fun))
+                display(Makie.$arr(M,TensorField(base(t),sum.(value.(value.(fiber(t)))));lengthscale=lengthscale,arrowsize=2lengthscale/33))
+                for ij ∈ ProductTopology(size(M)...)
+                    p,v = fiber(M)[ij...],fiber(t)[ij...]*lengthscale
+                    Makie.mesh!(orientedplane(p,v[1],v[2]))
+                    Makie.mesh!(orientedplane(p,v[1],v[3]))
+                    Makie.mesh!(orientedplane(p,v[2],v[3]))
+                end
+            end
+        end 
         export scaledarrows, scaledarrows!
         for fun ∈ (:arrows,:arrows!)
             @eval begin
                 function $(Symbol(:scaled,fun))(M::VectorField,t::VectorField;args...)
-                    kwargs = if haskey(args,:gridsize)
-                        wargs = Dict(args)
-                        delete!(wargs,:gridsize)
-                        return $(Symbol(:scaled,fun))(resample(M,args[:gridsize]),resample(t,args[:gridsize]);(;wargs...)...)
-                    elseif haskey(args,:arcgridsize)
-                        wargs = Dict(args)
-                        delete!(wargs,:arcgridsize)
-                        aM = arcresample(M,args[:arcgridsize])
-                        return $(Symbol(:scaled,fun))(aM,TensorField(base(aM),t.(points(aM)));(;wargs...)...)
-                    else
-                        args
-                    end
+                    kwargs = $(gridargs(Symbol(:scaled,fun)))
                     s = spacing(M)/(sum(fiber(norm(t)))/length(t))
                     Makie.$fun(M,t;lengthscale=s/3,arrowsize=s/17,kwargs...)
                 end
                 function $(Symbol(:scaled,fun))(M::VectorField,t::TensorField{B,<:TensorOperator} where B;args...)
-                    kwargs = if haskey(args,:gridsize)
-                        wargs = Dict(args)
-                        delete!(wargs,:gridsize)
-                        return $(Symbol(:scaled,fun))(resample(M,args[:gridsize]),resample(t,args[:gridsize]);(;wargs...)...)
-                    elseif haskey(args,:arcgridsize)
-                        wargs = Dict(args)
-                        delete!(wargs,:arcgridsize)
-                        aM = arcresample(M,args[:arcgridsize])
-                        return $(Symbol(:scaled,fun))(aM,TensorField(base(aM),t.(points(aM)));(;wargs...)...)
-                    else
-                        args
-                    end
+                    kwargs = $(gridargs(Symbol(:scaled,fun)))
                     s = spacing(M)/maximum(value(sum(map.(norm,fiber(value(t))))/length(t)))
                     Makie.$fun(M,t;lengthscale=s/3,arrowsize=s/17,kwargs...)
                 end
@@ -673,19 +768,19 @@ function __init__()
         end
         function Makie.volume(t::VolumeGrid;args...)
             p = points(t).v
-            Makie.volume(p[1][1]..p[1][end],p[2][1]..p[2][end],p[3][1]..p[3][end],Real.(codomain(t));args...)
+            Makie.volume(Makie.:..(p[1][1],p[1][end]),Makie.:..(p[2][1],p[2][end]),Makie.:..(p[3][1],p[3][end]),Real.(codomain(t));args...)
         end
         function Makie.volume!(t::VolumeGrid;args...)
             p = points(t).v
-            Makie.volume!(p[1][1]..p[1][end],p[2][1]..p[2][end],p[3][1]..p[3][end],Real.(codomain(t));args...)
+            Makie.volume!(Makie.:..(p[1][1],p[1][end]),Makie.:..(p[2][1],p[2][end]),Makie.:..(p[3][1],p[3][end]),Real.(codomain(t));args...)
         end
         function Makie.volumeslices(t::VolumeGrid;args...)
             p = points(t).v
-            Makie.volumeslices(p[1][1]..p[1][end],p[2][1]..p[2][end],p[3][1]..p[3][end],Real.(codomain(t));args...)
+            Makie.volumeslices(Makie.:..(p[1][1],p[1][end]),Makie.:..(p[2][1],p[2][end]),Makie.:..(p[3][1],p[3][end]),Real.(codomain(t));args...)
         end
         function Makie.volumeslices!(t::VolumeGrid;args...)
             p = points(t).v
-            Makie.volumeslices!(p[1][1]..p[1][end],p[2][1]..p[2][end],p[3][1]..p[3][end],Real.(codomain(t));args...)
+            Makie.volumeslices!(Makie.:..(p[1][1],p[1][end]),Makie.:..(p[2][1],p[2][end]),Makie.:..(p[3][1],p[3][end]),Real.(codomain(t));args...)
         end
         for fun ∈ (:surface,:surface!)
             @eval begin

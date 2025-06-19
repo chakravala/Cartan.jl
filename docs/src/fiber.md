@@ -32,8 +32,8 @@ Algebra operations include exterior, regressive, inner, and geometric, along wit
 Code generation enables concise usage of the algebra syntax.
 *DirectSum.jl* multivector parametric type polymorphism is based on tangent vector spaces and conformal projective geometry.
 Additionally, the universal interoperability between different sub-algebras is enabled by *AbstractTensors.jl*, on which the type system is built.
-The design is based on \verb`TensorAlgebra{V}` abstract type interoperability from *AbstractTensors.jl* with a ``\mathbb{K}``-module type parameter ``V`` from *DirectSum.jl*.
-Abstract vector space type operations happen at compile-time, resulting in a differential geometric algebra of multivector forms.
+The design is based on `TensorAlgebra{V}` abstract type interoperability from *AbstractTensors.jl* with a ``\mathbb{K}``-module type parameter ``V`` from *DirectSum.jl*.
+Abstract vector space type operations happen at compile-time, resulting in a differential geometric algebra of multivectors.
 
 Building on the *Grassmann.jl* foundation, the *Cartan.jl* extension then defines `TensorField{B,F,N} <: GlobalFiber{LocalTensor{B,F},N}` for both a local `ProductSpace` and general `ImmersedTopology` specifications on any `FrameBundle` expressed with *Grassmann.jl* algebra.
 Many of these modular methods can work on input meshes or product topologies of any dimension, although there are some methods which are specialized.
@@ -72,7 +72,7 @@ It is also possible to change the diagonal scaling, such as with `D"0.3,2.4,1"`.
 Fully general `MetricTensor` as a type with non-diagonal components requires a matrix, e.g. `MetricTensor([1 2; 2 3])`.
 
 Declaring an additional point at infinity is done by specifying it in the string constructor with ``\infty`` at the first index (i.e. Riemann sphere `S"∞+++"`).
-The hyperbolic geometry can be declared by ``\emptyset`` subsequently (i.e. hyperbolic projection `S"∞+++"`).
+The hyperbolic geometry can be declared by ``\emptyset`` subsequently (i.e. hyperbolic projection `S"∅+++"`).
 Additionally, the *null-basis* based on the projective split for conformal geometric algebra would be specified with `S"∞∅+++"`.
 These two declared basis elements are interpreted in the type system.
 The `tangent(V,μ,ν)`  map can be used to specify ``\mu`` and ``\nu``.
@@ -178,9 +178,9 @@ F(v_1)\wedge\cdots\wedge F(v_n) = F(v_1\wedge\cdots\wedge v_n)
 
 Binary operations commonly used in `Grassmann` algebra syntax
 * `+` and `-` carry over from the ``\mathbb{K}``-module structure associated to ``\mathbb{K}``
-* `wedge` is exterior product $\wedge$ and \verb`vee` is regressive product ``\vee``
-* `>` is the right contraction and `<` is the left contraction for ``\Lambda V``
-* `*` is the geometric product and `/` uses \verb`inv` algorithm for division
+* `wedge` is exterior product ``\wedge`` and `vee` is regressive product ``\vee``
+* `>` is the right contraction and `<` is the left contraction for the algebra
+* `*` is the geometric product and `/` uses `inv` algorithm for division
 * ``\oslash`` is the `sandwich` and `>>>` is its alternate operator orientation
 
 Custom methods related to tensor operators and roots of polynomials
@@ -894,10 +894,10 @@ mesh(tf2)
 
 
 *Example*. Most finite element methods `using Grassmann, Cartan` automatically generalize to higher dimension manifolds with e.g. tetrahedra,
-	and the author has contributed to packages such as *Triangulate.jl*, *TetGen.jl*.
+and the author has contributed to packages such as *Triangulate.jl*, *TetGen.jl*.
 ```julia
 using Grassmann, Cartan, Adapode, FlowGeometry, MiniQhull, TetGen
-ps = sphere(sphere(`$\partial$\verb`(delaunay(PointCloud(sphere())))))
+ps = sphere(sphere(∂(delaunay(PointCloud(sphere())))))
 pt,pe = tetrahedralize(cubesphere(),"vpq1.414a0.1";
     holes=[TetGen.Point(0.0,0.0,0.0)])
 tf = solvepoisson(pt,pe,1,0,
