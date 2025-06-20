@@ -154,6 +154,48 @@
         "https://www.dropbox.com/sh/tphh6anw0qwija4/AAACiaXig5djrLVAKLPFmGV-a/Geometric-Algebra?preview=grassmann-cartan-2025.pdf">
         <img src="https://img.shields.io/badge/PDF-2025-blue.svg"
         alt="PDF 2025"></a></p>
+        <p><em>Cartan.jl</em> introduces a pioneering unified
+        numerical framework for comprehensive differential
+        geometric algebra, purpose-built for the formulation and
+        solution of partial differential equations on manifolds
+        with non-trivial topological structure and <a href=
+        "https://github.com/chakravala/Grassmann.jl">Grassmann.jl</a>
+        algebra. Written in Julia, <a href=
+        "https://github.com/chakravala/Cartan.jl">Cartan.jl</a>
+        unifies differential geometry, geometric algebra, and
+        tensor calculus with support for fiber product topology;
+        enabling directly executable generalized treatment of
+        geometric PDEs over grids, meshes, and simplicial
+        decompositions.</p>
+        <p>The system supports intrinsic formulations of
+        differential operators (including the exterior derivative,
+        codifferential, Lie derivative, interior product, and Hodge
+        star) using a coordinate-free algebraic language grounded
+        in Grassmann-Cartan multivector theory. Its core
+        architecture accomodates numerical representations of fiber
+        bundles, product manifolds, and submanifold immersion,
+        providing native support for PDE models defined on
+        structured or unstructured domains.</p>
+        <p><em>Cartan.jl</em> integrates naturally with
+        simplex-based finite element exterior calculus, allowing
+        for geometrical discretizations of field theories and
+        conservation laws. With its synthesis of symbolic
+        abstraction and numerical execution, <em>Cartan.jl</em>
+        empowers researchers to develop PDE models that are
+        simultaneously founded in differential geometry,
+        algebraically consistent, and computationally expressive,
+        opening new directions for scientific computing at the
+        interface of geometry, algebra, and analysis.</p>
+        <pre><code class=
+        "nohighlight hljs"> _________                __                  __________
+ \_   ___ \_____ ________/  |______    ____   \\       /
+ /    \  \/\__  \\_  __ \   __\__  \  /    \   \\     /
+ \     \____/ __ \|  | \/|  |  / __ \|   |  \   \\   /
+  \______  (____  /__|   |__| (____  /___|  /    \\ /
+         \/     \/                 \/     \/      \/</code></pre>
+        <p>developed by <a href=
+        "https://github.com/chakravala">chakravala</a> with
+        <a href="https://github.com/chakravala/Grassmann.jl">Grassmann.jl</a></p>
         <p>Provides <code>TensorField{B,F,N} &lt;:
         GlobalFiber{LocalTensor{B,F},N}</code> implementation for
         both a local <code>ProductSpace</code> and general
@@ -183,16 +225,6 @@
         having fibers of the <code>Grassmann</code> algebra.
         Initial topologies include <code>ProductSpace</code> types
         and in general the <code>ImmersedTopology</code>.</p>
-        <pre><code class=
-        "nohighlight hljs"> _________                __                  __________
- \_   ___ \_____ ________/  |______    ____   \\       /
- /    \  \/\__  \\_  __ \   __\__  \  /    \   \\     /
- \     \____/ __ \|  | \/|  |  / __ \|   |  \   \\   /
-  \______  (____  /__|   |__| (____  /___|  /    \\ /
-         \/     \/                 \/     \/      \/</code></pre>
-        <p>developed by <a href=
-        "https://github.com/chakravala">chakravala</a> with
-        <a href="https://github.com/chakravala/Grassmann.jl">Grassmann.jl</a></p>
         <ul>
           <li>
             <a href="fiber/#Cartan.jl-language-design">Cartan.jl
@@ -296,7 +328,7 @@
           <p>This document was generated with <a href=
           "https://github.com/JuliaDocs/Documenter.jl">Documenter.jl</a>
           version 1.12.0 on <span class="colophon-date" title=
-          "Friday 20 June 2025 07:54">Friday 20 June 2025</span>.
+          "Friday 20 June 2025 12:00">Friday 20 June 2025</span>.
           Using Julia version 1.11.0.</p>
         </section>
         <footer class="modal-card-foot"></footer>
