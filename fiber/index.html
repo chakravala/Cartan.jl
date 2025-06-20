@@ -1,42 +1,1601 @@
 <!DOCTYPE html>
-<html lang="en"><head><meta charset="UTF-8"/><meta name="viewport" content="width=device-width, initial-scale=1.0"/><title>Fiber · Cartan.jl</title><meta name="title" content="Fiber · Cartan.jl"/><meta property="og:title" content="Fiber · Cartan.jl"/><meta property="twitter:title" content="Fiber · Cartan.jl"/><meta name="description" content="Documentation for Cartan.jl."/><meta property="og:description" content="Documentation for Cartan.jl."/><meta property="twitter:description" content="Documentation for Cartan.jl."/><script data-outdated-warner src="../assets/warner.js"></script><link href="https://cdnjs.cloudflare.com/ajax/libs/lato-font/3.0.0/css/lato-font.min.css" rel="stylesheet" type="text/css"/><link href="https://cdnjs.cloudflare.com/ajax/libs/juliamono/0.050/juliamono.min.css" rel="stylesheet" type="text/css"/><link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.2/css/fontawesome.min.css" rel="stylesheet" type="text/css"/><link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.2/css/solid.min.css" rel="stylesheet" type="text/css"/><link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.2/css/brands.min.css" rel="stylesheet" type="text/css"/><link href="https://cdnjs.cloudflare.com/ajax/libs/KaTeX/0.16.8/katex.min.css" rel="stylesheet" type="text/css"/><script>documenterBaseURL=".."</script><script src="https://cdnjs.cloudflare.com/ajax/libs/require.js/2.3.6/require.min.js" data-main="../assets/documenter.js"></script><script src="../search_index.js"></script><script src="../siteinfo.js"></script><script src="../../versions.js"></script><link class="docs-theme-link" rel="stylesheet" type="text/css" href="../assets/themes/catppuccin-mocha.css" data-theme-name="catppuccin-mocha"/><link class="docs-theme-link" rel="stylesheet" type="text/css" href="../assets/themes/catppuccin-macchiato.css" data-theme-name="catppuccin-macchiato"/><link class="docs-theme-link" rel="stylesheet" type="text/css" href="../assets/themes/catppuccin-frappe.css" data-theme-name="catppuccin-frappe"/><link class="docs-theme-link" rel="stylesheet" type="text/css" href="../assets/themes/catppuccin-latte.css" data-theme-name="catppuccin-latte"/><link class="docs-theme-link" rel="stylesheet" type="text/css" href="../assets/themes/documenter-dark.css" data-theme-name="documenter-dark" data-theme-primary-dark/><link class="docs-theme-link" rel="stylesheet" type="text/css" href="../assets/themes/documenter-light.css" data-theme-name="documenter-light" data-theme-primary/><script src="../assets/themeswap.js"></script></head><body><div id="documenter"><nav class="docs-sidebar"><a class="docs-logo" href="../"><img src="../assets/logo.png" alt="Cartan.jl logo"/></a><div class="docs-package-name"><span class="docs-autofit"><a href="../">Cartan.jl</a></span></div><button class="docs-search-query input is-rounded is-small is-clickable my-2 mx-auto py-1 px-2" id="documenter-search-query">Search docs (Ctrl + /)</button><ul class="docs-menu"><li><a class="tocitem" href="../">Home</a></li><li class="is-active"><a class="tocitem" href>Fiber</a><ul class="internal"><li><a class="tocitem" href="#Grassmann.jl-API-design-overview"><span>Grassmann.jl API design overview</span></a></li><li><a class="tocitem" href="#Tensor-field-topology-and-fiber-bundles"><span>Tensor field topology and fiber bundles</span></a></li><li><a class="tocitem" href="#Interactive-computational-sessions"><span>Interactive computational sessions</span></a></li><li><a class="tocitem" href="#Summary-of-Grassmann.jl-and-Cartan.jl"><span>Summary of Grassmann.jl and Cartan.jl</span></a></li></ul></li><li><a class="tocitem" href="../videos/">Videos</a></li><li><a class="tocitem" href="../library/">Library</a></li><li><a class="tocitem" href="../agpl/">AGPL-3.0</a></li></ul><div class="docs-version-selector field has-addons"><div class="control"><span class="docs-label button is-static is-size-7">Version</span></div><div class="docs-selector control is-expanded"><div class="select is-fullwidth is-size-7"><select id="documenter-version-selector"></select></div></div></div></nav><div class="docs-main"><header class="docs-navbar"><a class="docs-sidebar-button docs-navbar-link fa-solid fa-bars is-hidden-desktop" id="documenter-sidebar-button" href="#"></a><nav class="breadcrumb"><ul class="is-hidden-mobile"><li class="is-active"><a href>Fiber</a></li></ul><ul class="is-hidden-tablet"><li class="is-active"><a href>Fiber</a></li></ul></nav><div class="docs-right"><a class="docs-settings-button docs-navbar-link fa-solid fa-gear" id="documenter-settings-button" href="#" title="Settings"></a><a class="docs-article-toggle-button fa-solid fa-chevron-up" id="documenter-article-toggle-button" href="javascript:;" title="Collapse all docstrings"></a></div></header><article class="content" id="documenter-page"><h1 id="Cartan.jl-language-design"><a class="docs-heading-anchor" href="#Cartan.jl-language-design">Cartan.jl language design</a><a id="Cartan.jl-language-design-1"></a><a class="docs-heading-anchor-permalink" href="#Cartan.jl-language-design" title="Permalink"></a></h1><p><em>TensorField topology over FrameBundle ∇ with <a href="https://github.com/chakravala/Grassmann.jl">Grassmann.jl</a> elements</em></p><p><a href="https://zenodo.org/badge/latestdoi/673606851"><img src="https://zenodo.org/badge/673606851.svg" alt="DOI"/></a> <a href="https://cartan.crucialflow.com"><img src="https://img.shields.io/badge/docs-dev-blue.svg" alt="Docs Dev"/></a> <img src="https://img.shields.io/github/v/tag/chakravala/Cartan.jl" alt="GitHub tag (latest SemVer)"/> <a href="https://ci.appveyor.com/project/chakravala/cartan-jl"><img src="https://ci.appveyor.com/api/projects/status/klhdg493nvs0oi7h?svg=true" alt="Build status"/></a> <a href="https://www.dropbox.com/sh/tphh6anw0qwija4/AAACiaXig5djrLVAKLPFmGV-a/Geometric-Algebra?preview=differential-geometric-algebra-2021.pdf"><img src="https://img.shields.io/badge/PDF-2021-blue.svg" alt="PDF 2021"/></a> <a href="https://www.dropbox.com/sh/tphh6anw0qwija4/AAACiaXig5djrLVAKLPFmGV-a/Geometric-Algebra?preview=grassmann-cartan-2025.pdf"><img src="https://img.shields.io/badge/PDF-2025-blue.svg" alt="PDF 2025"/></a></p><ul><li><a href="../#Cartan.jl">Cartan.jl</a></li><li><a href="#Cartan.jl-language-design">Cartan.jl language design</a></li><li class="no-marker"><ul><li><a href="#Grassmann.jl-API-design-overview">Grassmann.jl API design overview</a></li><li><a href="#Tensor-field-topology-and-fiber-bundles">Tensor field topology and fiber bundles</a></li><li><a href="#Interactive-computational-sessions">Interactive computational sessions</a></li><li><a href="#Summary-of-Grassmann.jl-and-Cartan.jl">Summary of Grassmann.jl and Cartan.jl</a></li></ul></li><li><a href="../videos/#Cartan.jl-videos">Cartan.jl videos</a></li><li><a href="../library/#Cartan.jl-Library">Cartan.jl Library</a></li></ul><p>Initially, <em>Grassmann.jl</em> and <em>Cartan.jl</em> introduced the <em>DirectSum</em> formalism into computational language design for differential geometric algebra, thus enabling the construction of custom algebras through metaprogramming. <em>Grassmann.jl</em> pioneered a novel type system design along with its syntax and semantics, which has undergone significant refinement through many years of development and continuous improvement. <em>Cartan.jl</em> represents a groundbreaking extension of capabilities offered by <em>Grassmann.jl</em>, marking a pioneering fully realized implementation of numerical differential geometric algebra, based on <code>TensorField</code> representations over a <code>FrameBundle</code> and the <code>ImmersedTopology</code> of the <code>FiberBundle</code>. <em>Grassmann.jl</em> and <em>Cartan.jl</em> build on Julia&#39;s multiple dispatch and metaprogramming capabilities, presenting a new computational language design approach to interfacing with differential geometric algebra based on a new <em>sector integral theorem</em>. This pioneering design not only actualizes but also elevates computational language syntax to new heights using the foundations of <em>Grassmann.jl</em> and <em>Cartan.jl</em>. The <em>Grassmann.jl</em> and <em>Cartan.jl</em> packages introduce pioneering computational language designs, having inspired imitation projects and thereby validating the project&#39;s relevance as significant advance in computational mathematics.</p><p>Packages <em>Grassmann.jl</em> and <em>Cartan.jl</em> can be used as universal language for finite element methods based on a discrete manifold bundle. Tools built on these foundations enable computations based on multi-linear algebra and spin groups using the geometric algebra known as Grassmann algebra or Clifford algebra. This foundation is built on a <code>DirectSum</code> parametric type system for tangent bundles and vector spaces generating the algorithms for local tangent algebras in a global context. Geometric algebra mathematical foundations for differential geometry can be used to simplify the Maxwell equations to a single wave equation due to the geometric product. With this unifying mathematical foundation, it is possible to improve efficiency of multi-disciplinary research using geometric tensor calculus by relying on universal mathematical principles. Tools built on this differential geometric algebra provide an excellent language for the newly presented <em>sector integral theorem</em>, the Helmholtz decomposition, and Hodge-DeRahm co/homology.</p><p>The <em>Grassmann.jl</em> package provides tools for computations based on multi-linear algebra and spin groups using the extended geometric algebra known as Grassmann-Clifford-Hodge algebra. Algebra operations include exterior, regressive, inner, and geometric, along with the Hodge star and boundary operators. Code generation enables concise usage of the algebra syntax. <em>DirectSum.jl</em> multivector parametric type polymorphism is based on tangent vector spaces and conformal projective geometry. Additionally, the universal interoperability between different sub-algebras is enabled by <em>AbstractTensors.jl</em>, on which the type system is built. The design is based on \verb<code>TensorAlgebra{V}</code> abstract type interoperability from <em>AbstractTensors.jl</em> with a <span>$\mathbb{K}$</span>-module type parameter <span>$V$</span> from <em>DirectSum.jl</em>. Abstract vector space type operations happen at compile-time, resulting in a differential geometric algebra of multivector forms.</p><p>Building on the <em>Grassmann.jl</em> foundation, the <em>Cartan.jl</em> extension then defines <code>TensorField{B,F,N} &lt;: GlobalFiber{LocalTensor{B,F},N}</code> for both a local <code>ProductSpace</code> and general <code>ImmersedTopology</code> specifications on any <code>FrameBundle</code> expressed with <em>Grassmann.jl</em> algebra. Many of these modular methods can work on input meshes or product topologies of any dimension, although there are some methods which are specialized. <code>Cartan</code> provides an algebra for <code>FiberBundle</code> sections and any associated bundles on a manifold in terms of <code>Grassmann</code> elements. Calculus of <code>Variation</code> fields can also be generated with the combined topology of a <code>FiberProductBundle</code>. Furthermore, the <code>FiberProduct</code> enables construction of <code>HomotopyBundle</code> types. The <code>Cartan</code> package standardizes composition of various methods and functors applied to specialized categories transformed in terms of a unified representation over a product topology, especially having fibers of the <code>Grassmann</code> algebra and using <code>Cartan</code> methods over a <code>FrameBundle</code>.</p><h2 id="Grassmann.jl-API-design-overview"><a class="docs-heading-anchor" href="#Grassmann.jl-API-design-overview">Grassmann.jl API design overview</a><a id="Grassmann.jl-API-design-overview-1"></a><a class="docs-heading-anchor-permalink" href="#Grassmann.jl-API-design-overview" title="Permalink"></a></h2><p>The <code>AbstractTensors</code> package is intended for universal interoperation of the abstract <code>TensorAlgebra</code> type system. All <code>TensorAlgebra{V}</code> subtypes have type parameter <span>$V$</span>, used to store a <code>Submanifold{M}</code> value, which is parametrized by <span>$M$</span> the <code>TensorBundle</code> choice. This means that different tensor types can have a commonly shared underlying <span>$\mathbb{K}$</span>-module parametric type expressed by defining <code>V::Submanifold{M}</code>. Each <code>TensorAlgebra</code> subtype must be accompanied by a corresponding <code>TensorBundle</code> parameter, which is fully static at compile time. Due to the parametric type system for the <span>$\mathbb{K}$</span>-module types, the compiler can fully pre-allocate and often cache.</p><p>Let <span>$M = T^\mu V$</span> be a <span>$\mathbb{K}$</span>-module of rank <span>$n$</span>, then an instance for <span>$T^\mu V$</span> can be the tuple <span>$(n,\mathbb{P},g,\nu,\mu)$</span> with <span>$\mathbb{P}\subseteq \langle v_\infty,v_\emptyset\rangle$</span> specifying the presence of the projective basis and <span>$g:V\times V\rightarrow\mathbb{K}$</span> is a metric tensor specification. The type <code>TensorBundle{n,</code><span>$\mathbb{P}$</span><code>,g,</code><span>$\nu$</span><code>,</code><span>$\mu$</span><code>}</code> encodes this information as <em>byte-encoded</em> data available at pre-compilation, where <span>$\mu$</span> is an integer specifying the order of the tangent bundle (i.e. multiplicity limit of the Leibniz-Taylor monomials). Lastly, <span>$\nu$</span> is the number of tangent variables.</p><p class="math-container">\[\langle v_1,\dots,v_{n-\nu},\partial_1,\dots,\partial_\nu\rangle=M\leftrightarrow M&#39; = \langle w_1,\dots,w_{n-\nu},\epsilon_1,\dots,\epsilon_\nu\rangle\]</p><p>where <span>$v_i$</span> and <span>$w_i$</span> are bases for the vectors and covectors, while <span>$\partial_i$</span> and <span>$\epsilon_j$</span> are bases for differential operators and scalar functions. The purpose of the <code>TensorBundle</code> type is to specify the <span>$\mathbb{K}$</span>-module basis at compile time. When assigned in a workspace, <code>V = Submanifold(::TensorBundle)</code> is used.</p><p>The metric signature of the <code>Submanifold{V,1}</code> elements of a vector space <span>$V$</span> can be specified with the <code>V&quot;...&quot;</code> by using <span>$+$</span> or <span>$-$</span> to specify whether the <code>Submanifold{V,1}</code> element of the corresponding index squares to <span>$+1$</span> or <span>$-1$</span>. For example, <code>S&quot;+++&quot;</code> constructs a positive definite 3-dimensional <code>TensorBundle</code>, so constructors such as <code>S&quot;...&quot;</code> and <code>D&quot;...&quot;</code> are convenient.</p><p>It is also possible to change the diagonal scaling, such as with <code>D&quot;1,1,1,0&quot;</code>, although the <code>Signature</code> format has a more compact representation if limited to <span>$+1$</span> and <span>$-1$</span>. It is also possible to change the diagonal scaling, such as with <code>D&quot;0.3,2.4,1&quot;</code>. Fully general <code>MetricTensor</code> as a type with non-diagonal components requires a matrix, e.g. <code>MetricTensor([1 2; 2 3])</code>.</p><p>Declaring an additional point at infinity is done by specifying it in the string constructor with <span>$\infty$</span> at the first index (i.e. Riemann sphere <code>S&quot;∞+++&quot;</code>). The hyperbolic geometry can be declared by <span>$\emptyset$</span> subsequently (i.e. hyperbolic projection <code>S&quot;∞+++&quot;</code>). Additionally, the <em>null-basis</em> based on the projective split for conformal geometric algebra would be specified with <code>S&quot;∞∅+++&quot;</code>. These two declared basis elements are interpreted in the type system. The <code>tangent(V,μ,ν)</code>  map can be used to specify <span>$\mu$</span> and <span>$\nu$</span>.</p><p>To assign <code>V = Submanifold(::TensorBundle)</code> along with associated basis elements of the <code>DirectSum.Basis</code> to the local Julia session workspace, it is typical to use <code>Submanifold</code> elements created by the <code>@basis</code> macro,</p><pre><code class="language-julia-repl hljs" style="display:block;">julia&gt; using Grassmann; @basis S&quot;-++&quot; # macro or basis&quot;-++&quot;</code><code class="nohighlight hljs ansi" style="display:block;">(⟨-++⟩, v, v₁, v₂, v₃, v₁₂, v₁₃, v₂₃, v₁₂₃)</code></pre><p>the macro <code>@basis V</code> delcares a local basis in Julia. As a result of this macro, all <code>Submanifold{V,G}</code> elements generated with <code>M::TensorBundle</code> become available in the local workspace with the specified naming arguments. The first argument provides signature specifications, the second argument is the variable name for <span>$V$</span> the <span>$\mathbb{K}$</span>-module, and the third and fourth argument are prefixes of the <code>Submanifold</code> vector names (and covector names). Default is <span>$V$</span> assigned <code>Submanifold{M}</code> and <span>$v$</span> is prefix for the <code>Submanifold{V}</code>.</p><p>It is entirely possible to assign multiple different bases having different signatures without any problems. The <code>@basis</code> macro arguments are used to assign the vector space name to <span>$V$</span> and the basis elements to <span>$v_i$</span>, but other assigned names can be chosen so that their local names don&#39;t interfere: If it is undesirable to assign these variables to a local workspace, the versatile constructs of <code>DirectSum.Basis{V}</code> can be used to contain or access them, which is exported to the user as the method <code>DirectSum.Basis(V)</code>.</p><pre><code class="language-julia-repl hljs" style="display:block;">julia&gt; DirectSum.Basis(V)</code><code class="nohighlight hljs ansi" style="display:block;">DirectSum.Basis{⟨-++⟩,8}(v, v₁, v₂, v₃, v₁₂, v₁₃, v₂₃, v₁₂₃)</code></pre><p><code>V(::Int...)</code> provides a convenient way to define a <code>Submanifold</code> by using integer indices to reference specific direct sums within the ambient space <span>$V$</span>.</p><p>Additionally, a universal unit volume element can be specified in terms of <code>LinearAlgebra.UniformScaling</code>, which is independent of <span>$V$</span> and has its interpretation only instantiated by context of <code>TensorAlgebra{V}</code> elements being operated on. Interoperability of <code>LinearAlgebra.UniformScaling</code> as a pseudoscalar element which takes on the <code>TensorBundle</code> form of any other <code>TensorAlgebra</code> element is handled globally. This enables the usage of <code>I</code> from <code>LinearAlgebra</code> as a universal pseudoscalar element defined at every point <span>$x$</span> of a <code>Manifold</code>, which is mathematically denoted by <span>$I = I(x)$</span> and specified by the <span>$g(x)$</span> bilinear tensor field of <span>$TM$</span>.</p><p><em>Grassmann.jl</em> is a foundation which has been built up from a minimal <span>$\mathbb{K}$</span>-module algebra kernel on which an entirely custom algbera specification is designed and built from scratch on the base Julia language.</p><p><strong>Definition</strong>. <code>TensorAlgebra{V,</code><span>$\mathbb{K}$</span><code>}</code> where <code>V::Submanifold{M}</code> for a generating <span>$\mathbb{K}$</span>-module specified by a <code>M::TensorBundle</code> choice</p><ul><li><code>TensorBundle</code> specifies generators of <code>DirectSum.Basis</code> algebra<ul><li><code>Int</code> value induces a Euclidean metric of counted dimension</li><li><code>Signature</code> uses <code>S&quot;...&quot;</code> with + and - specifying the metric</li><li><code>DiagonalForm</code> uses <code>D&quot;...&quot;</code> for defining any diagonal metric</li><li><code>MetricTensor</code> can accept non-diagonal metric tensor array</li></ul></li><li><code>TensorGraded{V,G,</code><span>$\mathbb{K}$</span><code>}</code> has <code>grade</code> <span>$G$</span> and element of <span>$\Lambda^GV$</span> subspace<ul><li><code>Chain{V,G,</code><span>$\mathbb{K}$</span><code>}</code> has a complete basis for <span>$\Lambda^GV$</span> with <span>$\mathbb{K}$</span>-module</li><li><code>Simplex{V}</code> alias column-module <code>Chain{V,1,Chain{V,1,</code><span>$\mathbb{K}$</span><code>}}</code></li></ul></li><li><code>TensorTerm{V,G,</code><span>$\mathbb{K}$</span><code>} &lt;: TensorGraded{V,G,</code><span>$\mathbb{K}$</span><code>}</code> single coefficient<ul><li><code>Zero{V}</code> is a zero value which preserves <span>$V$</span> in its algebra type</li><li><code>Submanifold{V,G,B}</code> <span>$\langle v_{i_1}\wedge\cdots\wedge v_{i_G}\rangle_G$</span> with sorted indices <span>$B$</span></li><li><code>Single{V,G,B,</code><span>$\mathbb{K}$</span><code>}</code> where <code>B::Submanifold{V}</code> is paired to <span>$\mathbb{K}$</span></li></ul></li><li><code>AbstractSpinor{V,</code><span>$\mathbb{K}$</span><code>}</code> subtypes are special sub-algebras of <span>$\Lambda V$</span><ul><li><code>Couple{V,B,</code><span>$\mathbb{K}$</span><code>}</code> is the sum of <span>$\mathbb{K}$</span> scalar with <code>Single{V,G,B,</code><span>$\mathbb{K}$</span><code>}</code></li><li><code>PseudoCouple{V,B,</code><span>$\mathbb{K}$</span><code>}</code> is pseudoscalar + <code>Single{V,G,B,</code><span>$\mathbb{K}$</span><code>}</code></li><li><code>Spinor{V,</code><span>$\mathbb{K}$</span><code>}</code> has complete basis for the <code>even</code> <span>$\mathbb{Z}_2$</span>-graded terms</li><li><code>CoSpinor{V,</code><span>$\mathbb{K}$</span><code>}</code> has complete basis for <code>odd</code> <span>$\mathbb{Z}_2$</span>-graded terms</li></ul></li><li><code>Multivector{V,</code><span>$\mathbb{K}$</span><code>}</code> has complete basis for all <span>$\Lambda V$</span> with <span>$\mathbb{K}$</span>-module</li></ul><p><strong>Definition</strong>. <code>TensorNested{V,T}</code> subtypes are linear transformations</p><ul><li><code>TensorOperator{V,W,T}</code> linear map <span>$V\rightarrow W$</span> with <code>T::DataType</code><ul><li><code>Endomorphism{V,T}</code> linear map <span>$V\rightarrow V$</span> with <code>T::DataType</code></li></ul></li><li><code>DiagonalOperator{V,T}</code> diagonal map <span>$V\rightarrow V$</span> with <code>T::DataType</code><ul><li><code>DiagonalMorphism{V,&lt;:Chain{V,1}}</code> diagonal map <span>$V\rightarrow V$</span></li><li><code>DiagonalOutermorphism{V,&lt;:Multivector{V}}</code> <span>$:\Lambda V\rightarrow \Lambda V$</span></li></ul></li><li><code>Outermorphism{V,T}</code> extends <span>$F\in$</span> <code>Endomorphism{V}</code> to full <span>$\Lambda V$</span></li></ul><p class="math-container">\[F(v_1)\wedge\cdots\wedge F(v_n) = F(v_1\wedge\cdots\wedge v_n)\]</p><ul><li><code>Projector{V,T}</code> linear map <span>$F:V\rightarrow V$</span> with <span>$F(F) = F$</span> defined</li></ul><p class="math-container">\[\verb`Proj(x::TensorGraded)` = \frac{x}{|x|}\otimes\frac{x}{|x|}\]</p><ul><li><code>Dyadic{V,X,Y}</code> linear map <span>$V\rightarrow V$</span> with <code>Dyadic(x,y)</code> <span>$= x\otimes y$</span></li></ul><p><em>Grassmann.jl</em> was first to define a comprehensive <code>TensorAlgebra{V}</code> type system from scratch around the idea of the <code>V::Submanifold{M}</code> value to express algebra subtypes for a specified <span>$\mathbb{K}$</span>-module structure.</p><p><strong>Definition</strong>. Common unary operations on <code>TensorAlgebra</code> elements</p><ul><li><code>Manifold</code> returns the parameter <code>V::Submanifold{M}</code> <span>$\mathbb{K}$</span>-module</li><li><code>mdims</code> dimensionality of the pseudoscalar <span>$V$</span> of that <code>TensorAlgebra</code></li><li><code>gdims</code> dimensionality of the grade <span>$G$</span> of <span>$V$</span> for that <code>TensorAlgebra</code></li><li><code>tdims</code>  dimensionality of <code>Multivector{V}</code> for that <code>TensorAlgebra</code></li><li><code>grade</code> returns <span>$G$</span> for <code>TensorGraded{V,G}</code> while <code>grade(x,g)</code> is <span>$\langle x\rangle_g$</span></li><li><code>istensor</code> returns true for <code>TensorAlgebra</code> elements</li><li><code>isgraded</code> returns true for <code>TensorGraded</code> elements</li><li><code>isterm</code> returns true for <code>TensorTerm</code> elements</li><li><code>complementright</code> Euclidean metric Grassmann right complement</li><li><code>complementleft</code> Euclidean metric Grassmann left complement</li><li><code>complementrighthodge</code> Grassmann-Hodge right complement <span>$\widetilde\omega I$</span></li><li><code>complementlefthodge</code> Grassmann-Hodge left complement <span>$I\widetilde\omega$</span></li><li><code>metric</code> applies the <code>metricextensor</code> as outermorphism operator</li><li><code>cometric</code> applies complement <code>metricextensor</code> as outermorphism</li><li><code>metrictensor</code> returns <span>$g:V\rightarrow V$</span> associated to <code>TensorAlgebra{V}</code></li><li><code>metrictextensor</code> returns <span>$\Lambda g:\Lambda V\rightarrow\Lambda V$</span> for <code>TensorAlgebra{V}</code></li><li><code>involute</code> grade permutes basis with <span>$\langle\overline\omega\rangle_k = \sigma_1(\langle\omega\rangle_k) = (-1)^k\langle\omega\rangle_k$</span></li><li><code>reverse</code> permutes basis with <span>$\langle\widetilde\omega\rangle_k = \sigma_2(\langle\omega\rangle_k) = (-1)^{k(k-1)/2}\langle\omega\rangle_k$</span></li><li><code>clifford</code> conjugate of an element is composite <code>involute</code> <span>$\circ$</span> <code>reverse</code></li><li><code>even</code> part selects <span>$\overline{\mathfrak{R}}\omega = (\omega + \overline\omega)/2$</span> and is defined by <span>$\Lambda^g$</span> for even <span>$g$</span></li><li><code>odd</code> part selects <span>$\overline{\mathfrak{I}}\omega = (\omega-\overline\omega)/2$</span> and is defined by <span>$\Lambda^g$</span> for odd <span>$g$</span></li><li><code>real</code> part selects <span>$\widetilde{\mathfrak{R}}\omega = (\omega+\widetilde\omega)/2$</span> and is defined by <span>$|\widetilde{\mathfrak{R}}\omega|^2 = (\widetilde{\mathfrak{R}}\omega)^2$</span></li><li><code>imag</code> part selects <span>$\widetilde{\mathfrak{I}}\omega = (\omega-\widetilde\omega)/2$</span> and is defined by <span>$|\widetilde{\mathfrak{I}}\omega|^2 = -(\widetilde{\mathfrak{I}}\omega)^2$</span></li><li><code>abs</code> is the absolute value <span>$|\omega|=\sqrt{\widetilde\omega\omega}$</span> and <code>abs2</code> is then <span>$|\omega|^2 = \widetilde\omega\omega$</span></li><li><code>norm</code> evaluates a positive definite norm metric on the coefficients</li><li><code>unit</code> applies normalization defined as <code>unit(t) = t/abs(t)</code></li><li><code>scalar</code> selects grade 0 term of any <code>TensorAlgebra</code> element</li><li><code>vector</code> selects grade 1 terms of any <code>TensorAlgebra</code> element</li><li><code>bivector</code> selects grade 2 terms of any <code>TensorAlgebra</code> element</li><li><code>trivector</code> selects grade 3 terms of any <code>TensorAlgebra</code> element</li><li><code>pseudoscalar</code> max. grade term of any <code>TensorAlgebra</code> element</li><li><code>value</code> returns internal <code>Values</code> tuple of a <code>TensorAlgebra</code> element</li><li><code>valuetype</code> returns type of a <code>TensorAlgebra</code> element value&#39;s tuple</li></ul><p>Binary operations commonly used in <code>Grassmann</code> algebra syntax</p><ul><li><code>+</code> and <code>-</code> carry over from the <span>$\mathbb{K}$</span>-module structure associated to <span>$\mathbb{K}$</span></li><li><code>wedge</code> is exterior product <span>$\wedge$</span> and \verb<code>vee</code> is regressive product <span>$\vee$</span></li><li><code>&gt;</code> is the right contraction and <code>&lt;</code> is the left contraction for <span>$\Lambda V$</span></li><li><code>*</code> is the geometric product and <code>/</code> uses \verb<code>inv</code> algorithm for division</li><li><span>$\oslash$</span> is the <code>sandwich</code> and <code>&gt;&gt;&gt;</code> is its alternate operator orientation</li></ul><p>Custom methods related to tensor operators and roots of polynomials</p><ul><li><code>inv</code> returns the inverse and <code>adjugate</code> returns transposed cofactor</li><li><code>det</code> returns the scalar determinant of an endomorphism operator</li><li><code>tr</code> returns the scalar trace of an endomorphism operator</li><li><code>transpose</code> operator has swapping of row and column indices</li><li><code>compound(F,g)</code> is multilinear endomorphism <span>$\Lambda^gF : \Lambda^g V\rightarrow\Lambda^g V$</span></li><li><code>outermorphism(A)</code> transforms <span>$A:V\rightarrow V$</span> into <span>$\Lambda A:\Lambda V\rightarrow\Lambda V$</span></li><li><code>operator</code> make linear representation of multivector outermorphism</li><li><code>companion</code> matrix of monic polynomial <span>$a_0+a_1z+\dots+a_nz^n + z^{n+1}$</span></li><li><code>roots(a...)</code> of polynomial with coefficients <span>$a_0 + a_1z + \dots + a_nz^n$</span></li><li><code>rootsreal</code> of polynomial with coefficients <span>$a_0 + a_1z + \dots + a_nz^n$</span></li><li><code>rootscomplex</code> of polynomial with coefficients <span>$a_0 + a_1z + \dots + a_nz^n$</span></li><li><code>monicroots(a...)</code> of monic polynomial <span>$a_0+a_1z+\dots+a_nz^n + z^{n+1}$</span></li><li><code>monicrootsreal</code> of monic polynomial <span>$a_0+a_1z+\dots+a_nz^n + z^{n+1}$</span></li><li><code>monicrootscomplex</code> of monic polynomial <span>$a_0+a_1z+\dots+a_nz^n + z^{n+1}$</span></li><li><code>characteristic(A)</code> polynomial coefficients from <span>$\det (A-\lambda I)$</span></li><li><code>eigvals(A)</code> are the eigenvalues <span>$[\lambda_1,\dots,\lambda_n]$</span> so that <span>$A e_i = \lambda_i e_i$</span></li><li><code>eigvalsreal</code> are real eigenvalues <span>$[\lambda_1,\dots,\lambda_n]$</span> so that <span>$A e_i = \lambda_i e_i$</span></li><li><code>eigvalscomplex</code> are complex eigenvalues <span>$[\lambda_1,\dots,\lambda_n]$</span> so <span>$A e_i = \lambda_i e_i$</span></li><li><code>eigvecs(A)</code> are the eigenvectors <span>$[e_1,\dots,e_n]$</span> so that <span>$A e_i = \lambda_i e_i$</span></li><li><code>eigvecsreal</code> are real eigenvectors <span>$[e_1,\dots,e_n]$</span> so that <span>$A e_i = \lambda_i e_i$</span></li><li><code>eigvecscomplex</code> are complex eigenvectors <span>$[e_1,\dots,e_n]$</span> so <span>$A e_i = \lambda_i e_i$</span></li><li><code>eigen(A)</code> spectral decomposition <span>$\sum_i \lambda_i\text{Proj}(e_i)$</span> with <span>$A e_i = \lambda_i e_i$</span></li><li><code>eigenreal</code> spectral decomposition <span>$\sum_i \lambda_i\text{Proj}(e_i)$</span> with <span>$A e_i = \lambda_i e_i$</span></li><li><code>eigencomplex</code> spectral decomposition <span>$\sum_i \lambda_i\text{Proj}(e_i)$</span> so <span>$A e_i = \lambda_i e_i$</span></li><li><code>eigpolys(A)</code> normalized symmetrized functions of <code>eigvals(A)</code></li><li><code>eigpolys(A,g)</code> normalized symmetrized function of <code>eigvals(A)</code></li><li><code>vandermonde</code> facilitates <span>$((X&#39;X)^{-1} X&#39;)y$</span> for polynomial coefficients</li><li><code>cayley(V,</code><span>$\circ$</span><code>)</code> returns product table for <span>$V$</span> and binary operation <span>$\circ$</span></li></ul><p>Accessing <code>metrictensor(V)</code> produces a linear map <span>$g: V\rightarrow V$</span> which can be extended to <span>$\Lambda g:\Lambda V\rightarrow\Lambda V$</span> outermorphism given by <code>metricextensor</code>. To apply the <code>metricextensor</code> to any <code>Grassmann</code> element of <span>$\Lambda V$</span>, the function <code>metric</code> can be used on the element, <code>cometric</code> applies a complement metric.</p><h2 id="Tensor-field-topology-and-fiber-bundles"><a class="docs-heading-anchor" href="#Tensor-field-topology-and-fiber-bundles">Tensor field topology and fiber bundles</a><a id="Tensor-field-topology-and-fiber-bundles-1"></a><a class="docs-heading-anchor-permalink" href="#Tensor-field-topology-and-fiber-bundles" title="Permalink"></a></h2><p><strong>Definition</strong>. Commonly used fundamental building blocks are </p><ul><li><code>ProductSpace{V,</code><span>$\mathbb{K}$</span><code>,N} &lt;: AbstractArray{Chain{V,1,</code><span>$\mathbb{K}$</span><code>,N},N}</code><ul><li>uses Cartesian products of interval subsets of <span>$\mathbb{R}\times\mathbb{R}\times\cdots\times\mathbb{R} = \Lambda^1 \mathbb{R}^n$</span>,</li><li>generates lazy array of <code>Chain{V,1}</code> point vectors from input ranges</li><li><code>ProductSpace{V}(0:0.1:1,0:0.1:1) # specify V</code></li><li><code>ProductSpace(0:0.1:1,0:0.1:1) # auto-select V</code></li><li><code>ProductSpace{V}(r::AbstractVector{&lt;:Real}...)</code> default</li><li><span>$\oplus$</span><code>(r::AbstractVector{&lt;:Real}...)</code> for algebraic syntax</li></ul></li><li><code>Global{N,T}</code> represents array with same <span>$T$</span> value at all indices</li><li><code>LocalFiber{B,F}</code> has a local <code>basetype</code> of <span>$B$</span> and <code>fibertype</code> of <span>$F$</span><ul><li><code>Coordinate{P,G}</code> has <code>pointtype</code> of <span>$P$</span> and <code>metrictype</code> of <span>$G$</span></li></ul></li><li><code>ImmersedTopology{N,M} = AbstractArray{Values{N,Int},M}</code><ul><li><code>ProductTopology</code> generates basic product topologies for grids</li><li><code>SimplexTopology</code> defines continuous simplex immersion</li><li><code>DiscontinuousTopology</code> disconnects for discontinuous</li><li><code>LagrangeTopology</code> extends for Lagrange polynomial base</li><li><code>QuotientTopology</code> defines classes of quotient identification</li></ul></li></ul><p>Generalizing upon <code>ProductTopology</code>, the <code>QuotientTopology</code> defines a quotient identification across the boundary fluxes of the region, which then enables different specializations of <code>QuotientTopology</code> as</p><ul><li><code>OpenTopology</code>: all boundaries don&#39;t have accumulation points,</li><li><code>CompactTopology</code>: all points have a neighborhood topology,</li><li><code>CylinderTopology</code>: closed ribbon with two edge open endings,</li><li><code>MobiusTopology</code>: twisted ribbon with one edge open ending,</li><li><code>WingTopology</code>: upper and lower surface topology of wing,</li><li><code>MirrorTopology</code>: reflection boundary along mirror (basis) axis,</li><li><code>ClampedTopology</code>: each boundary face is reflected to be compact,</li><li><code>TorusTopology</code>: generalized compact torus up to 5 dimensions,</li><li><code>HopfTopology</code>: compact topology of the Hopf fibration in 3D,</li><li><code>KleinTopology</code>: compact topology of the Klein bottle domain,</li><li><code>PolarTopology</code>: polar compactification with open edge boundary,</li><li><code>SphereTopology</code>: generalized mathematical sphere, compactified,</li><li><code>GeographicTopology</code>: axis swapped from <code>SphereTopology</code> in 2D.</li></ul><p>Combination of <code>PointArray &lt;: Coordinates</code> and <code>ImmersedTopology</code> leads into definition of <code>TensorField</code> as a global section of a <code>FrameBundle</code>.</p><p>All these methods apply to <code>SimplexTopology</code> except <code>isopen</code>, <code>iscompact</code></p><ul><li><p><code>isopen</code> is true if <code>QuotientTopology</code> is an <code>OpenTopology</code> instance</p></li><li><p><code>iscompact</code> is true if <code>QuotientTopology</code> is a <code>CompactTopology</code></p></li><li><p><code>nodes</code> counts number of <code>vertices</code> associated to <code>SimplexTopology</code></p></li><li><p><code>sdims</code> counts the number of vertices <span>$N$</span> of a <code>SimplexTopology{N}</code></p></li><li><p><code>subelements</code> subspace element indices associated to <code>fulltopology</code></p></li><li><p><code>subimmersion</code> modified with vertices re-indexed based on subspace</p></li><li><p><code>topology</code> view into <code>fulltopology</code> based on <code>subelements</code> structure</p></li><li><p><code>totalelements</code> counts total number of elements in <code>fulltopology</code></p></li><li><p><code>totalnodes</code> counts total number of nodes over all subspaces</p></li><li><p><code>vertices</code> list of indices associated to the subspace <code>immersion</code></p></li><li><p><code>elements</code> counts the number of <code>subelements</code> in the <code>immersion</code></p></li><li><p><code>isfull</code> is true if the <code>immersion</code> is a <code>fulltopology</code>, not a subspace</p></li><li><p><code>istotal</code> is true if <code>fulltopology</code> is covering <code>totalnodes</code> completely</p></li><li><p><code>iscover</code> is true if <code>isfull</code> and <code>istotal</code>, fully covering <code>totalnodes</code></p></li><li><p><code>isdiscontinuous</code> is true if an instance of <code>DiscontinuousTopology</code></p></li><li><p><code>isdisconnected</code> is true if <code>isdiscontinuous</code> and fully disconnected</p></li><li><p><code>continuous</code> returns original data from <code>DiscontinuousTopology</code></p></li><li><p><code>discontinuous</code> allocates a derived <code>DiscontinuousTopology</code></p></li><li><p><code>disconnect</code> allocates a disconnected <code>DiscontinuousTopology</code></p></li><li><p><code>getfacet</code> indexing <code>subelements</code> in reference to the <code>fullimmersion</code></p></li><li><p><code>getimage</code> indexing vertex subspace in reference to <code>fullimmersion</code></p></li><li><p><code>edges</code> assembles <code>SimplexTopology{2}</code> of all unique edge elements</p></li><li><p><code>facets</code> assembles <code>SimplexTopology</code> of all unique facet elements</p></li><li><p><code>complement</code> returns a <code>SimplexTopology</code> based on <code>subelements</code></p></li><li><p><code>interior</code> returns the interior components of a <code>SimplexTopology</code></p></li><li><p><span>$\partial$</span> operator returns boundary components of a <code>SimplexTopology</code></p></li><li><p><code>degrees</code> returns the (graph) degree for each incidence vertex</p></li><li><p><code>weights</code> divides each incidence vertex by the (graph) degree</p></li><li><p><code>adjacency</code> returns a symmetric sparse matrix with ones at vertices</p></li><li><p><code>antiadjacency</code> returns sparse matrix with vertex antisymmetry</p></li><li><p><code>incidence</code> returns heterogenous relation for vertices and elements</p></li><li><p><code>laplacian</code> returns the (graph) Laplacian with adjacent vertices</p></li><li><p><code>neighbors</code> finds neighboring elements per <code>SimplexTopology</code> facet</p></li></ul><p><strong>Definition</strong>. An <span>$n$</span>-dimensional <em>manifold</em> <span>$M$</span> requires the existence of a neighborhood <span>$U$</span> for each <span>$p\in U\subseteq M$</span> with a local <em>chart</em> map <span>$\phi : U_\phi\rightarrow\mathbb{R}^n$</span>. Given another chart <span>$\psi: U_\psi\rightarrow\mathbb{R}^n$</span>, then the combinatorial compositions</p><p class="math-container">\[\phi\circ\psi^{-1} : \psi(U_\phi\cap U_\psi)\rightarrow\phi(U_\phi\cap U_\psi), \quad \psi\circ\phi^{-1} : \phi(U_\phi\cap U_\psi) \rightarrow \psi(U_\phi\cap U_\psi)\]</p><p>are the transition maps. If all the transition maps <span>$\phi$</span> are <span>$\mathcal{C}^r$</span> differentiable and <span>$\bigcup_\phi U_\phi = M$</span>, then the collection of charts is called an <em>atlas</em> of a <span>$\mathcal{C}^r$</span>-manifold.</p><p><strong>Definition</strong>. A <em>fiber bundle</em> is a manifold <span>$E$</span> with projection <span>$\pi: E \rightarrow B$</span> commutes with local trivializations <span>$\phi$</span> paired to <span>$U_\phi$</span> of manifold <span>$B = \bigcup_\phi U_\phi$</span></p><p class="math-container">\[\phi: \pi^{-1}(U_\phi) \rightarrow U_\phi\times F, \qquad \pi^{-1}(U_\phi) \overset{\pi}{\longrightarrow} U_\phi \overset{\pi_1}{\longleftarrow} U_\phi\times F,\]</p><p>where <span>$B$</span> is the <code>basetype</code> and <span>$F$</span> is the <code>fibertype</code> of <span>$E_p = \pi^{-1}(p)  = \{p\}\times F$</span>,</p><p class="math-container">\[E = \bigcup_{p\in B}E_p = \bigcup_{p\in B} \{p\}\times F = B\times F, \qquad B = \bigcup_\phi U_\phi.\]</p><p><code>FiberBundle{E,N} &lt;: AbstractArray{E,N}</code> where <span>$E$</span> is the <code>eltype</code></p><ul><li><code>Coordinates{P,G,N} &lt;: FiberBundle{Coordinate{P,G},N}</code><ul><li><code>PointArray{P,G,N}</code> has <code>pointtype</code> of <span>$P$</span>, <code>metrictype</code> of <span>$G$</span></li><li><code>FiberProduct</code> introduces fiber product structure for manifolds</li></ul></li><li><code>FrameBundle{C,N}</code> has <code>coordinatetype</code> of <span>$C$</span> and <code>immersion</code><ul><li><code>GridBundle{N,C}</code> <span>$N$</span>-grid with <code>coordianates</code> and <code>immersion</code></li><li><code>SimplexBundle{N,C}</code> defines <code>coordinates</code> and an <code>immersion</code></li><li><code>FaceBundle{N,C}</code> defines <code>element</code> faces and their <code>immersion</code></li><li><code>FiberProductBundle</code> for extruding dimensions from simplices</li><li><code>HomotopyBundle</code> encapsulates a variation as <code>FrameBundle</code></li></ul></li><li><code>TensorField</code> defines fibers in a global section of a <code>FrameBundle</code></li></ul><p>When a <code>TensorField</code> has a <code>fibertype</code> from <span>$\Lambda^gTV$</span> then it is a grade <span>$g$</span> differential form on the tangent bundle of <span>$V$</span>. In general the <code>TensorField</code> type can deal with more abstract <code>fibertype</code> varieties than only those used for differential forms, as it unifies many different forms of tensor analysis.</p><p>By default, the <code>InducedMetric</code> is defined globally in each <code>PointArray</code>, unless a particular metric tensor specification is provided. When the default <code>InducedMetric</code> is invoked, the metric tensor from the <code>TensorAlgebra{V}</code> type is used for the global manifold, instead of the extra allocation to specify metric tensors at each point. <code>FrameBundle</code> then defines local charts along with metric tensor in a <code>PointArray</code> and pairs it with an <code>ImmersedTopology</code>. Then the fiber of a <code>FrameBundle</code> section is a fiber of a <code>TensorField</code>.</p><p>These methods relate to <code>FrameBundle</code> and <code>TensorField</code> instances</p><ul><li><code>coordinates(m::FiberBundle)</code> returns <code>Coordinates</code> data type</li><li><code>coordinatetype</code> return applies to <code>FiberBundle</code> or <code>LocalFiber</code></li><li><code>immersion(m::FiberBundle)</code> returns <code>ImmersedTopology</code> data</li><li><code>immersiontype</code> return applies to <code>FiberBundle</code> or <code>LocalFiber</code></li><li><code>base</code> returns the <span>$B$</span> element of a <code>LocalFiber{B,F}</code> or <code>FiberBundle</code></li><li><code>basetype</code> returns type <span>$B$</span> of a <code>LocalFiber{B,F}</code> or <code>FiberBundle</code></li><li><code>fiber</code> returns the <span>$F$</span> element of <code>LocalFiber{B,F}</code> or <code>FiberBundle</code></li><li><code>fibertype</code> returns the <span>$F$</span> type of <code>LocalFiber{B,F}</code> or <code>FiberBundle</code></li><li><code>points</code> returns <code>AbstractArray{P}</code> data for <code>Coordinates{P,G}</code></li><li><code>pointtype</code> is type <span>$P$</span> of <code>Coordinate{P,G}</code> or <code>Coordinates{P,G}</code></li><li><code>metrictensor</code> returns the grade 1 block of the <code>metricextensor</code></li><li><code>metricextensor</code> is <code>AbstractArray{G}</code> data for <code>Coordinates{P,G}</code></li><li><code>metrictype</code> is type <span>$G$</span> of <code>Coordinate{P,G}</code> or <code>Coordinates{P,G}</code></li><li><code>fullcoordinates</code> returns full <code>FiberBundle{Coordinate{P,G}}</code></li><li><code>fullimmersion</code> returns superset <code>ImmersedTopology</code> which <code>isfull</code></li><li><code>fulltopology</code> returns composition of <code>topology</code> <span>$\circ$</span> <code>fullimmersion</code></li><li><code>fullvertices</code> list of <code>vertices</code> associated to the <code>fullimmersion</code></li><li><code>fullpoints</code> is full <code>AbstractArray{P}</code> instead of possibly subspace</li><li><code>fullmetricextensor</code> is full <code>AbstractArray{G}</code> instead of subspace</li><li><code>isinduced</code> is true if the <code>metrictype</code> is an <code>InducedMetric</code> type</li><li><code>bundle</code> returns the integer identification of bundle cache</li></ul><p>Various interpolation methods are also supported and can be invoked by applying <code>TensorField</code> instances as function evaluations on base manifold or applying some form of resampling method to the manifold topology.</p><ul><li><code>volumes</code> returns <code>FaceBundle</code> with simplex volume at each element</li><li><code>initmesh</code> provides API keyword for interfacing mesh initialization</li><li><code>refinemesh</code> provides API keyword for interfacing mesh refinement</li><li><code>affinehull</code> returns a localized affine simplex hull at each element</li><li><code>affineframe</code> returns a localized affine basis frame at each element</li><li><code>gradienthat</code> returns the hat gradients for the <code>SimplexBundle</code></li></ul><p>For <code>GridBundle</code> initialization it is typical to invoke a combination of <code>ProductSpace</code> and <code>QuotientTopology</code>, while optional Julia packages extend <code>SimplexBundle</code> initialization, such as <code>Meshes</code>,  <code>GeometryBasics</code>,  <code>Delaunay</code>,  <code>QHull</code>,  <code>MiniQhull</code>,  <code>Triangulate</code>,  <code>TetGen</code>, <code>MATLAB</code>, <code>FlowGeometry</code>.</p><p><strong>Definition</strong>. Let <span>$\gamma:[a,b] \rightarrow \mathbb R^n$</span> be a curve <span>$\gamma(t)$</span> with parameter <span>$t$</span>.</p><ul><li><p><code>integral(::IntervalMap)</code> cumulative trapezoidal sum <span>$\int_a^t\gamma(\xi)d\xi$</span></p></li><li><p><code>integrate(::IntervalMap)</code> final value of <span>$\int_a^b\gamma(t) dt$</span> on interval end</p></li><li><p><code>arclength(::IntervalMap)</code> curve parameter <span>$s(t) = \int_a^t |\frac{d\gamma(\xi)}{d\xi}|d\xi$</span></p></li><li><p><code>tangent(::IntervalMap)</code> tangent speed curve <span>$\frac{d\gamma(t)}{dt} = \frac{ds}{dt} T(t)$</span></p></li><li><p><code>unittangent(::IntervalMap)</code> unit tangent curve <span>$T(t) = \frac{d\gamma}{dt}\frac{dt}{ds}$</span></p></li><li><p><code>speed(::IntervalMap)</code> tangent speed of a curve <span>$\frac{ds}{dt} = \left|\frac{d\gamma(t)}{dt}\right|$</span></p></li><li><p><code>normal(::IntervalMap)</code> <span>$\kappa(t)N(t) = \frac{dT}{dt}\frac{dt}{ds} = \frac{d}{dt}\left(\frac{d\gamma}{dt}\frac{dt}{ds}\right)\frac{dt}{ds}$</span></p></li><li><p><code>unitnormal(::IntervalMap)</code> <span>$N(t) = \frac{dT}{dt}\frac{dt}{ds}/\kappa(t)$</span> normalized</p></li><li><p><code>curvature(::AbstractCurve)</code> <span>$\kappa(t) = \left|\frac{dT}{dt}\frac{dt}{ds}\right| = \left|\frac{d}{dt}\left(\frac{d\gamma}{dt}\frac{dt}{ds}\right)\frac{dt}{ds}\right|$</span></p></li><li><p><code>radius(::AbstractCurve)</code> of curvature <span>$\kappa(t)^{-1} = \left|\frac{d}{dt}\left(\frac{d\gamma}{dt}\frac{dt}{ds}\right)\frac{dt}{ds}\right|^{-1}$</span></p></li><li><p><code>evolute(::AbstractCurve)</code> <span>$\gamma + \frac{N}{\kappa} = \gamma(t) + \frac{d}{dt}\left(\frac{d\gamma}{dt}\frac{dt}{ds}\right)\frac{dt}{ds}/(\kappa(t))^2$</span></p></li><li><p><code>involute(::AbstractCurve)</code> <span>$\gamma - Ts = \gamma(t) - \left(\frac{d\gamma(t)}{dt}\frac{dt}{ds}\right)\int_a^t|\frac{d\gamma(\xi)}{d\xi}|d\xi$</span></p></li><li><p><code>osculatingplane(::AbstractCurve)</code> linear span of <span>$\left[\frac{ds}{dt}T,\kappa N\right]$</span></p></li><li><p><code>unitosculatingplane(::AbstractCurve)</code> linear span of <span>$\left[T,N\right]$</span></p></li><li><p><code>binormal(::SpaceCurve)</code> complement <span>$\frac{ds}{dt}\kappa B = \star (\frac{ds}{dt}T\wedge \kappa N)$</span></p></li><li><p><code>unitbinormal(::SpaceCurve)</code> complement of plane <span>$B = \star (T\wedge N)$</span></p></li><li><p><code>torsion(::SpaceCurve)</code> <span>$\tau(t) = \left|\frac{dB}{dt}\frac{dt}{ds}\right| = \left|\frac{d}{dt}\star\left(T\wedge N\right)\frac{dt}{ds}\right|$</span></p></li><li><p><code>frame(::AbstractCurve)</code> scaled frame <span>$\left[\frac{ds}{dt}T,\kappa N,\star(\frac{ds}{dt}T\wedge\kappa N)\right]$</span></p></li><li><p><code>unitframe(::AbstractCurve)</code> Frenet frame <span>$\left[T,N,\star(T\wedge N)\right]$</span></p></li><li><p><code>curvatures(::AbstractCurve)</code> all degrees of freedom <span>$\left[\kappa,\tau,\dots\right]$</span></p></li><li><p><code>curvatures(::AbstractCurve,i)</code> selects <span>$i$</span>-th curvature degree</p></li><li><p><code>bishopframe(::SpaceCurve,</code><span>$\theta_0$</span><code>=0)</code> computes Bishop-style frame</p></li><li><p><code>bishopunitframe(::SpaceCurve,</code><span>$\theta_0$</span><code>=0)</code> Bishop-style unit frame</p></li><li><p><code>bishoppolar(::SpaceCurve,</code><span>$\theta_0$</span><code>=0)</code> Bishop polar <span>$(\kappa,\theta_0+\int_a^b\tau ds)$</span></p></li><li><p><code>bishop(::SpaceCurve,</code><span>$\theta_0$</span><code>=0)</code> <span>$\kappa(\cos(\theta_0+\int_a^b\tau ds),\sin(\theta_0+\int_a^b\tau ds))$</span></p></li><li><p><code>planecurve(::RealFunction,</code><span>$\theta_0$</span><code>=0)</code> from curvature <span>$\kappa(t)$</span> and <span>$\theta_0$</span></p></li></ul><p class="math-container">\[\qquad \textstyle (\kappa(t),\theta_0) \mapsto \int_a^b \left[cos (\theta_0 + \int_a^b\kappa(t)dt),\sin(\theta_0+\int_a^b\kappa(t)dt)\right]dt\]</p><ul><li><code>linkmap(f::SpaceCurve,g::SpaceCurve)</code> is <span>$\ell(t,s) = g(s)-f(t)$</span></li><li><code>linknumber(f,g)</code> of curves <span>$\propto$</span> <code>sectorintegrate</code> <span>$\circ$</span> <code>unit</code> <span>$\circ$</span> <code>linkmap</code></li></ul><p><strong>Definition</strong>. Surfaces <span>$\gamma : \mathbb{R}^2\rightarrow\mathbb{R}^3$</span> with parametric <span>$\gamma(x_1,x_2)$</span> methods</p><ul><li><code>graph</code> outputs surface <span>$\gamma :\mathbb{R}^n\rightarrow\mathbb{R}^n\times\mathbb{R}$</span> from scalar field <span>$f:\mathbb{R}^n\rightarrow\mathbb{R}$</span></li><li><code>normal</code> vector <span>$N(x) = \star(\frac{\partial \gamma(x)}{\partial x_1}\wedge\cdots\wedge\frac{\partial \gamma(x)}{\partial x_n})$</span> or product <span>$\frac{\partial \gamma(x)}{\partial x_1}\times\frac{\partial \gamma(x)}{\partial x_2}$</span></li><li><code>unitnormal</code> <span>$\nu(x) = \star(\frac{\partial \gamma(x)}{\partial x_1}\wedge\cdots\wedge\frac{\partial \gamma(x)}{\partial x_n}) / |\star(\frac{\partial \gamma(x)}{x_1}\wedge\cdots\wedge\frac{\partial \gamma(x)}{\partial x_n})|$</span></li><li><code>normalnorm</code> is the norm of normal <span>$|N(x)| = |\star(\frac{\partial \gamma(x)}{\partial x_1}\wedge\cdots\wedge\frac{\partial \gamma(x)}{\partial x_n})|$</span></li><li><code>jacobian</code> linear span of <span>$\left[\frac{\partial \gamma(x)}{\partial x_1},\dots,\frac{\partial \gamma(x)}{\partial x_n}\right]$</span> as <code>TensorOperator</code></li><li><code>weingarten</code> linear span of <span>$\left[\frac{\partial \nu(x)}{\partial x_1},\dots,\frac{\partial \nu(x)}{\partial x_n}\right]$</span> as <code>TensorOperator</code></li><li><code>sectordet</code> is the product <span>$\gamma(x)\wedge\frac{\partial \gamma(x)}{\partial x_1}\wedge\cdots\wedge\frac{\partial \gamma(x)}{\partial x_n}$</span>, here with <span>$n = 2$</span></li><li><code>sectorintegral</code> <span>$\int \frac{\gamma(x)}{n+1}\wedge\frac{\partial \gamma(x)}{\partial x_1}\wedge\cdots\wedge\frac{\partial \gamma(x)}{\partial x_n}dx_1\cdots dx_n$</span> with <span>$n=2$</span></li><li><code>sectorintegrate</code> estimates the total value of <code>sectorintegral</code></li><li><code>area</code> cumulative <span>$\int |\star(\frac{\partial \gamma(x)}{\partial x_1}\wedge\cdots\wedge\frac{\partial \gamma(x)}{\partial x_n})|dx_1\cdots dx_n$</span> with <span>$n=2$</span></li><li><code>surfacearea</code> estimates total value of the (surface) <code>area</code> integral</li><li><code>surfacemetric</code> gets <code>GridBundle</code> with <code>firstform</code> as <code>metrictensor</code></li><li><code>surfacemetricdiag</code> gets <code>GridBundle</code> with <code>firstformdiag</code> metric</li><li><code>surfaceframe</code> constructs intrinsic orthonormal surface frame</li><li><code>frame</code> scaled Darboux style frame <span>$\left[\frac{\partial\gamma(x)}{\partial x_1},\star\left(N(x)\wedge\frac{\partial\gamma(x)}{\partial x_1}\right),N(x)\right]$</span></li><li><code>unitframe</code> is then <span>$\left[\frac{\partial\gamma(x)}{\partial x_1}/\left|\frac{\partial\gamma(x)}{\partial x_1}\right|,\star\left(\nu(x)\wedge\frac{\partial\gamma(x)}{\partial x_1}\right)/\left|\frac{\partial\gamma(x)}{\partial x_1}\right|,\nu(x)\right]$</span></li><li><code>firstform</code> <span>$I = g = \begin{bmatrix} \frac{\partial\gamma(x)}{\partial x_1}\cdot\frac{\partial\gamma(x)}{\partial x_1} &amp; \frac{\partial\gamma(x)}{\partial x_1}\cdot\frac{\partial\gamma(x)}{\partial x_2} \\ \frac{\partial\gamma(x)}{\partial x_1}\cdot\frac{\partial\gamma(x)}{\partial x_2} &amp; \frac{\partial\gamma(x)}{\partial x_2}\cdot\frac{\partial\gamma(x)}{\partial x_2} \end{bmatrix}$</span> or <code>firstformdiag</code></li><li><code>secondform</code> <span>$II = \begin{bmatrix} \nu(x)\cdot\frac{\partial^2\gamma(x)}{\partial x_1^2} &amp; \nu(x)\cdot\frac{\partial^2\gamma(x)}{\partial x_1\partial x_2} \\ \nu(x)\cdot\frac{\partial^2\gamma(x)}{\partial x_1\partial x_2} &amp; \nu(x)\cdot\frac{\partial^2\gamma(x)}{\partial x_2^2} \end{bmatrix}$</span> 2nd fundamental</li><li><code>thirdform</code> <span>$III$</span> is the composition map <code>firstform</code> <span>$\circ$</span> <code>unitnormal</code></li><li><code>shape</code> is the geometry shape operator <span>$I(x)^{-1} II(x)$</span> of a surface <span>$\gamma(x)$</span></li><li><code>principals</code> (curvatures) are the composition <code>eigvals</code> <span>$\circ$</span> <code>shape</code></li><li><code>principalaxes</code> (curvatures) are the composition <code>eigvecs</code> <span>$\circ$</span> <code>shape</code></li><li><code>curvatures</code> (polynomials) are the composition <code>eigpolys</code> <span>$\circ$</span> <code>shape</code></li><li><code>curvatures(::TensorField,i)</code> selects <span>$i$</span>-th curvature polynomial</li><li><code>meancurvature</code> is the mean curvature (first curvature) of the <code>shape</code></li><li><code>gaussintrinsic</code> is the (intrinsic) Gauss curvature (last curvature)</li><li><code>gaussextrinsic</code> is the (extrinsic) Gauss curvature in sector form</li><li><code>gausssign</code> is the sign of the Gauss curvature of the <code>shape</code></li></ul><h2 id="Interactive-computational-sessions"><a class="docs-heading-anchor" href="#Interactive-computational-sessions">Interactive computational sessions</a><a id="Interactive-computational-sessions-1"></a><a class="docs-heading-anchor-permalink" href="#Interactive-computational-sessions" title="Permalink"></a></h2><p><em>Example</em> (Plane curves). Let <span>$t$</span> be parameter on interval from 0 to <span>$4\pi$</span></p><pre><code class="language-julia hljs">using Grassmann, Cartan, Makie # GLMakie
+<html lang="en">
+<head>
+  <meta name="generator" content=
+  "HTML Tidy for HTML5 for Linux version 5.7.45">
+  <meta charset="UTF-8">
+  <meta name="viewport" content=
+  "width=device-width, initial-scale=1.0">
+  <title>Fiber · Cartan.jl</title>
+  <meta name="title" content="Fiber · Cartan.jl">
+  <meta property="og:title" content="Fiber · Cartan.jl">
+  <meta property="twitter:title" content="Fiber · Cartan.jl">
+  <meta name="description" content="Documentation for Cartan.jl.">
+  <meta property="og:description" content=
+  "Documentation for Cartan.jl.">
+  <meta property="twitter:description" content=
+  "Documentation for Cartan.jl.">
+  <script data-outdated-warner="" src=
+  "../assets/warner.js"></script>
+  <link href=
+  "https://cdnjs.cloudflare.com/ajax/libs/lato-font/3.0.0/css/lato-font.min.css"
+  rel="stylesheet" type="text/css">
+  <link href=
+  "https://cdnjs.cloudflare.com/ajax/libs/juliamono/0.050/juliamono.min.css"
+  rel="stylesheet" type="text/css">
+  <link href=
+  "https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.2/css/fontawesome.min.css"
+  rel="stylesheet" type="text/css">
+  <link href=
+  "https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.2/css/solid.min.css"
+  rel="stylesheet" type="text/css">
+  <link href=
+  "https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.2/css/brands.min.css"
+  rel="stylesheet" type="text/css">
+  <link href=
+  "https://cdnjs.cloudflare.com/ajax/libs/KaTeX/0.16.8/katex.min.css"
+  rel="stylesheet" type="text/css">
+  <script>
+  documenterBaseURL=".."
+  </script>
+  <script src=
+  "https://cdnjs.cloudflare.com/ajax/libs/require.js/2.3.6/require.min.js"
+  data-main="../assets/documenter.js"></script>
+  <script src="../search_index.js"></script>
+  <script src="../siteinfo.js"></script>
+  <script src="../../versions.js"></script>
+  <link class="docs-theme-link" rel="stylesheet" type="text/css"
+  href="../assets/themes/catppuccin-mocha.css" data-theme-name=
+  "catppuccin-mocha">
+  <link class="docs-theme-link" rel="stylesheet" type="text/css"
+  href="../assets/themes/catppuccin-macchiato.css" data-theme-name=
+  "catppuccin-macchiato">
+  <link class="docs-theme-link" rel="stylesheet" type="text/css"
+  href="../assets/themes/catppuccin-frappe.css" data-theme-name=
+  "catppuccin-frappe">
+  <link class="docs-theme-link" rel="stylesheet" type="text/css"
+  href="../assets/themes/catppuccin-latte.css" data-theme-name=
+  "catppuccin-latte">
+  <link class="docs-theme-link" rel="stylesheet" type="text/css"
+  href="../assets/themes/documenter-dark.css" data-theme-name=
+  "documenter-dark" data-theme-primary-dark="">
+  <link class="docs-theme-link" rel="stylesheet" type="text/css"
+  href="../assets/themes/documenter-light.css" data-theme-name=
+  "documenter-light" data-theme-primary="">
+  <script src="../assets/themeswap.js"></script>
+</head>
+<body>
+  <div id="documenter">
+    <nav class="docs-sidebar">
+      <a class="docs-logo" href="../"><img src="../assets/logo.png"
+      alt="Cartan.jl logo"></a>
+      <div class="docs-package-name">
+        <span class="docs-autofit"><a href=
+        "../">Cartan.jl</a></span>
+      </div><button class=
+      "docs-search-query input is-rounded is-small is-clickable my-2 mx-auto py-1 px-2"
+      id="documenter-search-query">Search docs (Ctrl + /)</button>
+      <ul class="docs-menu">
+        <li>
+          <a class="tocitem" href="../">Home</a>
+        </li>
+        <li class="is-active">
+          <a class="tocitem" href="">Fiber</a>
+          <ul class="internal">
+            <li>
+              <a class="tocitem" href=
+              "#Grassmann.jl-API-design-overview"><span>Grassmann.jl
+              API design overview</span></a>
+            </li>
+            <li>
+              <a class="tocitem" href=
+              "#Tensor-field-topology-and-fiber-bundles"><span>Tensor
+              field topology and fiber bundles</span></a>
+            </li>
+            <li>
+              <a class="tocitem" href=
+              "#Interactive-computational-sessions"><span>Interactive
+              computational sessions</span></a>
+            </li>
+            <li>
+              <a class="tocitem" href=
+              "#Summary-of-Grassmann.jl-and-Cartan.jl"><span>Summary
+              of Grassmann.jl and Cartan.jl</span></a>
+            </li>
+          </ul>
+        </li>
+        <li>
+          <a class="tocitem" href="../videos/">Videos</a>
+        </li>
+        <li>
+          <a class="tocitem" href="../library/">Library</a>
+        </li>
+        <li>
+          <a class="tocitem" href="../agpl/">AGPL-3.0</a>
+        </li>
+      </ul>
+      <div class="docs-version-selector field has-addons">
+        <div class="control">
+          <span class=
+          "docs-label button is-static is-size-7">Version</span>
+        </div>
+        <div class="docs-selector control is-expanded">
+          <div class="select is-fullwidth is-size-7">
+            <select id="documenter-version-selector">
+            </select>
+          </div>
+        </div>
+      </div>
+    </nav>
+    <div class="docs-main">
+      <header class="docs-navbar">
+        <a class=
+        "docs-sidebar-button docs-navbar-link fa-solid fa-bars is-hidden-desktop"
+        id="documenter-sidebar-button" href="#"></a>
+        <nav class="breadcrumb">
+          <ul class="is-hidden-mobile">
+            <li class="is-active">
+              <a href="">Fiber</a>
+            </li>
+          </ul>
+          <ul class="is-hidden-tablet">
+            <li class="is-active">
+              <a href="">Fiber</a>
+            </li>
+          </ul>
+        </nav>
+        <div class="docs-right">
+          <a class=
+          "docs-settings-button docs-navbar-link fa-solid fa-gear"
+          id="documenter-settings-button" href="#" title=
+          "Settings"></a><a class=
+          "docs-article-toggle-button fa-solid fa-chevron-up" id=
+          "documenter-article-toggle-button" href="javascript:;"
+          title="Collapse all docstrings"></a>
+        </div>
+      </header>
+      <article class="content" id="documenter-page">
+        <h1 id="Cartan.jl-language-design"><a class=
+        "docs-heading-anchor" href=
+        "#Cartan.jl-language-design">Cartan.jl language
+        design</a><a id="Cartan.jl-language-design-1"></a><a class=
+        "docs-heading-anchor-permalink" href=
+        "#Cartan.jl-language-design" title="Permalink"></a></h1>
+        <p><em>TensorField topology over FrameBundle ∇ with
+        <a href="https://github.com/chakravala/Grassmann.jl">Grassmann.jl</a>
+        elements</em></p>
+        <p><a href=
+        "https://zenodo.org/badge/latestdoi/673606851"><img src=
+        "https://zenodo.org/badge/673606851.svg" alt="DOI"></a>
+        <a href="https://cartan.crucialflow.com"><img src=
+        "https://img.shields.io/badge/docs-dev-blue.svg" alt=
+        "Docs Dev"></a> <img src=
+        "https://img.shields.io/github/v/tag/chakravala/Cartan.jl"
+        alt="GitHub tag (latest SemVer)"> <a href=
+        "https://ci.appveyor.com/project/chakravala/cartan-jl"><img src="https://ci.appveyor.com/api/projects/status/klhdg493nvs0oi7h?svg=true"
+        alt="Build status"></a> <a href=
+        "https://www.dropbox.com/sh/tphh6anw0qwija4/AAACiaXig5djrLVAKLPFmGV-a/Geometric-Algebra?preview=differential-geometric-algebra-2021.pdf">
+        <img src="https://img.shields.io/badge/PDF-2021-blue.svg"
+        alt="PDF 2021"></a> <a href=
+        "https://www.dropbox.com/sh/tphh6anw0qwija4/AAACiaXig5djrLVAKLPFmGV-a/Geometric-Algebra?preview=grassmann-cartan-2025.pdf">
+        <img src="https://img.shields.io/badge/PDF-2025-blue.svg"
+        alt="PDF 2025"></a></p>
+        <ul>
+          <li>
+            <a href="../#Cartan.jl">Cartan.jl</a>
+          </li>
+          <li>
+            <a href="#Cartan.jl-language-design">Cartan.jl language
+            design</a>
+          </li>
+          <li class="no-marker">
+            <ul>
+              <li>
+                <a href=
+                "#Grassmann.jl-API-design-overview">Grassmann.jl
+                API design overview</a>
+              </li>
+              <li>
+                <a href=
+                "#Tensor-field-topology-and-fiber-bundles">Tensor
+                field topology and fiber bundles</a>
+              </li>
+              <li>
+                <a href=
+                "#Interactive-computational-sessions">Interactive
+                computational sessions</a>
+              </li>
+              <li>
+                <a href=
+                "#Summary-of-Grassmann.jl-and-Cartan.jl">Summary of
+                Grassmann.jl and Cartan.jl</a>
+              </li>
+            </ul>
+          </li>
+          <li>
+            <a href="../videos/#Cartan.jl-videos">Cartan.jl
+            videos</a>
+          </li>
+          <li>
+            <a href="../library/#Cartan.jl-Library">Cartan.jl
+            Library</a>
+          </li>
+        </ul>
+        <p>Initially, <em>Grassmann.jl</em> and <em>Cartan.jl</em>
+        introduced the <em>DirectSum</em> formalism into
+        computational language design for differential geometric
+        algebra, thus enabling the construction of custom algebras
+        through metaprogramming. <em>Grassmann.jl</em> pioneered a
+        novel type system design along with its syntax and
+        semantics, which has undergone significant refinement
+        through many years of development and continuous
+        improvement. <em>Cartan.jl</em> represents a groundbreaking
+        extension of capabilities offered by <em>Grassmann.jl</em>,
+        marking a pioneering fully realized implementation of
+        numerical differential geometric algebra, based on
+        <code>TensorField</code> representations over a
+        <code>FrameBundle</code> and the
+        <code>ImmersedTopology</code> of the
+        <code>FiberBundle</code>. <em>Grassmann.jl</em> and
+        <em>Cartan.jl</em> build on Julia's multiple dispatch and
+        metaprogramming capabilities, presenting a new
+        computational language design approach to interfacing with
+        differential geometric algebra based on a new <em>sector
+        integral theorem</em>. This pioneering design not only
+        actualizes but also elevates computational language syntax
+        to new heights using the foundations of
+        <em>Grassmann.jl</em> and <em>Cartan.jl</em>. The
+        <em>Grassmann.jl</em> and <em>Cartan.jl</em> packages
+        introduce pioneering computational language designs, having
+        inspired imitation projects and thereby validating the
+        project's relevance as significant advance in computational
+        mathematics.</p>
+        <p>Packages <em>Grassmann.jl</em> and <em>Cartan.jl</em>
+        can be used as universal language for finite element
+        methods based on a discrete manifold bundle. Tools built on
+        these foundations enable computations based on multi-linear
+        algebra and spin groups using the geometric algebra known
+        as Grassmann algebra or Clifford algebra. This foundation
+        is built on a <code>DirectSum</code> parametric type system
+        for tangent bundles and vector spaces generating the
+        algorithms for local tangent algebras in a global context.
+        Geometric algebra mathematical foundations for differential
+        geometry can be used to simplify the Maxwell equations to a
+        single wave equation due to the geometric product. With
+        this unifying mathematical foundation, it is possible to
+        improve efficiency of multi-disciplinary research using
+        geometric tensor calculus by relying on universal
+        mathematical principles. Tools built on this differential
+        geometric algebra provide an excellent language for the
+        newly presented <em>sector integral theorem</em>, the
+        Helmholtz decomposition, and Hodge-DeRahm co/homology.</p>
+        <p>The <em>Grassmann.jl</em> package provides tools for
+        computations based on multi-linear algebra and spin groups
+        using the extended geometric algebra known as
+        Grassmann-Clifford-Hodge algebra. Algebra operations
+        include exterior, regressive, inner, and geometric, along
+        with the Hodge star and boundary operators. Code generation
+        enables concise usage of the algebra syntax.
+        <em>DirectSum.jl</em> multivector parametric type
+        polymorphism is based on tangent vector spaces and
+        conformal projective geometry. Additionally, the universal
+        interoperability between different sub-algebras is enabled
+        by <em>AbstractTensors.jl</em>, on which the type system is
+        built. The design is based on <code>TensorAlgebra{V}</code>
+        abstract type interoperability from
+        <em>AbstractTensors.jl</em> with a
+        <span>$\mathbb{K}$</span>-module type parameter
+        <span>$V$</span> from <em>DirectSum.jl</em>. Abstract
+        vector space type operations happen at compile-time,
+        resulting in a differential geometric algebra of
+        multivectors.</p>
+        <p>Building on the <em>Grassmann.jl</em> foundation, the
+        <em>Cartan.jl</em> extension then defines
+        <code>TensorField{B,F,N} &lt;:
+        GlobalFiber{LocalTensor{B,F},N}</code> for both a local
+        <code>ProductSpace</code> and general
+        <code>ImmersedTopology</code> specifications on any
+        <code>FrameBundle</code> expressed with
+        <em>Grassmann.jl</em> algebra. Many of these modular
+        methods can work on input meshes or product topologies of
+        any dimension, although there are some methods which are
+        specialized. <code>Cartan</code> provides an algebra for
+        <code>FiberBundle</code> sections and any associated
+        bundles on a manifold in terms of <code>Grassmann</code>
+        elements. Calculus of <code>Variation</code> fields can
+        also be generated with the combined topology of a
+        <code>FiberProductBundle</code>. Furthermore, the
+        <code>FiberProduct</code> enables construction of
+        <code>HomotopyBundle</code> types. The <code>Cartan</code>
+        package standardizes composition of various methods and
+        functors applied to specialized categories transformed in
+        terms of a unified representation over a product topology,
+        especially having fibers of the <code>Grassmann</code>
+        algebra and using <code>Cartan</code> methods over a
+        <code>FrameBundle</code>.</p>
+        <h2 id="Grassmann.jl-API-design-overview"><a class=
+        "docs-heading-anchor" href=
+        "#Grassmann.jl-API-design-overview">Grassmann.jl API design
+        overview</a><a id=
+        "Grassmann.jl-API-design-overview-1"></a><a class=
+        "docs-heading-anchor-permalink" href=
+        "#Grassmann.jl-API-design-overview" title=
+        "Permalink"></a></h2>
+        <p>The <code>AbstractTensors</code> package is intended for
+        universal interoperation of the abstract
+        <code>TensorAlgebra</code> type system. All
+        <code>TensorAlgebra{V}</code> subtypes have type parameter
+        <span>$V$</span>, used to store a
+        <code>Submanifold{M}</code> value, which is parametrized by
+        <span>$M$</span> the <code>TensorBundle</code> choice. This
+        means that different tensor types can have a commonly
+        shared underlying <span>$\mathbb{K}$</span>-module
+        parametric type expressed by defining
+        <code>V::Submanifold{M}</code>. Each
+        <code>TensorAlgebra</code> subtype must be accompanied by a
+        corresponding <code>TensorBundle</code> parameter, which is
+        fully static at compile time. Due to the parametric type
+        system for the <span>$\mathbb{K}$</span>-module types, the
+        compiler can fully pre-allocate and often cache.</p>
+        <p>Let <span>$M = T^\mu V$</span> be a
+        <span>$\mathbb{K}$</span>-module of rank <span>$n$</span>,
+        then an instance for <span>$T^\mu V$</span> can be the
+        tuple <span>$(n,\mathbb{P},g,\nu,\mu)$</span> with
+        <span>$\mathbb{P}\subseteq \langle
+        v_\infty,v_\emptyset\rangle$</span> specifying the presence
+        of the projective basis and <span>$g:V\times
+        V\rightarrow\mathbb{K}$</span> is a metric tensor
+        specification. The type
+        <code>TensorBundle{n,</code><span>$\mathbb{P}$</span><code>,g,</code><span>$\nu$</span><code>,</code><span>$\mu$</span><code>}</code>
+        encodes this information as <em>byte-encoded</em> data
+        available at pre-compilation, where <span>$\mu$</span> is
+        an integer specifying the order of the tangent bundle (i.e.
+        multiplicity limit of the Leibniz-Taylor monomials).
+        Lastly, <span>$\nu$</span> is the number of tangent
+        variables.</p>
+        <p class="math-container">\[\langle
+        v_1,\dots,v_{n-\nu},\partial_1,\dots,\partial_\nu\rangle=M\leftrightarrow
+        M' = \langle
+        w_1,\dots,w_{n-\nu},\epsilon_1,\dots,\epsilon_\nu\rangle\]</p>
+        <p>where <span>$v_i$</span> and <span>$w_i$</span> are
+        bases for the vectors and covectors, while
+        <span>$\partial_i$</span> and <span>$\epsilon_j$</span> are
+        bases for differential operators and scalar functions. The
+        purpose of the <code>TensorBundle</code> type is to specify
+        the <span>$\mathbb{K}$</span>-module basis at compile time.
+        When assigned in a workspace, <code>V =
+        Submanifold(::TensorBundle)</code> is used.</p>
+        <p>The metric signature of the
+        <code>Submanifold{V,1}</code> elements of a vector space
+        <span>$V$</span> can be specified with the
+        <code>V"..."</code> by using <span>$+$</span> or
+        <span>$-$</span> to specify whether the
+        <code>Submanifold{V,1}</code> element of the corresponding
+        index squares to <span>$+1$</span> or <span>$-1$</span>.
+        For example, <code>S"+++"</code> constructs a positive
+        definite 3-dimensional <code>TensorBundle</code>, so
+        constructors such as <code>S"..."</code> and
+        <code>D"..."</code> are convenient.</p>
+        <p>It is also possible to change the diagonal scaling, such
+        as with <code>D"1,1,1,0"</code>, although the
+        <code>Signature</code> format has a more compact
+        representation if limited to <span>$+1$</span> and
+        <span>$-1$</span>. It is also possible to change the
+        diagonal scaling, such as with <code>D"0.3,2.4,1"</code>.
+        Fully general <code>MetricTensor</code> as a type with
+        non-diagonal components requires a matrix, e.g.
+        <code>MetricTensor([1 2; 2 3])</code>.</p>
+        <p>Declaring an additional point at infinity is done by
+        specifying it in the string constructor with
+        <span>$\infty$</span> at the first index (i.e. Riemann
+        sphere <code>S"∞+++"</code>). The hyperbolic geometry can
+        be declared by <span>$\emptyset$</span> subsequently (i.e.
+        hyperbolic projection <code>S"∅+++"</code>). Additionally,
+        the <em>null-basis</em> based on the projective split for
+        conformal geometric algebra would be specified with
+        <code>S"∞∅+++"</code>. These two declared basis elements
+        are interpreted in the type system. The
+        <code>tangent(V,μ,ν)</code> map can be used to specify
+        <span>$\mu$</span> and <span>$\nu$</span>.</p>
+        <p>To assign <code>V = Submanifold(::TensorBundle)</code>
+        along with associated basis elements of the
+        <code>DirectSum.Basis</code> to the local Julia session
+        workspace, it is typical to use <code>Submanifold</code>
+        elements created by the <code>@basis</code> macro,</p>
+        <pre><code class="language-julia-repl hljs" style=
+        "display:block;">julia&gt; using Grassmann; @basis S"-++" # macro or basis"-++"</code><code class="nohighlight hljs ansi"
+style=
+"display:block;">(⟨-++⟩, v, v₁, v₂, v₃, v₁₂, v₁₃, v₂₃, v₁₂₃)</code></pre>
+        <p>the macro <code>@basis V</code> delcares a local basis
+        in Julia. As a result of this macro, all
+        <code>Submanifold{V,G}</code> elements generated with
+        <code>M::TensorBundle</code> become available in the local
+        workspace with the specified naming arguments. The first
+        argument provides signature specifications, the second
+        argument is the variable name for <span>$V$</span> the
+        <span>$\mathbb{K}$</span>-module, and the third and fourth
+        argument are prefixes of the <code>Submanifold</code>
+        vector names (and covector names). Default is
+        <span>$V$</span> assigned <code>Submanifold{M}</code> and
+        <span>$v$</span> is prefix for the
+        <code>Submanifold{V}</code>.</p>
+        <p>It is entirely possible to assign multiple different
+        bases having different signatures without any problems. The
+        <code>@basis</code> macro arguments are used to assign the
+        vector space name to <span>$V$</span> and the basis
+        elements to <span>$v_i$</span>, but other assigned names
+        can be chosen so that their local names don't interfere: If
+        it is undesirable to assign these variables to a local
+        workspace, the versatile constructs of
+        <code>DirectSum.Basis{V}</code> can be used to contain or
+        access them, which is exported to the user as the method
+        <code>DirectSum.Basis(V)</code>.</p>
+        <pre><code class="language-julia-repl hljs" style=
+        "display:block;">julia&gt; DirectSum.Basis(V)</code><code class=
+        "nohighlight hljs ansi" style=
+        "display:block;">DirectSum.Basis{⟨-++⟩,8}(v, v₁, v₂, v₃, v₁₂, v₁₃, v₂₃, v₁₂₃)</code></pre>
+        <p><code>V(::Int...)</code> provides a convenient way to
+        define a <code>Submanifold</code> by using integer indices
+        to reference specific direct sums within the ambient space
+        <span>$V$</span>.</p>
+        <p>Additionally, a universal unit volume element can be
+        specified in terms of
+        <code>LinearAlgebra.UniformScaling</code>, which is
+        independent of <span>$V$</span> and has its interpretation
+        only instantiated by context of
+        <code>TensorAlgebra{V}</code> elements being operated on.
+        Interoperability of
+        <code>LinearAlgebra.UniformScaling</code> as a pseudoscalar
+        element which takes on the <code>TensorBundle</code> form
+        of any other <code>TensorAlgebra</code> element is handled
+        globally. This enables the usage of <code>I</code> from
+        <code>LinearAlgebra</code> as a universal pseudoscalar
+        element defined at every point <span>$x$</span> of a
+        <code>Manifold</code>, which is mathematically denoted by
+        <span>$I = I(x)$</span> and specified by the
+        <span>$g(x)$</span> bilinear tensor field of
+        <span>$TM$</span>.</p>
+        <p><em>Grassmann.jl</em> is a foundation which has been
+        built up from a minimal <span>$\mathbb{K}$</span>-module
+        algebra kernel on which an entirely custom algbera
+        specification is designed and built from scratch on the
+        base Julia language.</p>
+        <p><strong>Definition</strong>.
+        <code>TensorAlgebra{V,</code><span>$\mathbb{K}$</span><code>}</code>
+        where <code>V::Submanifold{M}</code> for a generating
+        <span>$\mathbb{K}$</span>-module specified by a
+        <code>M::TensorBundle</code> choice</p>
+        <ul>
+          <li>
+            <code>TensorBundle</code> specifies generators of
+            <code>DirectSum.Basis</code> algebra
+            <ul>
+              <li><code>Int</code> value induces a Euclidean metric
+              of counted dimension</li>
+              <li><code>Signature</code> uses <code>S"..."</code>
+              with + and - specifying the metric</li>
+              <li><code>DiagonalForm</code> uses
+              <code>D"..."</code> for defining any diagonal
+              metric</li>
+              <li><code>MetricTensor</code> can accept non-diagonal
+              metric tensor array</li>
+            </ul>
+          </li>
+          <li>
+            <code>TensorGraded{V,G,</code><span>$\mathbb{K}$</span><code>}</code>
+            has <code>grade</code> <span>$G$</span> and element of
+            <span>$\Lambda^GV$</span> subspace
+            <ul>
+              <li>
+              <code>Chain{V,G,</code><span>$\mathbb{K}$</span><code>}</code>
+              has a complete basis for <span>$\Lambda^GV$</span>
+              with <span>$\mathbb{K}$</span>-module</li>
+              <li><code>Simplex{V}</code> alias column-module
+              <code>Chain{V,1,Chain{V,1,</code><span>$\mathbb{K}$</span><code>}}</code></li>
+            </ul>
+          </li>
+          <li>
+            <code>TensorTerm{V,G,</code><span>$\mathbb{K}$</span><code>}
+            &lt;:
+            TensorGraded{V,G,</code><span>$\mathbb{K}$</span><code>}</code>
+            single coefficient
+            <ul>
+              <li><code>Zero{V}</code> is a zero value which
+              preserves <span>$V$</span> in its algebra type</li>
+              <li><code>Submanifold{V,G,B}</code> <span>$\langle
+              v_{i_1}\wedge\cdots\wedge v_{i_G}\rangle_G$</span>
+              with sorted indices <span>$B$</span></li>
+              <li>
+              <code>Single{V,G,B,</code><span>$\mathbb{K}$</span><code>}</code>
+              where <code>B::Submanifold{V}</code> is paired to
+              <span>$\mathbb{K}$</span></li>
+            </ul>
+          </li>
+          <li>
+            <code>AbstractSpinor{V,</code><span>$\mathbb{K}$</span><code>}</code>
+            subtypes are special sub-algebras of <span>$\Lambda
+            V$</span>
+            <ul>
+              <li>
+              <code>Couple{V,B,</code><span>$\mathbb{K}$</span><code>}</code>
+              is the sum of <span>$\mathbb{K}$</span> scalar with
+              <code>Single{V,G,B,</code><span>$\mathbb{K}$</span><code>}</code></li>
+              <li>
+              <code>PseudoCouple{V,B,</code><span>$\mathbb{K}$</span><code>}</code>
+              is pseudoscalar +
+              <code>Single{V,G,B,</code><span>$\mathbb{K}$</span><code>}</code></li>
+              <li>
+              <code>Spinor{V,</code><span>$\mathbb{K}$</span><code>}</code>
+              has complete basis for the <code>even</code>
+              <span>$\mathbb{Z}_2$</span>-graded terms</li>
+              <li>
+              <code>CoSpinor{V,</code><span>$\mathbb{K}$</span><code>}</code>
+              has complete basis for <code>odd</code>
+              <span>$\mathbb{Z}_2$</span>-graded terms</li>
+            </ul>
+          </li>
+          <li>
+          <code>Multivector{V,</code><span>$\mathbb{K}$</span><code>}</code>
+          has complete basis for all <span>$\Lambda V$</span> with
+          <span>$\mathbb{K}$</span>-module</li>
+        </ul>
+        <p><strong>Definition</strong>.
+        <code>TensorNested{V,T}</code> subtypes are linear
+        transformations</p>
+        <ul>
+          <li>
+            <code>TensorOperator{V,W,T}</code> linear map
+            <span>$V\rightarrow W$</span> with
+            <code>T::DataType</code>
+            <ul>
+              <li><code>Endomorphism{V,T}</code> linear map
+              <span>$V\rightarrow V$</span> with
+              <code>T::DataType</code></li>
+            </ul>
+          </li>
+          <li>
+            <code>DiagonalOperator{V,T}</code> diagonal map
+            <span>$V\rightarrow V$</span> with
+            <code>T::DataType</code>
+            <ul>
+              <li><code>DiagonalMorphism{V,&lt;:Chain{V,1}}</code>
+              diagonal map <span>$V\rightarrow V$</span></li>
+              <li>
+              <code>DiagonalOutermorphism{V,&lt;:Multivector{V}}</code>
+              <span>$:\Lambda V\rightarrow \Lambda V$</span></li>
+            </ul>
+          </li>
+          <li><code>Outermorphism{V,T}</code> extends
+          <span>$F\in$</span> <code>Endomorphism{V}</code> to full
+          <span>$\Lambda V$</span></li>
+        </ul>
+        <p class="math-container">\[F(v_1)\wedge\cdots\wedge F(v_n)
+        = F(v_1\wedge\cdots\wedge v_n)\]</p>
+        <ul>
+          <li><code>Projector{V,T}</code> linear map
+          <span>$F:V\rightarrow V$</span> with <span>$F(F) =
+          F$</span> defined</li>
+        </ul>
+        <p class="math-container">\[\verb`Proj(x::TensorGraded)` =
+        \frac{x}{|x|}\otimes\frac{x}{|x|}\]</p>
+        <ul>
+          <li><code>Dyadic{V,X,Y}</code> linear map
+          <span>$V\rightarrow V$</span> with
+          <code>Dyadic(x,y)</code> <span>$= x\otimes y$</span></li>
+        </ul>
+        <p><em>Grassmann.jl</em> was first to define a
+        comprehensive <code>TensorAlgebra{V}</code> type system
+        from scratch around the idea of the
+        <code>V::Submanifold{M}</code> value to express algebra
+        subtypes for a specified <span>$\mathbb{K}$</span>-module
+        structure.</p>
+        <p><strong>Definition</strong>. Common unary operations on
+        <code>TensorAlgebra</code> elements</p>
+        <ul>
+          <li><code>Manifold</code> returns the parameter
+          <code>V::Submanifold{M}</code>
+          <span>$\mathbb{K}$</span>-module</li>
+          <li><code>mdims</code> dimensionality of the pseudoscalar
+          <span>$V$</span> of that <code>TensorAlgebra</code></li>
+          <li><code>gdims</code> dimensionality of the grade
+          <span>$G$</span> of <span>$V$</span> for that
+          <code>TensorAlgebra</code></li>
+          <li><code>tdims</code> dimensionality of
+          <code>Multivector{V}</code> for that
+          <code>TensorAlgebra</code></li>
+          <li><code>grade</code> returns <span>$G$</span> for
+          <code>TensorGraded{V,G}</code> while
+          <code>grade(x,g)</code> is <span>$\langle
+          x\rangle_g$</span></li>
+          <li><code>istensor</code> returns true for
+          <code>TensorAlgebra</code> elements</li>
+          <li><code>isgraded</code> returns true for
+          <code>TensorGraded</code> elements</li>
+          <li><code>isterm</code> returns true for
+          <code>TensorTerm</code> elements</li>
+          <li><code>complementright</code> Euclidean metric
+          Grassmann right complement</li>
+          <li><code>complementleft</code> Euclidean metric
+          Grassmann left complement</li>
+          <li><code>complementrighthodge</code> Grassmann-Hodge
+          right complement <span>$\widetilde\omega I$</span></li>
+          <li><code>complementlefthodge</code> Grassmann-Hodge left
+          complement <span>$I\widetilde\omega$</span></li>
+          <li><code>metric</code> applies the
+          <code>metricextensor</code> as outermorphism
+          operator</li>
+          <li><code>cometric</code> applies complement
+          <code>metricextensor</code> as outermorphism</li>
+          <li><code>metrictensor</code> returns
+          <span>$g:V\rightarrow V$</span> associated to
+          <code>TensorAlgebra{V}</code></li>
+          <li><code>metrictextensor</code> returns <span>$\Lambda
+          g:\Lambda V\rightarrow\Lambda V$</span> for
+          <code>TensorAlgebra{V}</code></li>
+          <li><code>involute</code> grade permutes basis with
+          <span>$\langle\overline\omega\rangle_k =
+          \sigma_1(\langle\omega\rangle_k) =
+          (-1)^k\langle\omega\rangle_k$</span></li>
+          <li><code>reverse</code> permutes basis with
+          <span>$\langle\widetilde\omega\rangle_k =
+          \sigma_2(\langle\omega\rangle_k) =
+          (-1)^{k(k-1)/2}\langle\omega\rangle_k$</span></li>
+          <li><code>clifford</code> conjugate of an element is
+          composite <code>involute</code> <span>$\circ$</span>
+          <code>reverse</code></li>
+          <li><code>even</code> part selects
+          <span>$\overline{\mathfrak{R}}\omega = (\omega +
+          \overline\omega)/2$</span> and is defined by
+          <span>$\Lambda^g$</span> for even <span>$g$</span></li>
+          <li><code>odd</code> part selects
+          <span>$\overline{\mathfrak{I}}\omega =
+          (\omega-\overline\omega)/2$</span> and is defined by
+          <span>$\Lambda^g$</span> for odd <span>$g$</span></li>
+          <li><code>real</code> part selects
+          <span>$\widetilde{\mathfrak{R}}\omega =
+          (\omega+\widetilde\omega)/2$</span> and is defined by
+          <span>$|\widetilde{\mathfrak{R}}\omega|^2 =
+          (\widetilde{\mathfrak{R}}\omega)^2$</span></li>
+          <li><code>imag</code> part selects
+          <span>$\widetilde{\mathfrak{I}}\omega =
+          (\omega-\widetilde\omega)/2$</span> and is defined by
+          <span>$|\widetilde{\mathfrak{I}}\omega|^2 =
+          -(\widetilde{\mathfrak{I}}\omega)^2$</span></li>
+          <li><code>abs</code> is the absolute value
+          <span>$|\omega|=\sqrt{\widetilde\omega\omega}$</span> and
+          <code>abs2</code> is then <span>$|\omega|^2 =
+          \widetilde\omega\omega$</span></li>
+          <li><code>norm</code> evaluates a positive definite norm
+          metric on the coefficients</li>
+          <li><code>unit</code> applies normalization defined as
+          <code>unit(t) = t/abs(t)</code></li>
+          <li><code>scalar</code> selects grade 0 term of any
+          <code>TensorAlgebra</code> element</li>
+          <li><code>vector</code> selects grade 1 terms of any
+          <code>TensorAlgebra</code> element</li>
+          <li><code>bivector</code> selects grade 2 terms of any
+          <code>TensorAlgebra</code> element</li>
+          <li><code>trivector</code> selects grade 3 terms of any
+          <code>TensorAlgebra</code> element</li>
+          <li><code>pseudoscalar</code> max. grade term of any
+          <code>TensorAlgebra</code> element</li>
+          <li><code>value</code> returns internal
+          <code>Values</code> tuple of a <code>TensorAlgebra</code>
+          element</li>
+          <li><code>valuetype</code> returns type of a
+          <code>TensorAlgebra</code> element value's tuple</li>
+        </ul>
+        <p>Binary operations commonly used in
+        <code>Grassmann</code> algebra syntax</p>
+        <ul>
+          <li><code>+</code> and <code>-</code> carry over from the
+          <span>$\mathbb{K}$</span>-module structure associated to
+          <span>$\mathbb{K}$</span></li>
+          <li><code>wedge</code> is exterior product
+          <span>$\wedge$</span> and <code>vee</code> is regressive
+          product <span>$\vee$</span></li>
+          <li><code>&gt;</code> is the right contraction and
+          <code>&lt;</code> is the left contraction for the
+          algebra</li>
+          <li><code>*</code> is the geometric product and
+          <code>/</code> uses <code>inv</code> algorithm for
+          division</li>
+          <li><span>$\oslash$</span> is the <code>sandwich</code>
+          and <code>&gt;&gt;&gt;</code> is its alternate operator
+          orientation</li>
+        </ul>
+        <p>Custom methods related to tensor operators and roots of
+        polynomials</p>
+        <ul>
+          <li><code>inv</code> returns the inverse and
+          <code>adjugate</code> returns transposed cofactor</li>
+          <li><code>det</code> returns the scalar determinant of an
+          endomorphism operator</li>
+          <li><code>tr</code> returns the scalar trace of an
+          endomorphism operator</li>
+          <li><code>transpose</code> operator has swapping of row
+          and column indices</li>
+          <li><code>compound(F,g)</code> is multilinear
+          endomorphism <span>$\Lambda^gF : \Lambda^g
+          V\rightarrow\Lambda^g V$</span></li>
+          <li><code>outermorphism(A)</code> transforms
+          <span>$A:V\rightarrow V$</span> into <span>$\Lambda
+          A:\Lambda V\rightarrow\Lambda V$</span></li>
+          <li><code>operator</code> make linear representation of
+          multivector outermorphism</li>
+          <li><code>companion</code> matrix of monic polynomial
+          <span>$a_0+a_1z+\dots+a_nz^n + z^{n+1}$</span></li>
+          <li><code>roots(a...)</code> of polynomial with
+          coefficients <span>$a_0 + a_1z + \dots +
+          a_nz^n$</span></li>
+          <li><code>rootsreal</code> of polynomial with
+          coefficients <span>$a_0 + a_1z + \dots +
+          a_nz^n$</span></li>
+          <li><code>rootscomplex</code> of polynomial with
+          coefficients <span>$a_0 + a_1z + \dots +
+          a_nz^n$</span></li>
+          <li><code>monicroots(a...)</code> of monic polynomial
+          <span>$a_0+a_1z+\dots+a_nz^n + z^{n+1}$</span></li>
+          <li><code>monicrootsreal</code> of monic polynomial
+          <span>$a_0+a_1z+\dots+a_nz^n + z^{n+1}$</span></li>
+          <li><code>monicrootscomplex</code> of monic polynomial
+          <span>$a_0+a_1z+\dots+a_nz^n + z^{n+1}$</span></li>
+          <li><code>characteristic(A)</code> polynomial
+          coefficients from <span>$\det (A-\lambda I)$</span></li>
+          <li><code>eigvals(A)</code> are the eigenvalues
+          <span>$[\lambda_1,\dots,\lambda_n]$</span> so that
+          <span>$A e_i = \lambda_i e_i$</span></li>
+          <li><code>eigvalsreal</code> are real eigenvalues
+          <span>$[\lambda_1,\dots,\lambda_n]$</span> so that
+          <span>$A e_i = \lambda_i e_i$</span></li>
+          <li><code>eigvalscomplex</code> are complex eigenvalues
+          <span>$[\lambda_1,\dots,\lambda_n]$</span> so <span>$A
+          e_i = \lambda_i e_i$</span></li>
+          <li><code>eigvecs(A)</code> are the eigenvectors
+          <span>$[e_1,\dots,e_n]$</span> so that <span>$A e_i =
+          \lambda_i e_i$</span></li>
+          <li><code>eigvecsreal</code> are real eigenvectors
+          <span>$[e_1,\dots,e_n]$</span> so that <span>$A e_i =
+          \lambda_i e_i$</span></li>
+          <li><code>eigvecscomplex</code> are complex eigenvectors
+          <span>$[e_1,\dots,e_n]$</span> so <span>$A e_i =
+          \lambda_i e_i$</span></li>
+          <li><code>eigen(A)</code> spectral decomposition
+          <span>$\sum_i \lambda_i\text{Proj}(e_i)$</span> with
+          <span>$A e_i = \lambda_i e_i$</span></li>
+          <li><code>eigenreal</code> spectral decomposition
+          <span>$\sum_i \lambda_i\text{Proj}(e_i)$</span> with
+          <span>$A e_i = \lambda_i e_i$</span></li>
+          <li><code>eigencomplex</code> spectral decomposition
+          <span>$\sum_i \lambda_i\text{Proj}(e_i)$</span> so
+          <span>$A e_i = \lambda_i e_i$</span></li>
+          <li><code>eigpolys(A)</code> normalized symmetrized
+          functions of <code>eigvals(A)</code></li>
+          <li><code>eigpolys(A,g)</code> normalized symmetrized
+          function of <code>eigvals(A)</code></li>
+          <li><code>vandermonde</code> facilitates
+          <span>$((X'X)^{-1} X')y$</span> for polynomial
+          coefficients</li>
+          <li>
+          <code>cayley(V,</code><span>$\circ$</span><code>)</code>
+          returns product table for <span>$V$</span> and binary
+          operation <span>$\circ$</span></li>
+        </ul>
+        <p>Accessing <code>metrictensor(V)</code> produces a linear
+        map <span>$g: V\rightarrow V$</span> which can be extended
+        to <span>$\Lambda g:\Lambda V\rightarrow\Lambda V$</span>
+        outermorphism given by <code>metricextensor</code>. To
+        apply the <code>metricextensor</code> to any
+        <code>Grassmann</code> element of <span>$\Lambda V$</span>,
+        the function <code>metric</code> can be used on the
+        element, <code>cometric</code> applies a complement
+        metric.</p>
+        <h2 id="Tensor-field-topology-and-fiber-bundles"><a class=
+        "docs-heading-anchor" href=
+        "#Tensor-field-topology-and-fiber-bundles">Tensor field
+        topology and fiber bundles</a><a id=
+        "Tensor-field-topology-and-fiber-bundles-1"></a><a class=
+        "docs-heading-anchor-permalink" href=
+        "#Tensor-field-topology-and-fiber-bundles" title=
+        "Permalink"></a></h2>
+        <p><strong>Definition</strong>. Commonly used fundamental
+        building blocks are</p>
+        <ul>
+          <li>
+            <code>ProductSpace{V,</code><span>$\mathbb{K}$</span><code>,N}
+            &lt;:
+            AbstractArray{Chain{V,1,</code><span>$\mathbb{K}$</span><code>,N},N}</code>
+            <ul>
+              <li>uses Cartesian products of interval subsets of
+              <span>$\mathbb{R}\times\mathbb{R}\times\cdots\times\mathbb{R}
+              = \Lambda^1 \mathbb{R}^n$</span>,</li>
+              <li>generates lazy array of <code>Chain{V,1}</code>
+              point vectors from input ranges</li>
+              <li><code>ProductSpace{V}(0:0.1:1,0:0.1:1) # specify
+              V</code></li>
+              <li><code>ProductSpace(0:0.1:1,0:0.1:1) # auto-select
+              V</code></li>
+              <li>
+              <code>ProductSpace{V}(r::AbstractVector{&lt;:Real}...)</code>
+              default</li>
+              <li>
+              <span>$\oplus$</span><code>(r::AbstractVector{&lt;:Real}...)</code>
+              for algebraic syntax</li>
+            </ul>
+          </li>
+          <li><code>Global{N,T}</code> represents array with same
+          <span>$T$</span> value at all indices</li>
+          <li>
+            <code>LocalFiber{B,F}</code> has a local
+            <code>basetype</code> of <span>$B$</span> and
+            <code>fibertype</code> of <span>$F$</span>
+            <ul>
+              <li><code>Coordinate{P,G}</code> has
+              <code>pointtype</code> of <span>$P$</span> and
+              <code>metrictype</code> of <span>$G$</span></li>
+            </ul>
+          </li>
+          <li>
+            <code>ImmersedTopology{N,M} =
+            AbstractArray{Values{N,Int},M}</code>
+            <ul>
+              <li><code>ProductTopology</code> generates basic
+              product topologies for grids</li>
+              <li><code>SimplexTopology</code> defines continuous
+              simplex immersion</li>
+              <li><code>DiscontinuousTopology</code> disconnects
+              for discontinuous</li>
+              <li><code>LagrangeTopology</code> extends for
+              Lagrange polynomial base</li>
+              <li><code>QuotientTopology</code> defines classes of
+              quotient identification</li>
+            </ul>
+          </li>
+        </ul>
+        <p>Generalizing upon <code>ProductTopology</code>, the
+        <code>QuotientTopology</code> defines a quotient
+        identification across the boundary fluxes of the region,
+        which then enables different specializations of
+        <code>QuotientTopology</code> as</p>
+        <ul>
+          <li><code>OpenTopology</code>: all boundaries don't have
+          accumulation points,</li>
+          <li><code>CompactTopology</code>: all points have a
+          neighborhood topology,</li>
+          <li><code>CylinderTopology</code>: closed ribbon with two
+          edge open endings,</li>
+          <li><code>MobiusTopology</code>: twisted ribbon with one
+          edge open ending,</li>
+          <li><code>WingTopology</code>: upper and lower surface
+          topology of wing,</li>
+          <li><code>MirrorTopology</code>: reflection boundary
+          along mirror (basis) axis,</li>
+          <li><code>ClampedTopology</code>: each boundary face is
+          reflected to be compact,</li>
+          <li><code>TorusTopology</code>: generalized compact torus
+          up to 5 dimensions,</li>
+          <li><code>HopfTopology</code>: compact topology of the
+          Hopf fibration in 3D,</li>
+          <li><code>KleinTopology</code>: compact topology of the
+          Klein bottle domain,</li>
+          <li><code>PolarTopology</code>: polar compactification
+          with open edge boundary,</li>
+          <li><code>SphereTopology</code>: generalized mathematical
+          sphere, compactified,</li>
+          <li><code>GeographicTopology</code>: axis swapped from
+          <code>SphereTopology</code> in 2D.</li>
+        </ul>
+        <p>Combination of <code>PointArray &lt;: Coordinates</code>
+        and <code>ImmersedTopology</code> leads into definition of
+        <code>TensorField</code> as a global section of a
+        <code>FrameBundle</code>.</p>
+        <p>All these methods apply to <code>SimplexTopology</code>
+        except <code>isopen</code>, <code>iscompact</code></p>
+        <ul>
+          <li>
+            <p><code>isopen</code> is true if
+            <code>QuotientTopology</code> is an
+            <code>OpenTopology</code> instance</p>
+          </li>
+          <li>
+            <p><code>iscompact</code> is true if
+            <code>QuotientTopology</code> is a
+            <code>CompactTopology</code></p>
+          </li>
+          <li>
+            <p><code>nodes</code> counts number of
+            <code>vertices</code> associated to
+            <code>SimplexTopology</code></p>
+          </li>
+          <li>
+            <p><code>sdims</code> counts the number of vertices
+            <span>$N$</span> of a
+            <code>SimplexTopology{N}</code></p>
+          </li>
+          <li>
+            <p><code>subelements</code> subspace element indices
+            associated to <code>fulltopology</code></p>
+          </li>
+          <li>
+            <p><code>subimmersion</code> modified with vertices
+            re-indexed based on subspace</p>
+          </li>
+          <li>
+            <p><code>topology</code> view into
+            <code>fulltopology</code> based on
+            <code>subelements</code> structure</p>
+          </li>
+          <li>
+            <p><code>totalelements</code> counts total number of
+            elements in <code>fulltopology</code></p>
+          </li>
+          <li>
+            <p><code>totalnodes</code> counts total number of nodes
+            over all subspaces</p>
+          </li>
+          <li>
+            <p><code>vertices</code> list of indices associated to
+            the subspace <code>immersion</code></p>
+          </li>
+          <li>
+            <p><code>elements</code> counts the number of
+            <code>subelements</code> in the
+            <code>immersion</code></p>
+          </li>
+          <li>
+            <p><code>isfull</code> is true if the
+            <code>immersion</code> is a <code>fulltopology</code>,
+            not a subspace</p>
+          </li>
+          <li>
+            <p><code>istotal</code> is true if
+            <code>fulltopology</code> is covering
+            <code>totalnodes</code> completely</p>
+          </li>
+          <li>
+            <p><code>iscover</code> is true if <code>isfull</code>
+            and <code>istotal</code>, fully covering
+            <code>totalnodes</code></p>
+          </li>
+          <li>
+            <p><code>isdiscontinuous</code> is true if an instance
+            of <code>DiscontinuousTopology</code></p>
+          </li>
+          <li>
+            <p><code>isdisconnected</code> is true if
+            <code>isdiscontinuous</code> and fully disconnected</p>
+          </li>
+          <li>
+            <p><code>continuous</code> returns original data from
+            <code>DiscontinuousTopology</code></p>
+          </li>
+          <li>
+            <p><code>discontinuous</code> allocates a derived
+            <code>DiscontinuousTopology</code></p>
+          </li>
+          <li>
+            <p><code>disconnect</code> allocates a disconnected
+            <code>DiscontinuousTopology</code></p>
+          </li>
+          <li>
+            <p><code>getfacet</code> indexing
+            <code>subelements</code> in reference to the
+            <code>fullimmersion</code></p>
+          </li>
+          <li>
+            <p><code>getimage</code> indexing vertex subspace in
+            reference to <code>fullimmersion</code></p>
+          </li>
+          <li>
+            <p><code>edges</code> assembles
+            <code>SimplexTopology{2}</code> of all unique edge
+            elements</p>
+          </li>
+          <li>
+            <p><code>facets</code> assembles
+            <code>SimplexTopology</code> of all unique facet
+            elements</p>
+          </li>
+          <li>
+            <p><code>complement</code> returns a
+            <code>SimplexTopology</code> based on
+            <code>subelements</code></p>
+          </li>
+          <li>
+            <p><code>interior</code> returns the interior
+            components of a <code>SimplexTopology</code></p>
+          </li>
+          <li>
+            <p><span>$\partial$</span> operator returns boundary
+            components of a <code>SimplexTopology</code></p>
+          </li>
+          <li>
+            <p><code>degrees</code> returns the (graph) degree for
+            each incidence vertex</p>
+          </li>
+          <li>
+            <p><code>weights</code> divides each incidence vertex
+            by the (graph) degree</p>
+          </li>
+          <li>
+            <p><code>adjacency</code> returns a symmetric sparse
+            matrix with ones at vertices</p>
+          </li>
+          <li>
+            <p><code>antiadjacency</code> returns sparse matrix
+            with vertex antisymmetry</p>
+          </li>
+          <li>
+            <p><code>incidence</code> returns heterogenous relation
+            for vertices and elements</p>
+          </li>
+          <li>
+            <p><code>laplacian</code> returns the (graph) Laplacian
+            with adjacent vertices</p>
+          </li>
+          <li>
+            <p><code>neighbors</code> finds neighboring elements
+            per <code>SimplexTopology</code> facet</p>
+          </li>
+        </ul>
+        <p><strong>Definition</strong>. An
+        <span>$n$</span>-dimensional <em>manifold</em>
+        <span>$M$</span> requires the existence of a neighborhood
+        <span>$U$</span> for each <span>$p\in U\subseteq M$</span>
+        with a local <em>chart</em> map <span>$\phi :
+        U_\phi\rightarrow\mathbb{R}^n$</span>. Given another chart
+        <span>$\psi: U_\psi\rightarrow\mathbb{R}^n$</span>, then
+        the combinatorial compositions</p>
+        <p class="math-container">\[\phi\circ\psi^{-1} :
+        \psi(U_\phi\cap U_\psi)\rightarrow\phi(U_\phi\cap U_\psi),
+        \quad \psi\circ\phi^{-1} : \phi(U_\phi\cap U_\psi)
+        \rightarrow \psi(U_\phi\cap U_\psi)\]</p>
+        <p>are the transition maps. If all the transition maps
+        <span>$\phi$</span> are <span>$\mathcal{C}^r$</span>
+        differentiable and <span>$\bigcup_\phi U_\phi = M$</span>,
+        then the collection of charts is called an <em>atlas</em>
+        of a <span>$\mathcal{C}^r$</span>-manifold.</p>
+        <p><strong>Definition</strong>. A <em>fiber bundle</em> is
+        a manifold <span>$E$</span> with projection <span>$\pi: E
+        \rightarrow B$</span> commutes with local trivializations
+        <span>$\phi$</span> paired to <span>$U_\phi$</span> of
+        manifold <span>$B = \bigcup_\phi U_\phi$</span></p>
+        <p class="math-container">\[\phi: \pi^{-1}(U_\phi)
+        \rightarrow U_\phi\times F, \qquad \pi^{-1}(U_\phi)
+        \overset{\pi}{\longrightarrow} U_\phi
+        \overset{\pi_1}{\longleftarrow} U_\phi\times F,\]</p>
+        <p>where <span>$B$</span> is the <code>basetype</code> and
+        <span>$F$</span> is the <code>fibertype</code> of
+        <span>$E_p = \pi^{-1}(p) = \{p\}\times F$</span>,</p>
+        <p class="math-container">\[E = \bigcup_{p\in B}E_p =
+        \bigcup_{p\in B} \{p\}\times F = B\times F, \qquad B =
+        \bigcup_\phi U_\phi.\]</p>
+        <p><code>FiberBundle{E,N} &lt;: AbstractArray{E,N}</code>
+        where <span>$E$</span> is the <code>eltype</code></p>
+        <ul>
+          <li>
+            <code>Coordinates{P,G,N} &lt;:
+            FiberBundle{Coordinate{P,G},N}</code>
+            <ul>
+              <li><code>PointArray{P,G,N}</code> has
+              <code>pointtype</code> of <span>$P$</span>,
+              <code>metrictype</code> of <span>$G$</span></li>
+              <li><code>FiberProduct</code> introduces fiber
+              product structure for manifolds</li>
+            </ul>
+          </li>
+          <li>
+            <code>FrameBundle{C,N}</code> has
+            <code>coordinatetype</code> of <span>$C$</span> and
+            <code>immersion</code>
+            <ul>
+              <li><code>GridBundle{N,C}</code>
+              <span>$N$</span>-grid with <code>coordianates</code>
+              and <code>immersion</code></li>
+              <li><code>SimplexBundle{N,C}</code> defines
+              <code>coordinates</code> and an
+              <code>immersion</code></li>
+              <li><code>FaceBundle{N,C}</code> defines
+              <code>element</code> faces and their
+              <code>immersion</code></li>
+              <li><code>FiberProductBundle</code> for extruding
+              dimensions from simplices</li>
+              <li><code>HomotopyBundle</code> encapsulates a
+              variation as <code>FrameBundle</code></li>
+            </ul>
+          </li>
+          <li><code>TensorField</code> defines fibers in a global
+          section of a <code>FrameBundle</code></li>
+        </ul>
+        <p>When a <code>TensorField</code> has a
+        <code>fibertype</code> from <span>$\Lambda^gTV$</span> then
+        it is a grade <span>$g$</span> differential form on the
+        tangent bundle of <span>$V$</span>. In general the
+        <code>TensorField</code> type can deal with more abstract
+        <code>fibertype</code> varieties than only those used for
+        differential forms, as it unifies many different forms of
+        tensor analysis.</p>
+        <p>By default, the <code>InducedMetric</code> is defined
+        globally in each <code>PointArray</code>, unless a
+        particular metric tensor specification is provided. When
+        the default <code>InducedMetric</code> is invoked, the
+        metric tensor from the <code>TensorAlgebra{V}</code> type
+        is used for the global manifold, instead of the extra
+        allocation to specify metric tensors at each point.
+        <code>FrameBundle</code> then defines local charts along
+        with metric tensor in a <code>PointArray</code> and pairs
+        it with an <code>ImmersedTopology</code>. Then the fiber of
+        a <code>FrameBundle</code> section is a fiber of a
+        <code>TensorField</code>.</p>
+        <p>These methods relate to <code>FrameBundle</code> and
+        <code>TensorField</code> instances</p>
+        <ul>
+          <li><code>coordinates(m::FiberBundle)</code> returns
+          <code>Coordinates</code> data type</li>
+          <li><code>coordinatetype</code> return applies to
+          <code>FiberBundle</code> or <code>LocalFiber</code></li>
+          <li><code>immersion(m::FiberBundle)</code> returns
+          <code>ImmersedTopology</code> data</li>
+          <li><code>immersiontype</code> return applies to
+          <code>FiberBundle</code> or <code>LocalFiber</code></li>
+          <li><code>base</code> returns the <span>$B$</span>
+          element of a <code>LocalFiber{B,F}</code> or
+          <code>FiberBundle</code></li>
+          <li><code>basetype</code> returns type <span>$B$</span>
+          of a <code>LocalFiber{B,F}</code> or
+          <code>FiberBundle</code></li>
+          <li><code>fiber</code> returns the <span>$F$</span>
+          element of <code>LocalFiber{B,F}</code> or
+          <code>FiberBundle</code></li>
+          <li><code>fibertype</code> returns the <span>$F$</span>
+          type of <code>LocalFiber{B,F}</code> or
+          <code>FiberBundle</code></li>
+          <li><code>points</code> returns
+          <code>AbstractArray{P}</code> data for
+          <code>Coordinates{P,G}</code></li>
+          <li><code>pointtype</code> is type <span>$P$</span> of
+          <code>Coordinate{P,G}</code> or
+          <code>Coordinates{P,G}</code></li>
+          <li><code>metrictensor</code> returns the grade 1 block
+          of the <code>metricextensor</code></li>
+          <li><code>metricextensor</code> is
+          <code>AbstractArray{G}</code> data for
+          <code>Coordinates{P,G}</code></li>
+          <li><code>metrictype</code> is type <span>$G$</span> of
+          <code>Coordinate{P,G}</code> or
+          <code>Coordinates{P,G}</code></li>
+          <li><code>fullcoordinates</code> returns full
+          <code>FiberBundle{Coordinate{P,G}}</code></li>
+          <li><code>fullimmersion</code> returns superset
+          <code>ImmersedTopology</code> which
+          <code>isfull</code></li>
+          <li><code>fulltopology</code> returns composition of
+          <code>topology</code> <span>$\circ$</span>
+          <code>fullimmersion</code></li>
+          <li><code>fullvertices</code> list of
+          <code>vertices</code> associated to the
+          <code>fullimmersion</code></li>
+          <li><code>fullpoints</code> is full
+          <code>AbstractArray{P}</code> instead of possibly
+          subspace</li>
+          <li><code>fullmetricextensor</code> is full
+          <code>AbstractArray{G}</code> instead of subspace</li>
+          <li><code>isinduced</code> is true if the
+          <code>metrictype</code> is an <code>InducedMetric</code>
+          type</li>
+          <li><code>bundle</code> returns the integer
+          identification of bundle cache</li>
+        </ul>
+        <p>Various interpolation methods are also supported and can
+        be invoked by applying <code>TensorField</code> instances
+        as function evaluations on base manifold or applying some
+        form of resampling method to the manifold topology.</p>
+        <ul>
+          <li><code>volumes</code> returns <code>FaceBundle</code>
+          with simplex volume at each element</li>
+          <li><code>initmesh</code> provides API keyword for
+          interfacing mesh initialization</li>
+          <li><code>refinemesh</code> provides API keyword for
+          interfacing mesh refinement</li>
+          <li><code>affinehull</code> returns a localized affine
+          simplex hull at each element</li>
+          <li><code>affineframe</code> returns a localized affine
+          basis frame at each element</li>
+          <li><code>gradienthat</code> returns the hat gradients
+          for the <code>SimplexBundle</code></li>
+        </ul>
+        <p>For <code>GridBundle</code> initialization it is typical
+        to invoke a combination of <code>ProductSpace</code> and
+        <code>QuotientTopology</code>, while optional Julia
+        packages extend <code>SimplexBundle</code> initialization,
+        such as <code>Meshes</code>, <code>GeometryBasics</code>,
+        <code>Delaunay</code>, <code>QHull</code>,
+        <code>MiniQhull</code>, <code>Triangulate</code>,
+        <code>TetGen</code>, <code>MATLAB</code>,
+        <code>FlowGeometry</code>.</p>
+        <p><strong>Definition</strong>. Let <span>$\gamma:[a,b]
+        \rightarrow \mathbb R^n$</span> be a curve
+        <span>$\gamma(t)$</span> with parameter
+        <span>$t$</span>.</p>
+        <ul>
+          <li>
+            <p><code>integral(::IntervalMap)</code> cumulative
+            trapezoidal sum
+            <span>$\int_a^t\gamma(\xi)d\xi$</span></p>
+          </li>
+          <li>
+            <p><code>integrate(::IntervalMap)</code> final value of
+            <span>$\int_a^b\gamma(t) dt$</span> on interval end</p>
+          </li>
+          <li>
+            <p><code>arclength(::IntervalMap)</code> curve
+            parameter <span>$s(t) = \int_a^t
+            |\frac{d\gamma(\xi)}{d\xi}|d\xi$</span></p>
+          </li>
+          <li>
+            <p><code>tangent(::IntervalMap)</code> tangent speed
+            curve <span>$\frac{d\gamma(t)}{dt} = \frac{ds}{dt}
+            T(t)$</span></p>
+          </li>
+          <li>
+            <p><code>unittangent(::IntervalMap)</code> unit tangent
+            curve <span>$T(t) =
+            \frac{d\gamma}{dt}\frac{dt}{ds}$</span></p>
+          </li>
+          <li>
+            <p><code>speed(::IntervalMap)</code> tangent speed of a
+            curve <span>$\frac{ds}{dt} =
+            \left|\frac{d\gamma(t)}{dt}\right|$</span></p>
+          </li>
+          <li>
+            <p><code>normal(::IntervalMap)</code>
+            <span>$\kappa(t)N(t) = \frac{dT}{dt}\frac{dt}{ds} =
+            \frac{d}{dt}\left(\frac{d\gamma}{dt}\frac{dt}{ds}\right)\frac{dt}{ds}$</span></p>
+          </li>
+          <li>
+            <p><code>unitnormal(::IntervalMap)</code> <span>$N(t) =
+            \frac{dT}{dt}\frac{dt}{ds}/\kappa(t)$</span>
+            normalized</p>
+          </li>
+          <li>
+            <p><code>curvature(::AbstractCurve)</code>
+            <span>$\kappa(t) =
+            \left|\frac{dT}{dt}\frac{dt}{ds}\right| =
+            \left|\frac{d}{dt}\left(\frac{d\gamma}{dt}\frac{dt}{ds}\right)\frac{dt}{ds}\right|$</span></p>
+          </li>
+          <li>
+            <p><code>radius(::AbstractCurve)</code> of curvature
+            <span>$\kappa(t)^{-1} =
+            \left|\frac{d}{dt}\left(\frac{d\gamma}{dt}\frac{dt}{ds}\right)\frac{dt}{ds}\right|^{-1}$</span></p>
+          </li>
+          <li>
+            <p><code>evolute(::AbstractCurve)</code> <span>$\gamma
+            + \frac{N}{\kappa} = \gamma(t) +
+            \frac{d}{dt}\left(\frac{d\gamma}{dt}\frac{dt}{ds}\right)\frac{dt}{ds}/(\kappa(t))^2$</span></p>
+          </li>
+          <li>
+            <p><code>involute(::AbstractCurve)</code> <span>$\gamma
+            - Ts = \gamma(t) -
+            \left(\frac{d\gamma(t)}{dt}\frac{dt}{ds}\right)\int_a^t|\frac{d\gamma(\xi)}{d\xi}|d\xi$</span></p>
+          </li>
+          <li>
+            <p><code>osculatingplane(::AbstractCurve)</code> linear
+            span of <span>$\left[\frac{ds}{dt}T,\kappa
+            N\right]$</span></p>
+          </li>
+          <li>
+            <p><code>unitosculatingplane(::AbstractCurve)</code>
+            linear span of <span>$\left[T,N\right]$</span></p>
+          </li>
+          <li>
+            <p><code>binormal(::SpaceCurve)</code> complement
+            <span>$\frac{ds}{dt}\kappa B = \star
+            (\frac{ds}{dt}T\wedge \kappa N)$</span></p>
+          </li>
+          <li>
+            <p><code>unitbinormal(::SpaceCurve)</code> complement
+            of plane <span>$B = \star (T\wedge N)$</span></p>
+          </li>
+          <li>
+            <p><code>torsion(::SpaceCurve)</code> <span>$\tau(t) =
+            \left|\frac{dB}{dt}\frac{dt}{ds}\right| =
+            \left|\frac{d}{dt}\star\left(T\wedge
+            N\right)\frac{dt}{ds}\right|$</span></p>
+          </li>
+          <li>
+            <p><code>frame(::AbstractCurve)</code> scaled frame
+            <span>$\left[\frac{ds}{dt}T,\kappa
+            N,\star(\frac{ds}{dt}T\wedge\kappa
+            N)\right]$</span></p>
+          </li>
+          <li>
+            <p><code>unitframe(::AbstractCurve)</code> Frenet frame
+            <span>$\left[T,N,\star(T\wedge N)\right]$</span></p>
+          </li>
+          <li>
+            <p><code>curvatures(::AbstractCurve)</code> all degrees
+            of freedom
+            <span>$\left[\kappa,\tau,\dots\right]$</span></p>
+          </li>
+          <li>
+            <p><code>curvatures(::AbstractCurve,i)</code> selects
+            <span>$i$</span>-th curvature degree</p>
+          </li>
+          <li>
+            <p>
+            <code>bishopframe(::SpaceCurve,</code><span>$\theta_0$</span><code>=0)</code>
+            computes Bishop-style frame</p>
+          </li>
+          <li>
+            <p>
+            <code>bishopunitframe(::SpaceCurve,</code><span>$\theta_0$</span><code>=0)</code>
+            Bishop-style unit frame</p>
+          </li>
+          <li>
+            <p>
+            <code>bishoppolar(::SpaceCurve,</code><span>$\theta_0$</span><code>=0)</code>
+            Bishop polar <span>$(\kappa,\theta_0+\int_a^b\tau
+            ds)$</span></p>
+          </li>
+          <li>
+            <p>
+            <code>bishop(::SpaceCurve,</code><span>$\theta_0$</span><code>=0)</code>
+            <span>$\kappa(\cos(\theta_0+\int_a^b\tau
+            ds),\sin(\theta_0+\int_a^b\tau ds))$</span></p>
+          </li>
+          <li>
+            <p>
+            <code>planecurve(::RealFunction,</code><span>$\theta_0$</span><code>=0)</code>
+            from curvature <span>$\kappa(t)$</span> and
+            <span>$\theta_0$</span></p>
+          </li>
+        </ul>
+        <p class="math-container">\[\qquad \textstyle
+        (\kappa(t),\theta_0) \mapsto \int_a^b \left[cos (\theta_0 +
+        \int_a^b\kappa(t)dt),\sin(\theta_0+\int_a^b\kappa(t)dt)\right]dt\]</p>
+        <ul>
+          <li><code>linkmap(f::SpaceCurve,g::SpaceCurve)</code> is
+          <span>$\ell(t,s) = g(s)-f(t)$</span></li>
+          <li><code>linknumber(f,g)</code> of curves
+          <span>$\propto$</span> <code>sectorintegrate</code>
+          <span>$\circ$</span> <code>unit</code>
+          <span>$\circ$</span> <code>linkmap</code></li>
+        </ul>
+        <p><strong>Definition</strong>. Surfaces <span>$\gamma :
+        \mathbb{R}^2\rightarrow\mathbb{R}^3$</span> with parametric
+        <span>$\gamma(x_1,x_2)$</span> methods</p>
+        <ul>
+          <li><code>graph</code> outputs surface <span>$\gamma
+          :\mathbb{R}^n\rightarrow\mathbb{R}^n\times\mathbb{R}$</span>
+          from scalar field
+          <span>$f:\mathbb{R}^n\rightarrow\mathbb{R}$</span></li>
+          <li><code>normal</code> vector <span>$N(x) =
+          \star(\frac{\partial \gamma(x)}{\partial
+          x_1}\wedge\cdots\wedge\frac{\partial \gamma(x)}{\partial
+          x_n})$</span> or product <span>$\frac{\partial
+          \gamma(x)}{\partial x_1}\times\frac{\partial
+          \gamma(x)}{\partial x_2}$</span></li>
+          <li><code>unitnormal</code> <span>$\nu(x) =
+          \star(\frac{\partial \gamma(x)}{\partial
+          x_1}\wedge\cdots\wedge\frac{\partial \gamma(x)}{\partial
+          x_n}) / |\star(\frac{\partial
+          \gamma(x)}{x_1}\wedge\cdots\wedge\frac{\partial
+          \gamma(x)}{\partial x_n})|$</span></li>
+          <li><code>normalnorm</code> is the norm of normal
+          <span>$|N(x)| = |\star(\frac{\partial \gamma(x)}{\partial
+          x_1}\wedge\cdots\wedge\frac{\partial \gamma(x)}{\partial
+          x_n})|$</span></li>
+          <li><code>jacobian</code> linear span of
+          <span>$\left[\frac{\partial \gamma(x)}{\partial
+          x_1},\dots,\frac{\partial \gamma(x)}{\partial
+          x_n}\right]$</span> as <code>TensorOperator</code></li>
+          <li><code>weingarten</code> linear span of
+          <span>$\left[\frac{\partial \nu(x)}{\partial
+          x_1},\dots,\frac{\partial \nu(x)}{\partial
+          x_n}\right]$</span> as <code>TensorOperator</code></li>
+          <li><code>sectordet</code> is the product
+          <span>$\gamma(x)\wedge\frac{\partial \gamma(x)}{\partial
+          x_1}\wedge\cdots\wedge\frac{\partial \gamma(x)}{\partial
+          x_n}$</span>, here with <span>$n = 2$</span></li>
+          <li><code>sectorintegral</code> <span>$\int
+          \frac{\gamma(x)}{n+1}\wedge\frac{\partial
+          \gamma(x)}{\partial x_1}\wedge\cdots\wedge\frac{\partial
+          \gamma(x)}{\partial x_n}dx_1\cdots dx_n$</span> with
+          <span>$n=2$</span></li>
+          <li><code>sectorintegrate</code> estimates the total
+          value of <code>sectorintegral</code></li>
+          <li><code>area</code> cumulative <span>$\int
+          |\star(\frac{\partial \gamma(x)}{\partial
+          x_1}\wedge\cdots\wedge\frac{\partial \gamma(x)}{\partial
+          x_n})|dx_1\cdots dx_n$</span> with
+          <span>$n=2$</span></li>
+          <li><code>surfacearea</code> estimates total value of the
+          (surface) <code>area</code> integral</li>
+          <li><code>surfacemetric</code> gets
+          <code>GridBundle</code> with <code>firstform</code> as
+          <code>metrictensor</code></li>
+          <li><code>surfacemetricdiag</code> gets
+          <code>GridBundle</code> with <code>firstformdiag</code>
+          metric</li>
+          <li><code>surfaceframe</code> constructs intrinsic
+          orthonormal surface frame</li>
+          <li><code>frame</code> scaled Darboux style frame
+          <span>$\left[\frac{\partial\gamma(x)}{\partial
+          x_1},\star\left(N(x)\wedge\frac{\partial\gamma(x)}{\partial
+          x_1}\right),N(x)\right]$</span></li>
+          <li><code>unitframe</code> is then
+          <span>$\left[\frac{\partial\gamma(x)}{\partial
+          x_1}/\left|\frac{\partial\gamma(x)}{\partial
+          x_1}\right|,\star\left(\nu(x)\wedge\frac{\partial\gamma(x)}{\partial
+          x_1}\right)/\left|\frac{\partial\gamma(x)}{\partial
+          x_1}\right|,\nu(x)\right]$</span></li>
+          <li><code>firstform</code> <span>$I = g = \begin{bmatrix}
+          \frac{\partial\gamma(x)}{\partial
+          x_1}\cdot\frac{\partial\gamma(x)}{\partial x_1} &
+          \frac{\partial\gamma(x)}{\partial
+          x_1}\cdot\frac{\partial\gamma(x)}{\partial x_2} \\
+          \frac{\partial\gamma(x)}{\partial
+          x_1}\cdot\frac{\partial\gamma(x)}{\partial x_2} &
+          \frac{\partial\gamma(x)}{\partial
+          x_2}\cdot\frac{\partial\gamma(x)}{\partial x_2}
+          \end{bmatrix}$</span> or <code>firstformdiag</code></li>
+          <li><code>secondform</code> <span>$II = \begin{bmatrix}
+          \nu(x)\cdot\frac{\partial^2\gamma(x)}{\partial x_1^2} &
+          \nu(x)\cdot\frac{\partial^2\gamma(x)}{\partial
+          x_1\partial x_2} \\
+          \nu(x)\cdot\frac{\partial^2\gamma(x)}{\partial
+          x_1\partial x_2} &
+          \nu(x)\cdot\frac{\partial^2\gamma(x)}{\partial x_2^2}
+          \end{bmatrix}$</span> 2nd fundamental</li>
+          <li><code>thirdform</code> <span>$III$</span> is the
+          composition map <code>firstform</code>
+          <span>$\circ$</span> <code>unitnormal</code></li>
+          <li><code>shape</code> is the geometry shape operator
+          <span>$I(x)^{-1} II(x)$</span> of a surface
+          <span>$\gamma(x)$</span></li>
+          <li><code>principals</code> (curvatures) are the
+          composition <code>eigvals</code> <span>$\circ$</span>
+          <code>shape</code></li>
+          <li><code>principalaxes</code> (curvatures) are the
+          composition <code>eigvecs</code> <span>$\circ$</span>
+          <code>shape</code></li>
+          <li><code>curvatures</code> (polynomials) are the
+          composition <code>eigpolys</code> <span>$\circ$</span>
+          <code>shape</code></li>
+          <li><code>curvatures(::TensorField,i)</code> selects
+          <span>$i$</span>-th curvature polynomial</li>
+          <li><code>meancurvature</code> is the mean curvature
+          (first curvature) of the <code>shape</code></li>
+          <li><code>gaussintrinsic</code> is the (intrinsic) Gauss
+          curvature (last curvature)</li>
+          <li><code>gaussextrinsic</code> is the (extrinsic) Gauss
+          curvature in sector form</li>
+          <li><code>gausssign</code> is the sign of the Gauss
+          curvature of the <code>shape</code></li>
+        </ul>
+        <h2 id="Interactive-computational-sessions"><a class=
+        "docs-heading-anchor" href=
+        "#Interactive-computational-sessions">Interactive
+        computational sessions</a><a id=
+        "Interactive-computational-sessions-1"></a><a class=
+        "docs-heading-anchor-permalink" href=
+        "#Interactive-computational-sessions" title=
+        "Permalink"></a></h2>
+        <p><em>Example</em> (Plane curves). Let <span>$t$</span> be
+        parameter on interval from 0 to <span>$4\pi$</span></p>
+        <pre><code class=
+        "language-julia hljs">using Grassmann, Cartan, Makie # GLMakie
 t = TensorField(0:0.01:4*pi)
 lin = Chain.(cos(t)*t,sin(t)*11+t)
 lines(lin); scaledarrows!(lin,unitframe(lin),gridsize=50)
 lines(arclength(lin))
 lines(speed(lin))
-lines(curvature(lin))</code></pre><p>Get <code>curvature</code> from plane curve or construct <code>planecurve</code> from curvature:</p><pre><code class="language-julia hljs">lines(planecurve(cos(t)*t))
+lines(curvature(lin))</code></pre>
+        <p>Get <code>curvature</code> from plane curve or construct
+        <code>planecurve</code> from curvature:</p>
+        <pre><code class=
+        "language-julia hljs">lines(planecurve(cos(t)*t))
 lines(planecurve(cos(t*t)*t))
-lines(planecurve(cos(t)-t*sin(t)))</code></pre><p><em>Example</em> (Lorenz). Observe vector fields by integrating streamlines</p><pre><code class="language-julia hljs">Lorenz(s,r,b) = x -&gt; Chain(
+lines(planecurve(cos(t)-t*sin(t)))</code></pre>
+        <p><em>Example</em> (Lorenz). Observe vector fields by
+        integrating streamlines</p>
+        <pre><code class=
+        "language-julia hljs">Lorenz(s,r,b) = x -&gt; Chain(
     s*(x[2]-x[1]), x[1]*(r-x[3])-x[2], x[1]*x[2]-b*x[3])
 p = TensorField(ProductSpace(-40:0.2:40,-40:0.2:40,10:0.2:90))
 vf = Lorenz(10.0,60.0,8/3).(p) # pick Lorenz parameters, apply
-streamplot(vf,gridsize=(10,10)) # visualize vector field</code></pre><p>ODE solvers in the <code>Adapode</code> package are built on <code>Cartan</code>, providing both Runge-Kutta and multistep methods with optional adaptive time stepping.</p><pre><code class="language-julia hljs">using Grassmann, Cartan, Adapode, Makie # GLMakie
+streamplot(vf,gridsize=(10,10)) # visualize vector field</code></pre>
+        <p>ODE solvers in the <code>Adapode</code> package are
+        built on <code>Cartan</code>, providing both Runge-Kutta
+        and multistep methods with optional adaptive time
+        stepping.</p>
+        <pre><code class=
+        "language-julia hljs">using Grassmann, Cartan, Adapode, Makie # GLMakie
 fun,x0 = Lorenz(10.0,60.0,8/3),Chain(10.0,10.0,10.0)
 ic = InitialCondition(fun,x0,2pi) # tmax = 2pi
-lines(odesolve(ic,MultistepIntegrator{4}(2^-15)))</code></pre><p><em>Example</em> (Riemann sphere). Project <span>$\uparrow : \omega \mapsto (2\omega+v_\infty(\omega^2-1))/(\omega^2+1)$</span> and then apply rotation before rejecting down <span>$\downarrow :\omega\mapsto((\omega\wedge b)v_\infty)/(1-v_\infty\cdot\omega)$</span>.</p><pre><code class="language-julia hljs">using Grassmann, Cartan, Makie # GLMakie
+lines(odesolve(ic,MultistepIntegrator{4}(2^-15)))</code></pre>
+        <p><em>Example</em> (Riemann sphere). Project
+        <span>$\uparrow : \omega \mapsto
+        (2\omega+v_\infty(\omega^2-1))/(\omega^2+1)$</span> and
+        then apply rotation before rejecting down <span>$\downarrow
+        :\omega\mapsto((\omega\wedge
+        b)v_\infty)/(1-v_\infty\cdot\omega)$</span>.</p>
+        <pre><code class=
+        "language-julia hljs">using Grassmann, Cartan, Makie # GLMakie
 pts = TensorField(-2*pi:0.0001:2*pi)
-@basis S&quot;∞+++&quot; # Riemann sphere
+@basis S"∞+++" # Riemann sphere
 f(t) = ↓(exp(π*t*((3/7)*v12+v∞3))&gt;&gt;&gt;↑(v1+v2+v3))
 f(t) = ↓(exp(t*v∞*(sin(3t)*3v1+cos(2t)*7v2-sin(5t)*4v3)/2)&gt;&gt;&gt;↑(v1+v2-v3))
 f(t) = ↓(exp(t*(v12+0.07v∞*(sin(3t)*3v1+cos(2t)*7v2-sin(5t)*4v3)/2))&gt;&gt;&gt;↑(v1+v2-v3))
-lines(V(2,3,4).(f.(pts))) # applies to each f(t)</code></pre><pre><code class="language-julia hljs">@basis S&quot;∞∅+++&quot; # conformal geometric algebra
+lines(V(2,3,4).(f.(pts))) # applies to each f(t)</code></pre>
+        <pre><code class=
+        "language-julia hljs">@basis S"∞∅+++" # conformal geometric algebra
 f(t) = ↓(exp(π*t*((3/7)*v12+v∞3))&gt;&gt;&gt;↑(v1+v2+v3))
-lines(V(3,4,5).(vector.(f.(pts))))</code></pre><p><em>Example</em> (Bivector). <code>using Grassmann, Cartan, Makie # GLMakie</code></p><pre><code class="language-julia hljs">basis&quot;2&quot; # Euclidean geometric algebra in 2 dimensions
+lines(V(3,4,5).(vector.(f.(pts))))</code></pre>
+        <p><em>Example</em> (Bivector). <code>using Grassmann,
+        Cartan, Makie # GLMakie</code></p>
+        <pre><code class=
+        "language-julia hljs">basis"2" # Euclidean geometric algebra in 2 dimensions
 vdom = TensorField(ProductSpace{V}(-1.5:0.1:1.5,-1.5:0.1:1.5))
 streamplot(tensorfield(exp(pi*v12/2)).(vdom))
 streamplot(tensorfield(exp((pi/2)*v12/2)).(vdom))
 streamplot(tensorfield(exp((pi/4)*v12/2)).(vdom))
-streamplot(tensorfield(v1*exp((pi/4)*v12/2)).(vdom))</code></pre><pre><code class="language-julia hljs">@basis S&quot;+-&quot; # Geometric algebra with Lobachevskian plane
+streamplot(tensorfield(v1*exp((pi/4)*v12/2)).(vdom))</code></pre>
+        <pre><code class=
+        "language-julia hljs">@basis S"+-" # Geometric algebra with Lobachevskian plane
 vdom = TensorField(ProductSpace{V}(-1.5:0.1:1.5,-1.5:0.1:1.5))
 streamplot(tensorfield(exp((pi/8)*v12/2)).(vdom))
-streamplot(tensorfield(v1*exp((pi/4)*v12/2)).(vdom))</code></pre><p><em>Example</em>. <code>using Grassmann, Cartan, Makie; @basis S&quot;∞+++&quot;</code></p><pre><code class="language-julia hljs">vdom1 = TensorField(ProductSpace{V(1,2,3)}(
+streamplot(tensorfield(v1*exp((pi/4)*v12/2)).(vdom))</code></pre>
+        <p><em>Example</em>. <code>using Grassmann, Cartan, Makie;
+        @basis S"∞+++"</code></p>
+        <pre><code class=
+        "language-julia hljs">vdom1 = TensorField(ProductSpace{V(1,2,3)}(
     -1.5:0.1:1.5,-1.5:0.1:1.5,-1.5:0.1:1.5));
 tf1 = tensorfield(exp((pi/4)*(v12+v∞3)),V(2,3,4)).(vdom1)
-streamplot(tf1,gridsize=(10,10))</code></pre><pre><code class="language-julia hljs">vdom2 = TensorField(ProductSpace{V(2,3,4)}(
+streamplot(tf1,gridsize=(10,10))</code></pre>
+        <pre><code class=
+        "language-julia hljs">vdom2 = TensorField(ProductSpace{V(2,3,4)}(
     -1.5:0.1:1.5,-1.5:0.1:1.5,-1.5:0.1:1.5));
 tf2 = tensorfield(exp((pi/4)*(v12+v∞3)),V(2,3,4)).(vdom2)
-streamplot(tf2,gridsize=(10,10))</code></pre><p><strong>Definition</strong>. Let <span>$[\cdot,\dots,\cdot] : \mathfrak g^n \rightarrow \mathfrak g$</span> define the <span>$n$</span>-linear Lie bracket with</p><p class="math-container">\[[X_1,\dots,X_i,\dots,X_n] = \sum_{\sigma\in S_n} \varepsilon(\sigma) X_{\sigma(1)}(\dots(X_{\sigma(i)}(\dots(X_{\sigma(n)})\dots))\dots).\]</p><p>In <code>Grassmann</code> and <code>Cartan</code> this definition can be accessed with <code>Lie[Xi...]</code>.</p><p>In 2024, the author proved a new <a href="https://vixra.org/abs/2412.0034">multilinear Lie bracket recursion formula</a>.</p><p><strong>Theorem</strong> (Lie bracket recursion). <span>$n$</span>-bracket is sum of <span>$(n-1)$</span>-brackets:</p><p class="math-container">\[[X_1,\dots,X_n] = \sum_{i=1}^n (-1)^{i-1}X_i([X_1,\dots,X_{i-1},X_{i+1},\dots,X_n])\]</p><p>This recursion can be explicitly expanded from the unary rule <span>$[X] = X$</span>,</p><p class="math-container">\[[X,Y] = X([Y]) - Y([X]),\]</p><p class="math-container">\[[X,Y,Z] = X([Y,Z]) - Y([X,Z]) + Z([X,Y]),\]</p><p class="math-container">\[[W,X,Y,Z] = W([X,Y,Z]) - X([W,Y,Z]) + Y([W,X,Z]) - Z([W,X,Y]),\]</p><p class="math-container">\[{\scriptstyle [V,W,X,Y,Z]\, =\, V([W,X,Y,Z]) - W([V,X,Y,Z]) + X([V,W,Y,Z]) - Y([V,W,X,Z]) + Z([V,W,X,Y])}.\]</p><p>The multilinear Lie bracket recursion properly generalizes the bilinear Lie bracket to the <span>$n$</span>-linear case and is analogous to the Koszul complex of the Grassmann algebra; but is fundamentally different due to multilinear Lie bracket being non-associative, unlike the analogous exterior product.</p><p><em>Example</em> (Bracket). <code>using Grassmann, Cartan, Makie # GLMakie</code></p><pre><code class="language-julia hljs">f1(x) = Chain(cos(3x[1]),sin(2x[1]))
+streamplot(tf2,gridsize=(10,10))</code></pre>
+        <p><strong>Definition</strong>. Let
+        <span>$[\cdot,\dots,\cdot] : \mathfrak g^n \rightarrow
+        \mathfrak g$</span> define the <span>$n$</span>-linear Lie
+        bracket with</p>
+        <p class="math-container">\[[X_1,\dots,X_i,\dots,X_n] =
+        \sum_{\sigma\in S_n} \varepsilon(\sigma)
+        X_{\sigma(1)}(\dots(X_{\sigma(i)}(\dots(X_{\sigma(n)})\dots))\dots).\]</p>
+        <p>In <code>Grassmann</code> and <code>Cartan</code> this
+        definition can be accessed with
+        <code>Lie[Xi...]</code>.</p>
+        <p>In 2024, the author proved a new <a href=
+        "https://vixra.org/abs/2412.0034">multilinear Lie bracket
+        recursion formula</a>.</p>
+        <p><strong>Theorem</strong> (Lie bracket recursion).
+        <span>$n$</span>-bracket is sum of
+        <span>$(n-1)$</span>-brackets:</p>
+        <p class="math-container">\[[X_1,\dots,X_n] = \sum_{i=1}^n
+        (-1)^{i-1}X_i([X_1,\dots,X_{i-1},X_{i+1},\dots,X_n])\]</p>
+        <p>This recursion can be explicitly expanded from the unary
+        rule <span>$[X] = X$</span>,</p>
+        <p class="math-container">\[[X,Y] = X([Y]) - Y([X]),\]</p>
+        <p class="math-container">\[[X,Y,Z] = X([Y,Z]) - Y([X,Z]) +
+        Z([X,Y]),\]</p>
+        <p class="math-container">\[[W,X,Y,Z] = W([X,Y,Z]) -
+        X([W,Y,Z]) + Y([W,X,Z]) - Z([W,X,Y]),\]</p>
+        <p class="math-container">\[{\scriptstyle [V,W,X,Y,Z]\, =\,
+        V([W,X,Y,Z]) - W([V,X,Y,Z]) + X([V,W,Y,Z]) - Y([V,W,X,Z]) +
+        Z([V,W,X,Y])}.\]</p>
+        <p>The multilinear Lie bracket recursion properly
+        generalizes the bilinear Lie bracket to the
+        <span>$n$</span>-linear case and is analogous to the Koszul
+        complex of the Grassmann algebra; but is fundamentally
+        different due to multilinear Lie bracket being
+        non-associative, unlike the analogous exterior product.</p>
+        <p><em>Example</em> (Bracket). <code>using Grassmann,
+        Cartan, Makie # GLMakie</code></p>
+        <pre><code class=
+        "language-julia hljs">f1(x) = Chain(cos(3x[1]),sin(2x[1]))
 f2(x) = sin(x[1]/2)*sin(x[2])
 f3(x) = Chain(cos(x[1])*cos(x[2]),sin(x[2])*sin(x[1]))
 vf1 = f1.(TorusParameter(100,100))
@@ -44,13 +1603,50 @@ vf2 = gradient(f2.(TorusParameter(100,100)))
 vf3 = f3.(TorusParameter(100,100))
 lie1 = Lie[vf1,vf2] # Lie[vf1,vf2] == -Lie[vf2,vf1]
 lie2 = Lie[vf1,vf2,vf3] # ternary Lie bracket
-streamplot(lie1); streamplot(lie2)</code></pre><p><em>Example</em> (<span>$\int_\Omega 1$</span>). Length of line, area of disk, and volume of ball</p><pre><code class="language-julia hljs">linspace = ProductSpace(-2:0.03:2) # using Grassmann, Cartan
+streamplot(lie1); streamplot(lie2)</code></pre>
+        <p><em>Example</em> (<span>$\int_\Omega 1$</span>). Length
+        of line, area of disk, and volume of ball</p>
+        <pre><code class=
+        "language-julia hljs">linspace = ProductSpace(-2:0.03:2) # using Grassmann, Cartan
 diameter = TensorField(linspace, x-&gt;abs(x)&lt;1) # radius = 1
-(integrate(diameter),2.0) # grid doesn&#39;t exactly align on 1.0</code></pre><p class="math-container">\[(1.98v_1, 2.0v_1)\]</p><pre><code class="language-julia hljs">square = ProductSpace(-2:0.003:2,-2:0.003:2)
+(integrate(diameter),2.0) # grid doesn't exactly align on 1.0</code></pre>
+        <p class="math-container">\[(1.98v_1, 2.0v_1)\]</p>
+        <pre><code class=
+        "language-julia hljs">square = ProductSpace(-2:0.003:2,-2:0.003:2)
 disk = TensorField(square, x-&gt;abs(x)&lt;1) # radius = 1
-(integrate(disk),1pi)</code></pre><p class="math-container">\[(3.141414000000001v_{12}, 3.141592653589793v_{12})\]</p><pre><code class="language-julia hljs">cube = ProductSpace(-2:0.07:2,-2:0.07:2,-2:0.07:2)
+(integrate(disk),1pi)</code></pre>
+        <p class="math-container">\[(3.141414000000001v_{12},
+        3.141592653589793v_{12})\]</p>
+        <pre><code class=
+        "language-julia hljs">cube = ProductSpace(-2:0.07:2,-2:0.07:2,-2:0.07:2)
 ball = TensorField(cube, x-&gt;abs(x)&lt;1) # radius = 1
-(integrate(ball),4pi/3)</code></pre><p class="math-container">\[(4.180680595387064v_{123}, 4.1887902047863905v_{123})\]</p><p>However, this is inefficient numerical integration, for example the <span>$58\times58\times58$</span> cube has <span>$195,112$</span> terms and the <span>$1334\times1334$</span> square has <span>$1,779,556$</span> terms.</p><p><strong>Theorem</strong> (Hyper-area of hypersurface). Let <span>$\gamma:X\subset\mathbb R^n\rightarrow\mathbb R^{n+1}$</span> be parameterized hypersurface <span>$\partial(\Omega) = \gamma(X)$</span>. Since the pullback <span>$\gamma^*(1)$</span> is <span>$\det d\gamma$</span>,</p><p class="math-container">\[	\int_{\partial(\Omega)} 1 = \int_{\gamma(X)} 1 = \int_X|\det d\gamma| = \int_X \left|\frac{\partial\gamma}{\partial x_1} \wedge \dots \wedge \frac{\partial\gamma}{\partial x_n}\right|\]</p><p class="math-container">\[			 = \int_{a_1}^{b_1}\dots\int_{a_n}^{b_n} |\det d\gamma| = \int_{a_1}^{b_1}\dots\int_{a_n}^{b_n} \left|\frac{\partial \gamma}{\partial x_1} \wedge \dots \wedge \frac{\partial\gamma}{\partial x_n} \right|.\]</p><p><em>Example</em>. Disk circumference, sphere spat <code>using Grassmann,Cartan</code></p><pre><code class="language-julia hljs">t = TensorField(0:0.001:2pi)
+(integrate(ball),4pi/3)</code></pre>
+        <p class="math-container">\[(4.180680595387064v_{123},
+        4.1887902047863905v_{123})\]</p>
+        <p>However, this is inefficient numerical integration, for
+        example the <span>$58\times58\times58$</span> cube has
+        <span>$195,112$</span> terms and the
+        <span>$1334\times1334$</span> square has
+        <span>$1,779,556$</span> terms.</p>
+        <p><strong>Theorem</strong> (Hyper-area of hypersurface).
+        Let <span>$\gamma:X\subset\mathbb R^n\rightarrow\mathbb
+        R^{n+1}$</span> be parameterized hypersurface
+        <span>$\partial(\Omega) = \gamma(X)$</span>. Since the
+        pullback <span>$\gamma^*(1)$</span> is <span>$\det
+        d\gamma$</span>,</p>
+        <p class="math-container">\[ \int_{\partial(\Omega)} 1 =
+        \int_{\gamma(X)} 1 = \int_X|\det d\gamma| = \int_X
+        \left|\frac{\partial\gamma}{\partial x_1} \wedge \dots
+        \wedge \frac{\partial\gamma}{\partial x_n}\right|\]</p>
+        <p class="math-container">\[ =
+        \int_{a_1}^{b_1}\dots\int_{a_n}^{b_n} |\det d\gamma| =
+        \int_{a_1}^{b_1}\dots\int_{a_n}^{b_n} \left|\frac{\partial
+        \gamma}{\partial x_1} \wedge \dots \wedge
+        \frac{\partial\gamma}{\partial x_n} \right|.\]</p>
+        <p><em>Example</em>. Disk circumference, sphere spat
+        <code>using Grassmann,Cartan</code></p>
+        <pre><code class=
+        "language-julia hljs">t = TensorField(0:0.001:2pi)
 circ = Chain.(cos(t),sin(t))
 spher(x) = Chain(
     cos(x[2])*sin(x[1]), sin(x[2])*sin(x[1]),
@@ -58,21 +1654,77 @@ spher(x) = Chain(
 sph = spher.(SphereParameter(60,60))
 [surfacearea(circ), 2pi] # or totalarclength for AbstractCurve
 [surfacearea(sph), 4pi]
-lines(circ); wireframe(sph) # using Makie # GLMakie</code></pre><p class="math-container">\[	\begin{matrix}
-		\begin{bmatrix}
-			6.283000000652752 \\ 6.283185307179586
-		\end{bmatrix} \\ \quad \\
-		\begin{bmatrix}
-			12.533742943601457 \\ 12.566370614359172
-	\end{bmatrix}
-	\end{matrix}\]</p><p><strong>Theorem</strong> (Sector integral). Let <span>$X\subset\mathbb R^n$</span> and <span>$\gamma : X \rightarrow \partial(\Omega)\subset\mathbb R^{n+1}$</span> is parameterized hypersurface <span>$\partial(\Omega)=\gamma(X)$</span> with <span>$\gamma(x) = \gamma(x_1,\dots,x_n)$</span>, then</p><p class="math-container">\[\int_\Omega 1 = \frac{\rho^n}{n+1}\int_{X}\gamma\wedge\frac{\partial\gamma}{\partial x_1}\wedge\cdots\wedge\frac{\partial\gamma}{\partial x_n}\]</p><p>so there exists <span>$\Omega$</span> defining the sector of hypersurface <span>$\gamma(X)$</span> with scale <span>$\rho = 1$</span>.</p><p><em>Proof</em>. Theorem proved by Michael Reed in Grassmann.jl and Cartan.jl research papers.</p><p><em>Example</em> (<span>$\int_\Omega1$</span>). Recall <code>circ,sph</code> to evaluate </p><pre><code class="language-julia hljs">(sectorintegrate(circ),sectorintegrate(sph)) # more efficient</code></pre><p class="math-container">\[(3.1415v_{12}, 4.17791v_{123})\]</p><p><em>Example</em> (Link number). Define the <code>linkmap</code> of two <code>SpaceCurve</code> instances <span>$f(t)$</span> and <span>$g(s)$</span> as parameterized hypersurface <span>$\ell(s,t) = g(s)-f(t)$</span>. As a corollary of the <em>sector integral theorem</em> combined with unit linkmap:</p><p class="math-container">\[\frac{1}{4\pi}\int_X \gamma \wedge \frac{\partial\gamma}{\partial t}\wedge\frac{\partial\gamma}{\partial s} = \frac{1}{4\pi}\int_X \frac{g(s)-f(t)}{|g(s)-f(t)|^3}\wedge \frac{df(t)}{dt}\wedge\frac{dg(s)}{ds},\]</p><p>therefore Gauss <code>linknumber</code> is <span>$\frac{3}{4\pi}$</span> times <code>sectorintegrate</code> <span>$\circ$</span> <code>unit</code> <span>$\circ$</span> <code>linkmap</code> when evaluated with parameterized hypersurface <span>$\gamma(s,t) = \ell(s,t)/|\ell(s,t)|$</span>. So the <code>linknumber</code> divides <code>sectorintegral</code> of <span>$\gamma(X)$</span> by the volume of ball <span>$\Omega$</span>.</p><pre><code class="language-julia hljs">t = TensorField(0:0.01:2pi) # using Grassmann, Cartan, Makie
+lines(circ); wireframe(sph) # using Makie # GLMakie</code></pre>
+        <p class="math-container">\[ \begin{matrix} \begin{bmatrix}
+        6.283000000652752 \\ 6.283185307179586 \end{bmatrix} \\
+        \quad \\ \begin{bmatrix} 12.533742943601457 \\
+        12.566370614359172 \end{bmatrix} \end{matrix}\]</p>
+        <p><strong>Theorem</strong> (Sector integral). Let
+        <span>$X\subset\mathbb R^n$</span> and <span>$\gamma : X
+        \rightarrow \partial(\Omega)\subset\mathbb R^{n+1}$</span>
+        is parameterized hypersurface
+        <span>$\partial(\Omega)=\gamma(X)$</span> with
+        <span>$\gamma(x) = \gamma(x_1,\dots,x_n)$</span>, then</p>
+        <p class="math-container">\[\int_\Omega 1 =
+        \frac{\rho^n}{n+1}\int_{X}\gamma\wedge\frac{\partial\gamma}{\partial
+        x_1}\wedge\cdots\wedge\frac{\partial\gamma}{\partial
+        x_n}\]</p>
+        <p>so there exists <span>$\Omega$</span> defining the
+        sector of hypersurface <span>$\gamma(X)$</span> with scale
+        <span>$\rho = 1$</span>.</p>
+        <p><em>Proof</em>. Theorem proved by Michael Reed in
+        Grassmann.jl and Cartan.jl research papers.</p>
+        <p><em>Example</em> (<span>$\int_\Omega1$</span>). Recall
+        <code>circ,sph</code> to evaluate</p>
+        <pre><code class=
+        "language-julia hljs">(sectorintegrate(circ),sectorintegrate(sph)) # more efficient</code></pre>
+        <p class="math-container">\[(3.1415v_{12},
+        4.17791v_{123})\]</p>
+        <p><em>Example</em> (Link number). Define the
+        <code>linkmap</code> of two <code>SpaceCurve</code>
+        instances <span>$f(t)$</span> and <span>$g(s)$</span> as
+        parameterized hypersurface <span>$\ell(s,t) =
+        g(s)-f(t)$</span>. As a corollary of the <em>sector
+        integral theorem</em> combined with unit linkmap:</p>
+        <p class="math-container">\[\frac{1}{4\pi}\int_X \gamma
+        \wedge \frac{\partial\gamma}{\partial
+        t}\wedge\frac{\partial\gamma}{\partial s} =
+        \frac{1}{4\pi}\int_X \frac{g(s)-f(t)}{|g(s)-f(t)|^3}\wedge
+        \frac{df(t)}{dt}\wedge\frac{dg(s)}{ds},\]</p>
+        <p>therefore Gauss <code>linknumber</code> is
+        <span>$\frac{3}{4\pi}$</span> times
+        <code>sectorintegrate</code> <span>$\circ$</span>
+        <code>unit</code> <span>$\circ$</span> <code>linkmap</code>
+        when evaluated with parameterized hypersurface
+        <span>$\gamma(s,t) = \ell(s,t)/|\ell(s,t)|$</span>. So the
+        <code>linknumber</code> divides <code>sectorintegral</code>
+        of <span>$\gamma(X)$</span> by the volume of ball
+        <span>$\Omega$</span>.</p>
+        <pre><code class=
+        "language-julia hljs">t = TensorField(0:0.01:2pi) # using Grassmann, Cartan, Makie
 f(t) = Chain(cos(t[1]),sin(t[1]),0)
 g(t) = Chain(0,1+cos(t[1]),sin(t[1]))
 lines(f.(t)); lines!(g.(t)); (linknumber(f.(t),g.(t)), 1.0)
 mesh(linkmap(f.(t),g.(t)),normalnorm)
-mesh(unit(linkmap(f.(t),g.(t))),normalnorm)</code></pre><p><strong>Theorem</strong> (Gauss curvature). New alternative formulas for (extrinsic) Gauss curvature <span>$K_e$</span> and for (intrinsic) Gauss curvature <span>$K_i$</span> with normal <span>$N$</span>,</p><p class="math-container">\[K_e(x) = \nu(x)\wedge\frac{\partial\nu(x)}{\partial x_1}\wedge\cdots\wedge\frac{\partial \nu(x)}{\partial x_n}, \quad 
-	K_i(x) = \frac{K_e(x)}{|N(x)|},\]</p><p class="math-container">\[	|K_e(x)| = \left|\star\left(\frac{\partial \nu(x)}{\partial x_1}\wedge\cdots\wedge\frac{\partial \nu(x)}{\partial x_n}\right)\right|, \quad
-	|K_i(x)| = \frac{|K_e(x)|}{|N(x)|}.\]</p><p>With this formula, the Gauss-Bonnet integral is a <code>sectorintegral</code> theorem.</p><p><em>Example</em> (Torus).</p><pre><code class="language-julia hljs">using Grassmann, Cartan, Makie # GLMakie
+mesh(unit(linkmap(f.(t),g.(t))),normalnorm)</code></pre>
+        <p><strong>Theorem</strong> (Gauss curvature). New
+        alternative formulas for (extrinsic) Gauss curvature
+        <span>$K_e$</span> and for (intrinsic) Gauss curvature
+        <span>$K_i$</span> with normal <span>$N$</span>,</p>
+        <p class="math-container">\[K_e(x) =
+        \nu(x)\wedge\frac{\partial\nu(x)}{\partial
+        x_1}\wedge\cdots\wedge\frac{\partial \nu(x)}{\partial x_n},
+        \quad K_i(x) = \frac{K_e(x)}{|N(x)|},\]</p>
+        <p class="math-container">\[ |K_e(x)| =
+        \left|\star\left(\frac{\partial \nu(x)}{\partial
+        x_1}\wedge\cdots\wedge\frac{\partial \nu(x)}{\partial
+        x_n}\right)\right|, \quad |K_i(x)| =
+        \frac{|K_e(x)|}{|N(x)|}.\]</p>
+        <p>With this formula, the Gauss-Bonnet integral is a
+        <code>sectorintegral</code> theorem.</p>
+        <p><em>Example</em> (Torus).</p>
+        <pre><code class=
+        "language-julia hljs">using Grassmann, Cartan, Makie # GLMakie
 torus(x) = Chain(
     (2+0.5cos(x[1]))*cos(x[2]),
     (2+0.5cos(x[1]))*sin(x[2]),
@@ -80,7 +1732,10 @@ torus(x) = Chain(
 tor = torus.(TorusParameter(60,60))
 mesh(tor,normalnorm)
 mesh(tor,meancurvature)
-mesh(tor,gausssign)</code></pre><p><em>Example</em> (Wiggle).</p><pre><code class="language-julia hljs">using Grassmann, Cartan, Makie # GLMakie
+mesh(tor,gausssign)</code></pre>
+        <p><em>Example</em> (Wiggle).</p>
+        <pre><code class=
+        "language-julia hljs">using Grassmann, Cartan, Makie # GLMakie
 wobble(x) = (1+0.3sin(3x[1])+0.1cos(7x[2]))
 wumble(x) = (3+0.5cos(x[2]))
 wiggle(x) = Chain(
@@ -90,7 +1745,29 @@ wiggle(x) = Chain(
 wig = wiggle.(TorusParameter(60,60))
 mesh(wig,normalnorm)
 mesh(wig,gaussextrinsic)
-mesh(wig,gaussintrinsic)</code></pre><p><strong>Definition</strong>. When there is a Levi-Civita connection with zero torsion related to a <code>metrictensor</code>, then <span>$\nabla_X Y - \nabla_Y X = [X,Y]$</span> and there exist Christoffel symbols of the <code>secondkind</code> <span>$\Gamma_{ij}^k = \Gamma_{ji}^k$</span> with <span>$\nabla_{\partial_i}\partial_j = \sum_k \Gamma_{ij}^k \partial_k$</span>. In particular, these can be expressed in terms of the <code>metrictensor</code> <span>$g$</span> as</p><p class="math-container">\[\Gamma^k_{ij} = \frac{1}{2} \sum_m g^{km}\set{\frac{\partial g_{mj}}{\partial x_i} + \frac{\partial g_{im}}{\partial x_j} - \frac{\partial g_{ij}}{\partial x_m} }.\]</p><p>Local geodesic differential equations for Riemannian geometry are then</p><p class="math-container">\[\frac{d^2 x_k}{dt^2} + \sum_{ij} \Gamma_{ij}^k \frac{dx_i}{dt}\frac{dx_j}{dt} = 0.\]</p><p><em>Example</em>. <code>using Grassmann, Cartan, Adapode, Makie # GLMakie</code></p><pre><code class="language-julia hljs">torus(x) = Chain(
+mesh(wig,gaussintrinsic)</code></pre>
+        <p><strong>Definition</strong>. When there is a Levi-Civita
+        connection with zero torsion related to a
+        <code>metrictensor</code>, then <span>$\nabla_X Y -
+        \nabla_Y X = [X,Y]$</span> and there exist Christoffel
+        symbols of the <code>secondkind</code> <span>$\Gamma_{ij}^k
+        = \Gamma_{ji}^k$</span> with
+        <span>$\nabla_{\partial_i}\partial_j = \sum_k \Gamma_{ij}^k
+        \partial_k$</span>. In particular, these can be expressed
+        in terms of the <code>metrictensor</code> <span>$g$</span>
+        as</p>
+        <p class="math-container">\[\Gamma^k_{ij} = \frac{1}{2}
+        \sum_m g^{km}\set{\frac{\partial g_{mj}}{\partial x_i} +
+        \frac{\partial g_{im}}{\partial x_j} - \frac{\partial
+        g_{ij}}{\partial x_m} }.\]</p>
+        <p>Local geodesic differential equations for Riemannian
+        geometry are then</p>
+        <p class="math-container">\[\frac{d^2 x_k}{dt^2} +
+        \sum_{ij} \Gamma_{ij}^k \frac{dx_i}{dt}\frac{dx_j}{dt} =
+        0.\]</p>
+        <p><em>Example</em>. <code>using Grassmann, Cartan,
+        Adapode, Makie # GLMakie</code></p>
+        <pre><code class="language-julia hljs">torus(x) = Chain(
     (2+0.5cos(x[1]))*cos(x[2]),
     (2+0.5cos(x[1]))*sin(x[2]),
     0.5sin(x[1]))
@@ -99,13 +1776,19 @@ tormet = surfacemetric(tor) # intrinsic metric
 torcoef = secondkind(tormet) # Christoffel symbols
 ic = geodesic(torcoef,Chain(1.0,1.0),Chain(1.0,sqrt(2)),10pi)
 sol = geosolve(ic,ExplicitIntegrator{4}(2^-7)) # Runge-Kutta
-lines(torus.(sol))</code></pre><pre><code class="language-julia hljs">totalarclength(sol) # apparent length of parameter path
+lines(torus.(sol))</code></pre>
+        <pre><code class=
+        "language-julia hljs">totalarclength(sol) # apparent length of parameter path
 @basis MetricTensor([1 1; 1 1]) # abstract non-Euclidean V
 solm = TensorField(tormet(sol),Chain{V}.(value.(fiber(sol))))
 totalarclength(solm) # 2D estimate totalarclength(torus.(sol))
 totalarclength(torus.(sol)) # compute in 3D Euclidean metric
 lines(solm) # parametric curve can have non-Euclidean metric
-lines(arclength(solm)); lines!(arclength(sol))</code></pre><p><em>Example</em> (Klein geodesic). General <code>ImmersedTopology</code> are supported</p><pre><code class="language-julia hljs">klein(x) = klein(x[1],x[2]/2)
+lines(arclength(solm)); lines!(arclength(sol))</code></pre>
+        <p><em>Example</em> (Klein geodesic). General
+        <code>ImmersedTopology</code> are supported</p>
+        <pre><code class=
+        "language-julia hljs">klein(x) = klein(x[1],x[2]/2)
 function klein(v,u)
     x = cos(u)*(-2/15)*(3cos(v)-30sin(u)+90sin(u)*cos(u)^4-
         60sin(u)*cos(u)^6+5cos(u)*cos(v)*sin(u))
@@ -120,7 +1803,11 @@ end # too long paths over QuotientTopology can stack overflow
 kle = klein.(KleinParameter(100,100))
 klecoef = secondkind(surfacemetric(kle))
 ic = geodesic(klecoef,Chain(1.0,1.0),Chain(1.0,2.0),2pi)
-lines(geosolve(ic,ExplicitIntegrator{4}(2^-7)));wireframe(kle)</code></pre><p><em>Example</em> (Upper half plane). Intrinsic hyperbolic Lobachevsky metric</p><pre><code class="language-julia hljs">halfplane(x) = TensorOperator(Chain(
+lines(geosolve(ic,ExplicitIntegrator{4}(2^-7)));wireframe(kle)</code></pre>
+        <p><em>Example</em> (Upper half plane). Intrinsic
+        hyperbolic Lobachevsky metric</p>
+        <pre><code class=
+        "language-julia hljs">halfplane(x) = TensorOperator(Chain(
     Chain(Chain(0.0,inv(x[2])),Chain(-inv(x[2]),0.0)),
     Chain(Chain(-inv(x[2]),0.0),Chain(0.0,-inv(x[2])))))
 z1 = geosolve(halfplane,Chain(1.0,1.0),Chain(1.0,2.0),10pi,7)
@@ -128,43 +1815,87 @@ z2 = geosolve(halfplane,Chain(1.0,0.1),Chain(1.0,2.0),10pi,7)
 z3 = geosolve(halfplane,Chain(1.0,0.5),Chain(1.0,2.0),10pi,7)
 z4 = geosolve(halfplane,Chain(1.0,1.0),Chain(1.0,1.0),10pi,7)
 z5 = geosolve(halfplane,Chain(1.0,1.0),Chain(1.0,1.5),10pi,7)
-lines(z1); lines!(z2); lines!(z3); lines!(z4); lines!(z5)</code></pre><p><em>Example</em>. Calculus over Hopf fibration is enabled by <code>HopfTopology</code>,</p><pre><code class="language-julia hljs">stereohopf(x) = stereohopf(x[1],x[2],x[3])
+lines(z1); lines!(z2); lines!(z3); lines!(z4); lines!(z5)</code></pre>
+        <p><em>Example</em>. Calculus over Hopf fibration is
+        enabled by <code>HopfTopology</code>,</p>
+        <pre><code class=
+        "language-julia hljs">stereohopf(x) = stereohopf(x[1],x[2],x[3])
 function stereohopf(theta,phi,psi)
     a = cos(theta)*exp((im/2)*(psi-phi))
     b = sin(theta)*exp((im/2)*(psi+phi))
     Chain(imag(a),real(b),imag(b))/(1-real(a))
 end
 hs = stereohopf.(HopfParameter());
-alteration!(hs,wireframe,wireframe!)</code></pre><p><em>Example</em>. Streamplots on tangent spaces enabled by <code>Cartan</code> methods,</p><pre><code class="language-julia hljs">spher(x) = Chain(
+alteration!(hs,wireframe,wireframe!)</code></pre>
+        <p><em>Example</em>. Streamplots on tangent spaces enabled
+        by <code>Cartan</code> methods,</p>
+        <pre><code class="language-julia hljs">spher(x) = Chain(
     cos(x[2])*sin(x[1]), sin(x[2])*sin(x[1]),
     cos(x[1])) # GeographicParameter is swapped convention
 sph = spher.(SphereParameter(60,60))
 f2(x) = sin(x[1]/2)*sin(x[2])
 vf2 = gradient(f2.(TorusParameter(100,100)))
-streamplot(sph,vf2)</code></pre><pre><code class="language-julia hljs">torus(x) = Chain(
+streamplot(sph,vf2)</code></pre>
+        <pre><code class="language-julia hljs">torus(x) = Chain(
     (2+0.5cos(x[1]))*cos(x[2]),
     (2+0.5cos(x[1]))*sin(x[2]),
     0.5sin(x[1]))
 tor = torus.(TorusParameter(60,60))
 f3(x) = Chain(cos(x[1])*cos(x[2]),sin(x[2])*sin(x[1]))
 vf3 = f3.(TorusParameter(100,100))
-streamplot(tor,vf3)</code></pre><p><em>Example</em> (da Rios). The <code>Cartan</code> abstractions enable easily integrating</p><p class="math-container">\[\frac{\partial\gamma(x)}{\partial x_2} = \star\left(\frac{\partial\gamma(x)}{\partial x_1} \wedge \frac{\partial^2\gamma(x)}{\partial x_1^2} \right)\]</p><pre><code class="language-julia hljs">using Grassmann, Cartan, Adapode, Makie # GLMakie
+streamplot(tor,vf3)</code></pre>
+        <p><em>Example</em> (da Rios). The <code>Cartan</code>
+        abstractions enable easily integrating</p>
+        <p class="math-container">
+        \[\frac{\partial\gamma(x)}{\partial x_2} =
+        \star\left(\frac{\partial\gamma(x)}{\partial x_1} \wedge
+        \frac{\partial^2\gamma(x)}{\partial x_1^2} \right)\]</p>
+        <pre><code class=
+        "language-julia hljs">using Grassmann, Cartan, Adapode, Makie # GLMakie
 start(x) = Chain(cos(x),sin(x),cos(1.5x)*sin(1.5x)/5)
 x1 = start.(TorusParameter(180));
 darios(t,dt=tangent(fiber(t))) = hodge(wedge(dt,tangent(dt)))
 sol = odesolve(darios,x1,1.0,2^-11)
-mesh(sol,normalnorm)</code></pre><p><em>Example</em> (Bishop frame). As an alternative to the standard Frenet style <code>unitframe</code>, the <code>bishopunitframe(::SpaceCurve,angle::Real)</code> has an optional angle (integration constant) modulo rotation of tangent axis.</p><pre><code class="language-julia hljs">using Grassmann, Cartan, Makie # GLMakie
+mesh(sol,normalnorm)</code></pre>
+        <p><em>Example</em> (Bishop frame). As an alternative to
+        the standard Frenet style <code>unitframe</code>, the
+        <code>bishopunitframe(::SpaceCurve,angle::Real)</code> has
+        an optional angle (integration constant) modulo rotation of
+        tangent axis.</p>
+        <pre><code class=
+        "language-julia hljs">using Grassmann, Cartan, Makie # GLMakie
 start(x) = Chain(cos(x),sin(x),cos(1.5x)*sin(1.5x)/5)
 x1 = start.(TorusParameter(180));
 scaledarrows(x1,bishopunitframe(x1),gridsize=25)
-lines!(x1,linestyle=:dash) # angle is optional</code></pre><p><em>Example</em> (Eigenmodes of disk). 	<span>$-\Delta u = \lambda u$</span> with boundary <span>$n\cdot\nabla u = 0$</span> is enabled with <code>assemble</code> for stiffness and mass matrix from <code>Adapode</code>:</p><pre><code class="language-julia hljs">using Grassmann, Cartan, Adapode, MATLAB, Makie # GLMakie
-pt,pe = initmesh(&quot;circleg&quot;,&quot;hmax&quot;=&gt;0.1) # MATLAB circleg mesh
-A,M = assemble(pt,1,1,0) # stiffness &amp; mass matrix assembly
+lines!(x1,linestyle=:dash) # angle is optional</code></pre>
+        <p><em>Example</em> (Eigenmodes of disk). <span>$-\Delta u
+        = \lambda u$</span> with boundary <span>$n\cdot\nabla u =
+        0$</span> is enabled with <code>assemble</code> for
+        stiffness and mass matrix from <code>Adapode</code>:</p>
+        <pre><code class=
+        "language-julia hljs">using Grassmann, Cartan, Adapode, MATLAB, Makie # GLMakie
+pt,pe = initmesh("circleg","hmax"=&gt;0.1) # MATLAB circleg mesh
+A,M = assemble(pt,1,1,0) # stiffness & mass matrix assembly
 using KrylovKit # provides general eigsolve
 yi,xi = geneigsolve((A,M),10,:SR;krylovdim=100) # maxiter=100
 amp = TensorField.(Ref(pt),xi./3) # solutions amplitude
 mode = TensorField.(graphbundle.(amp),xi) # make 3D surface
-mesh(mode[7]); wireframe!(pt) # figure modes are 4,5,7,8,6,9</code></pre><p>To build on the <code>FiberBundle</code> functionality of <code>Cartan</code>, the numerical analysis package <code>Adapode</code> is being developed to provide extra utilities for finite element method assemblies. Poisson equation (<span>$-\nabla\cdot(c\nabla u) = f$</span>) syntax or transport (<span>$-\epsilon\nabla^2u+c\cdot\nabla u = f$</span>) equations with finite element methods can be expressed in terms of methods like <code>volumes</code> using exterior products or <code>gradienthat</code> by applying the exterior algebra principles discussed. Global <code>Grassmann</code> element assembly problems involve applying geometric algebra locally per element basis and combining it with a global manifold topology.</p><pre><code class="language-julia hljs">function solvepoisson(t,e,c,f,k,gD=0,gN=0)
+mesh(mode[7]); wireframe!(pt) # figure modes are 4,5,7,8,6,9</code></pre>
+        <p>To build on the <code>FiberBundle</code> functionality
+        of <code>Cartan</code>, the numerical analysis package
+        <code>Adapode</code> is being developed to provide extra
+        utilities for finite element method assemblies. Poisson
+        equation (<span>$-\nabla\cdot(c\nabla u) = f$</span>)
+        syntax or transport (<span>$-\epsilon\nabla^2u+c\cdot\nabla
+        u = f$</span>) equations with finite element methods can be
+        expressed in terms of methods like <code>volumes</code>
+        using exterior products or <code>gradienthat</code> by
+        applying the exterior algebra principles discussed. Global
+        <code>Grassmann</code> element assembly problems involve
+        applying geometric algebra locally per element basis and
+        combining it with a global manifold topology.</p>
+        <pre><code class=
+        "language-julia hljs">function solvepoisson(t,e,c,f,k,gD=0,gN=0)
     m = volumes(t)
     b = assembleload(t,f,m)
     A = assemblestiffness(t,c,m)
@@ -188,9 +1919,26 @@ function solvetransportdiffusion(tf,ek,c,d,gD=0,gN=0)
     C = assembleconvection(t,b,m,g)
     Sd = assembleSD(t,sqrt(d)*b,m,g)
     R,r = assemblerobin(e,k,gD,gN)
-    return TensorField(t,(A+R-C&#39;+Sd)\r)
-end</code></pre><p>More general problems for finite element boundary value problems are also enabled by mesh representations imported into <code>Cartan</code> from external sources and computationally operated on in terms of <code>Grassmann</code> algebra. Many of these methods automatically generalize to higher dimensional manifolds and are compatible with discrete differential geometry. Further advanced features such as <code>DiscontinuousTopology</code> have been implemented and the <code>LagrangeTopology</code> variant of <code>SimplexTopology</code> is being used in research.</p><p><em>Example</em> (Heatflow around airfoil). <code>FlowGeometry</code> builds on <code>Cartan</code> to provide NACA airfoil shapes, and <code>Adapode</code> can solve transport diffusion.</p><pre><code class="language-julia hljs">using Grassmann, Cartan, Adapode, FlowGeometry, MATLAB, Makie
-pt,pe = initmesh(decsg(NACA&quot;6511&quot;),&quot;hmax&quot;=&gt;0.1)
+    return TensorField(t,(A+R-C'+Sd)\r)
+end</code></pre>
+        <p>More general problems for finite element boundary value
+        problems are also enabled by mesh representations imported
+        into <code>Cartan</code> from external sources and
+        computationally operated on in terms of
+        <code>Grassmann</code> algebra. Many of these methods
+        automatically generalize to higher dimensional manifolds
+        and are compatible with discrete differential geometry.
+        Further advanced features such as
+        <code>DiscontinuousTopology</code> have been implemented
+        and the <code>LagrangeTopology</code> variant of
+        <code>SimplexTopology</code> is being used in research.</p>
+        <p><em>Example</em> (Heatflow around airfoil).
+        <code>FlowGeometry</code> builds on <code>Cartan</code> to
+        provide NACA airfoil shapes, and <code>Adapode</code> can
+        solve transport diffusion.</p>
+        <pre><code class=
+        "language-julia hljs">using Grassmann, Cartan, Adapode, FlowGeometry, MATLAB, Makie
+pt,pe = initmesh(decsg(NACA"6511"),"hmax"=&gt;0.1)
 tf = solvepoisson(pt,pe,1,0,
     x-&gt;(x[2]&gt;3.49 ? 1e6 : 0.0),0,x-&gt;(x[2]&lt;-1.49 ? 1.0 : 0.0))
 function kappa(z); x = base(z)
@@ -206,15 +1954,50 @@ tf2 = solvetransportdiffusion(gtf,kf,0.01,1/50,
     x-&gt;(sqrt((x[2]-0.5)^2+x[3]^2)&lt;0.7 ? 1.0 : 0.0))
 wireframe(pt)
 streamplot(gtf,-0.3..1.3,-0.2..0.2)
-mesh(tf2)</code></pre><p><em>Example</em>. Most finite element methods <code>using Grassmann, Cartan</code> automatically generalize to higher dimension manifolds with e.g. tetrahedra, 	and the author has contributed to packages such as <em>Triangulate.jl</em>, <em>TetGen.jl</em>.</p><pre><code class="language-julia hljs">using Grassmann, Cartan, Adapode, FlowGeometry, MiniQhull, TetGen
-ps = sphere(sphere(`$\partial$\verb`(delaunay(PointCloud(sphere())))))
-pt,pe = tetrahedralize(cubesphere(),&quot;vpq1.414a0.1&quot;;
+mesh(tf2)</code></pre>
+        <p><em>Example</em>. Most finite element methods
+        <code>using Grassmann, Cartan</code> automatically
+        generalize to higher dimension manifolds with e.g.
+        tetrahedra, and the author has contributed to packages such
+        as <em>Triangulate.jl</em>, <em>TetGen.jl</em>.</p>
+        <pre><code class=
+        "language-julia hljs">using Grassmann, Cartan, Adapode, FlowGeometry, MiniQhull, TetGen
+ps = sphere(sphere(∂(delaunay(PointCloud(sphere())))))
+pt,pe = tetrahedralize(cubesphere(),"vpq1.414a0.1";
     holes=[TetGen.Point(0.0,0.0,0.0)])
 tf = solvepoisson(pt,pe,1,0,
     x-&gt;(x[2]&gt;1.99 ? 1e6 : 0.0),0,x-&gt;(x[2]&lt;-1.99 ? 1.0 : 0.0))
 streamplot(-gradient(tf),-1.1..1.1,-1.1..1.1,-1.1..1.1,
     gridsize=(10,10,10))
-wireframe!(ps)</code></pre><p><em>Example</em> (Maxwell&#39;s equations rewritten). <code>Cartan</code> has Nedelec edge interpolation useful for solving the time harmonic wave equation. Form Maxwell&#39;s equations using the Faraday bivector <span>$dA$</span> with <span>$ddA = 0$</span>,</p><p class="math-container">\[Ev_t + \star(Bv_t) = (\nabla V - \partial_t A)v_t + \star((\star dA)v_t) = dA,\]</p><p>where <span>$E$</span> is electric field, <span>$B$</span> magnetic field, <span>$A$</span> is vector potential.</p><p class="math-container">\[ddA = 0 \Longleftrightarrow \begin{cases} \partial B = 0 &amp; \text{Gauss&#39;s law} \\ \star dE = -\partial_t B &amp; \text{Faraday&#39;s law} \end{cases}\]</p><p class="math-container">\[\star d\star dA = J \Longleftrightarrow \begin{cases} \partial E = \rho &amp; \text{Gauss&#39;s law} \\ \star dB = J + \partial_t E &amp; \text{Ampere&#39;s law} \end{cases}\]</p><p>Maxwell&#39;s equations simplify to a single spacetime wave equation.</p><p class="math-container">\[\nabla(E v_t + \star(B v_t)) = \nabla dA = \star d\star dA = \nabla^2A = J\]</p><p><em>Example</em> (Stokes theorem). Paraboloid <span>$S=\gamma(X)$</span> bound by compact support <code>disk</code> of radius 3, with circle <span>$f([0,2\pi])=\partial(S)$</span>, and vector field <span>$F$</span>:</p><pre><code class="language-julia hljs">using Grassmann, Cartan, Makie # GLMakie
+wireframe!(ps)</code></pre>
+        <p><em>Example</em> (Maxwell's equations rewritten).
+        <code>Cartan</code> has Nedelec edge interpolation useful
+        for solving the time harmonic wave equation. Form Maxwell's
+        equations using the Faraday bivector <span>$dA$</span> with
+        <span>$ddA = 0$</span>,</p>
+        <p class="math-container">\[Ev_t + \star(Bv_t) = (\nabla V
+        - \partial_t A)v_t + \star((\star dA)v_t) = dA,\]</p>
+        <p>where <span>$E$</span> is electric field,
+        <span>$B$</span> magnetic field, <span>$A$</span> is vector
+        potential.</p>
+        <p class="math-container">\[ddA = 0 \Longleftrightarrow
+        \begin{cases} \partial B = 0 & \text{Gauss's law} \\ \star
+        dE = -\partial_t B & \text{Faraday's law} \end{cases}\]</p>
+        <p class="math-container">\[\star d\star dA = J
+        \Longleftrightarrow \begin{cases} \partial E = \rho &
+        \text{Gauss's law} \\ \star dB = J + \partial_t E &
+        \text{Ampere's law} \end{cases}\]</p>
+        <p>Maxwell's equations simplify to a single spacetime wave
+        equation.</p>
+        <p class="math-container">\[\nabla(E v_t + \star(B v_t)) =
+        \nabla dA = \star d\star dA = \nabla^2A = J\]</p>
+        <p><em>Example</em> (Stokes theorem). Paraboloid
+        <span>$S=\gamma(X)$</span> bound by compact support
+        <code>disk</code> of radius 3, with circle
+        <span>$f([0,2\pi])=\partial(S)$</span>, and vector field
+        <span>$F$</span>:</p>
+        <pre><code class=
+        "language-julia hljs">using Grassmann, Cartan, Makie # GLMakie
 square = TensorField(ProductSpace(-3:0.003:3,-3:0.003:3))
 cube = TensorField(ProductSpace(-4:0.1:4,-4:0.1:4,-1:0.2:10))
 disk = (x-&gt;float(abs(x)&lt;3)).(square) # compact support
@@ -223,12 +2006,235 @@ S = graph(disk*paraboloid.(square))
 F(x) = Chain(2x[3]-x[2],x[1]+x[3],3x[1]-2x[2])
 mesh(S,normalnorm)
 scaledarrows!(S,disk*unitnormal(S),gridsize=(22,22))
-streamplot!(F.(cube),gridsize=(11,11,11))</code></pre><p class="math-container">\[\int_S \nabla\times F\cdot dS = \int_X (\nabla\times F) \cdot \left(\frac{\partial\gamma(x)}{\partial x_1}\times\frac{\partial\gamma(x)}{\partial x_2}\right)dx_1dx_2\]</p><pre><code class="language-julia hljs">integrate(disk*(curl(F.(cube)).(S) ⋅ normal(S)))</code></pre><p class="math-container">\[\int_{\partial(S)} F\cdot ds = \int_0^{2\pi} F(f(t))\cdot f&#39;(t) dt\]</p><pre><code class="language-julia hljs">t = TensorField(0:0.001:2pi)
+streamplot!(F.(cube),gridsize=(11,11,11))</code></pre>
+        <p class="math-container">\[\int_S \nabla\times F\cdot dS =
+        \int_X (\nabla\times F) \cdot
+        \left(\frac{\partial\gamma(x)}{\partial
+        x_1}\times\frac{\partial\gamma(x)}{\partial
+        x_2}\right)dx_1dx_2\]</p>
+        <pre><code class=
+        "language-julia hljs">integrate(disk*(curl(F.(cube)).(S) ⋅ normal(S)))</code></pre>
+        <p class="math-container">\[\int_{\partial(S)} F\cdot ds =
+        \int_0^{2\pi} F(f(t))\cdot f'(t) dt\]</p>
+        <pre><code class=
+        "language-julia hljs">t = TensorField(0:0.001:2pi)
 f(t) = Chain(3cos(t[1]),3sin(t[1]),0.0)
-integrate(F.(f.(t)) ⋅ tangent(f.(t)))</code></pre><p class="math-container">\[\int_S \nabla\times F\cdot dS = \int_{\partial(S)} F\cdot ds\]</p><p class="math-container">\[56.5474 \approx 56.547 \approx 56.548667764616276 \approx 18\pi\]</p><p>Both integration techniques come out to the same answer, this is called Stokes theorem, a special case of the more general Stokes-Cartan theorem.</p><h2 id="Summary-of-Grassmann.jl-and-Cartan.jl"><a class="docs-heading-anchor" href="#Summary-of-Grassmann.jl-and-Cartan.jl">Summary of Grassmann.jl and Cartan.jl</a><a id="Summary-of-Grassmann.jl-and-Cartan.jl-1"></a><a class="docs-heading-anchor-permalink" href="#Summary-of-Grassmann.jl-and-Cartan.jl" title="Permalink"></a></h2><p><em>Grassmann.jl</em> and <em>Cartan.jl</em> pioneered many computational language design aspects for fully generalized high performance computing with differential geometric algebra. All of the mathematical types and operations in this program were implemented from scratch with fundamental mathematical principles merged to Julia’s type polymorphism code generation, which has been refined and is being optimized for scientific computing over time.</p><p>This leads to the capability for multiple dispatch polymorphisms with type aliases such as <code>Scalar</code>, <code>GradedVector</code>, <code>Bivector</code>, <code>Trivector</code>, or also <code>Quaternion</code>, <code>Simplex</code>, etc. There are aliases such as <code>Positions</code>, <code>Interval</code>, <code>IntervalRange</code>, <code>Rectangle</code>, <code>Hyperrectangle</code>, <code>RealRegion</code>, <code>RealSpace</code>, or the many aliases of the type <code>TensorField</code>, such as <code>ElementMap</code>, <code>SimplexMap</code>, <code>FaceMap</code>, <code>IntervalMap</code>, <code>RectangleMap</code>, <code>HyperrectangleMap</code>, <code>Variation</code>, <code>ParametricMap</code>, <code>RealFunction</code>, <code>PlaneCurve</code>, <code>SpaceCurve</code>, <code>AbstractCurve</code>, <code>SurfaceGrid</code>, <code>VolumeGrid</code>, <code>ScalarGrid</code>, <code>CliffordField</code>, <code>DiagonalField</code>, <code>EndomorphismField</code>, <code>OutermorphismField</code>, <code>ComplexMap</code>, <code>PhasorField</code>, or <code>QuaternionField</code>, <code>SpinorField</code>, <code>GradedField</code>, <code>ScalarField</code> <code>VectorField</code> <code>BivectorField</code>, <code>TrivectorField</code>. Versatility of the <code>Grassmann</code> and <code>Cartan</code> type system opens up many possibilities for computational language design.</p><p>This is a new paradigm of geometric algebra, anti-symmetric tensor products, rotational algebras, bivector groups, and multilinear Lie brackets. Algebra based on Leibniz differentials and Grassmann&#39;s exterior calculus extended with <code>TensorField</code> sections over a <code>FrameBundle</code> yields differential geometric algebra based on the <code>ImmersedTopology</code> of a <code>FiberBundle</code>.  The <em>sector integral theorem</em> is a new alternative specialization to the Stokes-Cartan theorem for general integrals in differential geometry, relating an integral on a manifold and an integral on its boundary. Sector integral theory is a new alternative formalism enabling <code>Cartan</code> style calculations.</p><p>By Grassmann&#39;s exterior &amp; interior products, the Hodge-DeRahm chain complex from cohomology theory is</p><p class="math-container">\[0 \,\underset{\partial}{\overset{d}{\rightleftarrows}}\, \Omega^0(M) \,\underset{\partial}{\overset{d}{\rightleftarrows}}\, \Omega^1(M) \,\underset{\partial}{\overset{d}{\rightleftarrows}}\, \cdots \,\underset{\partial}{\overset{d}{\rightleftarrows}}\, \Omega^n(M) \,\underset{\partial}{\overset{d}{\rightleftarrows}}\, 0,\]</p><p>having dimensional equivalence brought by the Grassmann-Hodge complement,</p><p class="math-container">\[\mathcal H^{n-p}M \cong \frac{\text{ker}(d\Omega^{n-p}M)}{\text{im}(d\Omega^{n-p+1}M)}, \qquad \dim\mathcal H^pM = \dim\frac{\text{ker}(\partial\Omega^pM)}{\text{im}(\partial\Omega^{p+1}M)}.\]</p><p>The rank of the grade <span>$p$</span> boundary incidence operator is</p><p class="math-container">\[\text{rank}\langle\partial\langle M\rangle_{p+1}\rangle_p = \min\{\dim\langle\partial\langle M\rangle_{p+1}\rangle_p,\dim\langle M\rangle_{p+1}\}.\]</p><p>Invariant topological information can be computed using the rank of homology,</p><p class="math-container">\[b_p(M) = \dim\langle M\rangle_{p+1} - \text{rank}\langle\partial\langle M\rangle_{p+1}\rangle_p - \text{rank}\langle\partial\langle M\rangle_{p+2}\rangle_{p+1}\]</p><p>are the Betti numbers with Euler characteristic <span>$\chi(M) = \sum_p (-1)^pb_p$</span>.</p><p>Grassmann algebra is a unifying mathematical foundation. Improving efficiency of multi-disciplinary research using differential geometric algebra by relying on universal mathematical principles is possible. Transforming superficial knowledge into deeper understanding is then achieved with the unified foundations widely applicable to the many different sub-disciplines related to geometry and mathematical physics. During the early stages when <em>Grassmann.jl</em> and <em>Cartan.jl</em> were being developed, many new computational language design principles were pioneered for differential geometric algebra research and development with a modern interactive scientific programming language. With the interest surrounding the project increasing, there have been some other similar projects taking inspiration from the <em>Grassmann.jl</em> computational language design and thus validating the concepts.</p><p>While some of the computational language designs in <em>Grassmann.jl</em> and <em>Cartan.jl</em> may seem like obvious choices for people seeing the completed idea, please be aware that it has taken an enormous amount of creativity and effort to make the many different decisions for these projects. The style of computational language the author wanted to use didn&#39;t exist yet before, so if it really was such an obvious design–then why didn&#39;t it exist before? It took a lot of deep thinking and trying out previously overlooked ideas.</p><p><a href="https://www.youtube.com/watch?v=eQjDN0JQ6-s"><img src="https://img.shields.io/badge/JuliaCon-2019-red" alt="JuliaCon 2019"/></a> <a href="https://youtu.be/worMICG1MaI"><img src="https://img.shields.io/badge/Grassmann.jl-YouTube-red" alt="Grassmann.jl YouTube"/></a> <a href="https://www.dropbox.com/sh/tphh6anw0qwija4/AAACiaXig5djrLVAKLPFmGV-a/Geometric-Algebra?preview=grassmann-juliacon-2019.pdf"><img src="https://img.shields.io/badge/PDF-2019-blue.svg" alt="PDF 2019"/></a> <a href="https://www.dropbox.com/sh/tphh6anw0qwija4/AAACiaXig5djrLVAKLPFmGV-a/Geometric-Algebra?preview=differential-geometric-algebra-2021.pdf"><img src="https://img.shields.io/badge/PDF-2021-blue.svg" alt="PDF 2021"/></a> <a href="https://www.dropbox.com/sh/tphh6anw0qwija4/AAACiaXig5djrLVAKLPFmGV-a/Geometric-Algebra?preview=grassmann-cartan-2025.pdf"><img src="https://img.shields.io/badge/PDF-2025-blue.svg" alt="PDF 2025"/></a> <a href="https://cartan.crucialflow.com"><img src="https://img.shields.io/badge/docs-dev-blue.svg" alt="Docs Dev"/></a></p><ul><li>Michael Reed, <a href="https://crucialflow.com/grassmann-juliacon-2019.pdf">Differential geometric algebra with Leibniz and Grassmann</a> (2019)</li><li>Michael Reed, <a href="https://vixra.org/abs/2304.0228">Foundatons of differential geometric algebra</a> (2021)</li><li>Michael Reed, <a href="https://vixra.org/abs/2412.0034">Multilinear Lie bracket recursion formula</a> (2024)</li><li>Michael Reed, <a href="https://www.dropbox.com/sh/tphh6anw0qwija4/AAACiaXig5djrLVAKLPFmGV-a/Geometric-Algebra?preview=grassmann-cartan-2025.pdf">Differential geometric algebra: compute using Grassmann.jl and Cartan.jl</a> (2025)</li><li>Emil Artin, <a href="https://archive.org/details/geometricalgebra033556mbp">Geometric Algebra</a> (1957)</li><li>John Browne, <a href="https://www.grassmannalgebra.com/">Grassmann Algebra, Volume 1: Foundations</a> (2011)</li><li>C. Doran, D. Hestenes, F. Sommen, and N. Van Acker, <a href="http://geocalc.clas.asu.edu/pdf/LGasSG.pdf">Lie groups as spin groups</a>, J. Math Phys. (1993)</li><li>David Hestenes, <a href="http://lomont.org/math/geometric-algebra/Universal%20Geometric%20Algebra%20-%20Hestenes%20-%201988.pdf">Universal Geometric Algebra</a>, Pure and Applied (1988)</li><li>David Hestenes, Renatus Ziegler, <a href="http://geocalc.clas.asu.edu/pdf/PGwithCA.pdf">Projective Geometry with Clifford Algebra</a>, Acta Appl. Math. (1991)</li><li>David Hestenes, <a href="http://geocalc.clas.asu.edu/pdf/Tutorial%20on%20Geometric%20Calculus.pdf">Tutorial on geometric calculus</a>. Advances in Applied Clifford Algebra (2013)</li><li>Lachlan Gunn, Derek Abbott, James Chappell, Ashar Iqbal, <a href="https://www.ncbi.nlm.nih.gov/pmc/articles/PMC4361175/pdf/pone.0116943.pdf">Functions of multivector variables</a> (2011)</li><li>Aaron D. Schutte, <a href="https://www-robotics.jpl.nasa.gov/publications/Aaron_Schutte/schutte_nonlinear_dynamics_1.pdf">A nilpotent algebra approach to Lagrangian mechanics and constrained motion</a> (2016)</li><li>Vladimir and Tijana Ivancevic, <a href="https://arxiv.org/abs/0807.4991">Undergraduate lecture notes in DeRahm-Hodge theory</a>. arXiv (2011)</li><li>Peter Woit, <a href="http://www.math.columbia.edu/~woit/LieGroups-2012/cliffalgsandspingroups.pdf">Clifford algebras and spin groups</a>, Lecture Notes (2012)</li></ul><pre><code class="nohighlight hljs">       _           _                         _
+integrate(F.(f.(t)) ⋅ tangent(f.(t)))</code></pre>
+        <p class="math-container">\[\int_S \nabla\times F\cdot dS =
+        \int_{\partial(S)} F\cdot ds\]</p>
+        <p class="math-container">\[56.5474 \approx 56.547 \approx
+        56.548667764616276 \approx 18\pi\]</p>
+        <p>Both integration techniques come out to the same answer,
+        this is called Stokes theorem, a special case of the more
+        general Stokes-Cartan theorem.</p>
+        <h2 id="Summary-of-Grassmann.jl-and-Cartan.jl"><a class=
+        "docs-heading-anchor" href=
+        "#Summary-of-Grassmann.jl-and-Cartan.jl">Summary of
+        Grassmann.jl and Cartan.jl</a><a id=
+        "Summary-of-Grassmann.jl-and-Cartan.jl-1"></a><a class=
+        "docs-heading-anchor-permalink" href=
+        "#Summary-of-Grassmann.jl-and-Cartan.jl" title=
+        "Permalink"></a></h2>
+        <p><em>Grassmann.jl</em> and <em>Cartan.jl</em> pioneered
+        many computational language design aspects for fully
+        generalized high performance computing with differential
+        geometric algebra. All of the mathematical types and
+        operations in this program were implemented from scratch
+        with fundamental mathematical principles merged to Julia’s
+        type polymorphism code generation, which has been refined
+        and is being optimized for scientific computing over
+        time.</p>
+        <p>This leads to the capability for multiple dispatch
+        polymorphisms with type aliases such as
+        <code>Scalar</code>, <code>GradedVector</code>,
+        <code>Bivector</code>, <code>Trivector</code>, or also
+        <code>Quaternion</code>, <code>Simplex</code>, etc. There
+        are aliases such as <code>Positions</code>,
+        <code>Interval</code>, <code>IntervalRange</code>,
+        <code>Rectangle</code>, <code>Hyperrectangle</code>,
+        <code>RealRegion</code>, <code>RealSpace</code>, or the
+        many aliases of the type <code>TensorField</code>, such as
+        <code>ElementMap</code>, <code>SimplexMap</code>,
+        <code>FaceMap</code>, <code>IntervalMap</code>,
+        <code>RectangleMap</code>, <code>HyperrectangleMap</code>,
+        <code>Variation</code>, <code>ParametricMap</code>,
+        <code>RealFunction</code>, <code>PlaneCurve</code>,
+        <code>SpaceCurve</code>, <code>AbstractCurve</code>,
+        <code>SurfaceGrid</code>, <code>VolumeGrid</code>,
+        <code>ScalarGrid</code>, <code>CliffordField</code>,
+        <code>DiagonalField</code>, <code>EndomorphismField</code>,
+        <code>OutermorphismField</code>, <code>ComplexMap</code>,
+        <code>PhasorField</code>, or <code>QuaternionField</code>,
+        <code>SpinorField</code>, <code>GradedField</code>,
+        <code>ScalarField</code> <code>VectorField</code>
+        <code>BivectorField</code>, <code>TrivectorField</code>.
+        Versatility of the <code>Grassmann</code> and
+        <code>Cartan</code> type system opens up many possibilities
+        for computational language design.</p>
+        <p>This is a new paradigm of geometric algebra,
+        anti-symmetric tensor products, rotational algebras,
+        bivector groups, and multilinear Lie brackets. Algebra
+        based on Leibniz differentials and Grassmann's exterior
+        calculus extended with <code>TensorField</code> sections
+        over a <code>FrameBundle</code> yields differential
+        geometric algebra based on the
+        <code>ImmersedTopology</code> of a
+        <code>FiberBundle</code>. The <em>sector integral
+        theorem</em> is a new alternative specialization to the
+        Stokes-Cartan theorem for general integrals in differential
+        geometry, relating an integral on a manifold and an
+        integral on its boundary. Sector integral theory is a new
+        alternative formalism enabling <code>Cartan</code> style
+        calculations.</p>
+        <p>By Grassmann's exterior & interior products, the
+        Hodge-DeRahm chain complex from cohomology theory is</p>
+        <p class="math-container">\[0
+        \,\underset{\partial}{\overset{d}{\rightleftarrows}}\,
+        \Omega^0(M)
+        \,\underset{\partial}{\overset{d}{\rightleftarrows}}\,
+        \Omega^1(M)
+        \,\underset{\partial}{\overset{d}{\rightleftarrows}}\,
+        \cdots
+        \,\underset{\partial}{\overset{d}{\rightleftarrows}}\,
+        \Omega^n(M)
+        \,\underset{\partial}{\overset{d}{\rightleftarrows}}\,
+        0,\]</p>
+        <p>having dimensional equivalence brought by the
+        Grassmann-Hodge complement,</p>
+        <p class="math-container">\[\mathcal H^{n-p}M \cong
+        \frac{\text{ker}(d\Omega^{n-p}M)}{\text{im}(d\Omega^{n-p+1}M)},
+        \qquad \dim\mathcal H^pM =
+        \dim\frac{\text{ker}(\partial\Omega^pM)}{\text{im}(\partial\Omega^{p+1}M)}.\]</p>
+        <p>The rank of the grade <span>$p$</span> boundary
+        incidence operator is</p>
+        <p class="math-container">
+        \[\text{rank}\langle\partial\langle M\rangle_{p+1}\rangle_p
+        = \min\{\dim\langle\partial\langle
+        M\rangle_{p+1}\rangle_p,\dim\langle M\rangle_{p+1}\}.\]</p>
+        <p>Invariant topological information can be computed using
+        the rank of homology,</p>
+        <p class="math-container">\[b_p(M) = \dim\langle
+        M\rangle_{p+1} - \text{rank}\langle\partial\langle
+        M\rangle_{p+1}\rangle_p - \text{rank}\langle\partial\langle
+        M\rangle_{p+2}\rangle_{p+1}\]</p>
+        <p>are the Betti numbers with Euler characteristic
+        <span>$\chi(M) = \sum_p (-1)^pb_p$</span>.</p>
+        <p>Grassmann algebra is a unifying mathematical foundation.
+        Improving efficiency of multi-disciplinary research using
+        differential geometric algebra by relying on universal
+        mathematical principles is possible. Transforming
+        superficial knowledge into deeper understanding is then
+        achieved with the unified foundations widely applicable to
+        the many different sub-disciplines related to geometry and
+        mathematical physics. During the early stages when
+        <em>Grassmann.jl</em> and <em>Cartan.jl</em> were being
+        developed, many new computational language design
+        principles were pioneered for differential geometric
+        algebra research and development with a modern interactive
+        scientific programming language. With the interest
+        surrounding the project increasing, there have been some
+        other similar projects taking inspiration from the
+        <em>Grassmann.jl</em> computational language design and
+        thus validating the concepts.</p>
+        <p>While some of the computational language designs in
+        <em>Grassmann.jl</em> and <em>Cartan.jl</em> may seem like
+        obvious choices for people seeing the completed idea,
+        please be aware that it has taken an enormous amount of
+        creativity and effort to make the many different decisions
+        for these projects. The style of computational language the
+        author wanted to use didn't exist yet before, so if it
+        really was such an obvious design–then why didn't it exist
+        before? It took a lot of deep thinking and trying out
+        previously overlooked ideas.</p>
+        <p><a href=
+        "https://www.youtube.com/watch?v=eQjDN0JQ6-s"><img src=
+        "https://img.shields.io/badge/JuliaCon-2019-red" alt=
+        "JuliaCon 2019"></a> <a href=
+        "https://youtu.be/worMICG1MaI"><img src=
+        "https://img.shields.io/badge/Grassmann.jl-YouTube-red"
+        alt="Grassmann.jl YouTube"></a> <a href=
+        "https://www.dropbox.com/sh/tphh6anw0qwija4/AAACiaXig5djrLVAKLPFmGV-a/Geometric-Algebra?preview=grassmann-juliacon-2019.pdf">
+        <img src="https://img.shields.io/badge/PDF-2019-blue.svg"
+        alt="PDF 2019"></a> <a href=
+        "https://www.dropbox.com/sh/tphh6anw0qwija4/AAACiaXig5djrLVAKLPFmGV-a/Geometric-Algebra?preview=differential-geometric-algebra-2021.pdf">
+        <img src="https://img.shields.io/badge/PDF-2021-blue.svg"
+        alt="PDF 2021"></a> <a href=
+        "https://www.dropbox.com/sh/tphh6anw0qwija4/AAACiaXig5djrLVAKLPFmGV-a/Geometric-Algebra?preview=grassmann-cartan-2025.pdf">
+        <img src="https://img.shields.io/badge/PDF-2025-blue.svg"
+        alt="PDF 2025"></a> <a href=
+        "https://cartan.crucialflow.com"><img src=
+        "https://img.shields.io/badge/docs-dev-blue.svg" alt=
+        "Docs Dev"></a></p>
+        <ul>
+          <li>Michael Reed, <a href=
+          "https://crucialflow.com/grassmann-juliacon-2019.pdf">Differential
+          geometric algebra with Leibniz and Grassmann</a> (2019)
+          </li>
+          <li>Michael Reed, <a href=
+          "https://vixra.org/abs/2304.0228">Foundatons of
+          differential geometric algebra</a> (2021)
+          </li>
+          <li>Michael Reed, <a href=
+          "https://vixra.org/abs/2412.0034">Multilinear Lie bracket
+          recursion formula</a> (2024)
+          </li>
+          <li>Michael Reed, <a href=
+          "https://www.dropbox.com/sh/tphh6anw0qwija4/AAACiaXig5djrLVAKLPFmGV-a/Geometric-Algebra?preview=grassmann-cartan-2025.pdf">
+            Differential geometric algebra: compute using
+            Grassmann.jl and Cartan.jl</a> (2025)
+          </li>
+          <li>Emil Artin, <a href=
+          "https://archive.org/details/geometricalgebra033556mbp">
+            Geometric Algebra</a> (1957)
+          </li>
+          <li>John Browne, <a href=
+          "https://www.grassmannalgebra.com/">Grassmann Algebra,
+          Volume 1: Foundations</a> (2011)
+          </li>
+          <li>C. Doran, D. Hestenes, F. Sommen, and N. Van Acker,
+          <a href="http://geocalc.clas.asu.edu/pdf/LGasSG.pdf">Lie
+          groups as spin groups</a>, J. Math Phys. (1993)
+          </li>
+          <li>David Hestenes, <a href=
+          "http://lomont.org/math/geometric-algebra/Universal%20Geometric%20Algebra%20-%20Hestenes%20-%201988.pdf">
+            Universal Geometric Algebra</a>, Pure and Applied
+            (1988)
+          </li>
+          <li>David Hestenes, Renatus Ziegler, <a href=
+          "http://geocalc.clas.asu.edu/pdf/PGwithCA.pdf">Projective
+          Geometry with Clifford Algebra</a>, Acta Appl. Math.
+          (1991)
+          </li>
+          <li>David Hestenes, <a href=
+          "http://geocalc.clas.asu.edu/pdf/Tutorial%20on%20Geometric%20Calculus.pdf">
+            Tutorial on geometric calculus</a>. Advances in Applied
+            Clifford Algebra (2013)
+          </li>
+          <li>Lachlan Gunn, Derek Abbott, James Chappell, Ashar
+          Iqbal, <a href=
+          "https://www.ncbi.nlm.nih.gov/pmc/articles/PMC4361175/pdf/pone.0116943.pdf">
+            Functions of multivector variables</a> (2011)
+          </li>
+          <li>Aaron D. Schutte, <a href=
+          "https://www-robotics.jpl.nasa.gov/publications/Aaron_Schutte/schutte_nonlinear_dynamics_1.pdf">
+            A nilpotent algebra approach to Lagrangian mechanics
+            and constrained motion</a> (2016)
+          </li>
+          <li>Vladimir and Tijana Ivancevic, <a href=
+          "https://arxiv.org/abs/0807.4991">Undergraduate lecture
+          notes in DeRahm-Hodge theory</a>. arXiv (2011)
+          </li>
+          <li>Peter Woit, <a href=
+          "http://www.math.columbia.edu/~woit/LieGroups-2012/cliffalgsandspingroups.pdf">
+            Clifford algebras and spin groups</a>, Lecture Notes
+            (2012)
+          </li>
+        </ul>
+        <pre><code class=
+        "nohighlight hljs">       _           _                         _
       | |         | |                       | |
    ___| |__   __ _| | ___ __ __ ___   ____ _| | __ _
-  / __| &#39;_ \ / _` | |/ / &#39;__/ _` \ \ / / _` | |/ _` |
+  / __| '_ \ / _` | |/ / '__/ _` \ \ / / _` | |/ _` |
  | (__| | | | (_| |   &lt;| | | (_| |\ V / (_| | | (_| |
   \___|_| |_|\__,_|_|\_\_|  \__,_| \_/ \__,_|_|\__,_|
 
@@ -246,4 +2252,62 @@ integrate(F.(f.(t)) ⋅ tangent(f.(t)))</code></pre><p class="math-container">\[
  /    \  \/\__  \\_  __ \   __\__  \  /    \   \\     /
  \     \____/ __ \|  | \/|  |  / __ \|   |  \   \\   /
   \______  (____  /__|   |__| (____  /___|  /    \\ /
-         \/     \/                 \/     \/      \/</code></pre></article><nav class="docs-footer"><a class="docs-footer-prevpage" href="../">« Home</a><a class="docs-footer-nextpage" href="../videos/">Videos »</a><div class="flexbox-break"></div><p class="footer-message">Powered by <a href="https://github.com/JuliaDocs/Documenter.jl">Documenter.jl</a> and the <a href="https://julialang.org/">Julia Programming Language</a>.</p></nav></div><div class="modal" id="documenter-settings"><div class="modal-background"></div><div class="modal-card"><header class="modal-card-head"><p class="modal-card-title">Settings</p><button class="delete"></button></header><section class="modal-card-body"><p><label class="label">Theme</label><div class="select"><select id="documenter-themepicker"><option value="auto">Automatic (OS)</option><option value="documenter-light">documenter-light</option><option value="documenter-dark">documenter-dark</option><option value="catppuccin-latte">catppuccin-latte</option><option value="catppuccin-frappe">catppuccin-frappe</option><option value="catppuccin-macchiato">catppuccin-macchiato</option><option value="catppuccin-mocha">catppuccin-mocha</option></select></div></p><hr/><p>This document was generated with <a href="https://github.com/JuliaDocs/Documenter.jl">Documenter.jl</a> version 1.11.4 on <span class="colophon-date" title="Tuesday 10 June 2025 16:44">Tuesday 10 June 2025</span>. Using Julia version 1.11.0.</p></section><footer class="modal-card-foot"></footer></div></div></div></body></html>
+         \/     \/                 \/     \/      \/</code></pre>
+      </article>
+      <nav class="docs-footer">
+        <a class="docs-footer-prevpage" href="../">«
+        Home</a><a class="docs-footer-nextpage" href=
+        "../videos/">Videos »</a>
+        <div class="flexbox-break"></div>
+        <p class="footer-message">Powered by <a href=
+        "https://github.com/JuliaDocs/Documenter.jl">Documenter.jl</a>
+        and the <a href="https://julialang.org/">Julia Programming
+        Language</a>.</p>
+      </nav>
+    </div>
+    <div class="modal" id="documenter-settings">
+      <div class="modal-background"></div>
+      <div class="modal-card">
+        <header class="modal-card-head">
+          <p class="modal-card-title">Settings</p>
+        </header>
+        <section class="modal-card-body">
+          <p><label class="label">Theme</label></p>
+          <div class="select">
+            <select id="documenter-themepicker">
+              <option value="auto">
+                Automatic (OS)
+              </option>
+              <option value="documenter-light">
+                documenter-light
+              </option>
+              <option value="documenter-dark">
+                documenter-dark
+              </option>
+              <option value="catppuccin-latte">
+                catppuccin-latte
+              </option>
+              <option value="catppuccin-frappe">
+                catppuccin-frappe
+              </option>
+              <option value="catppuccin-macchiato">
+                catppuccin-macchiato
+              </option>
+              <option value="catppuccin-mocha">
+                catppuccin-mocha
+              </option>
+            </select>
+          </div>
+          <hr>
+          <p>This document was generated with <a href=
+          "https://github.com/JuliaDocs/Documenter.jl">Documenter.jl</a>
+          version 1.12.0 on <span class="colophon-date" title=
+          "Friday 20 June 2025 07:54">Friday 20 June 2025</span>.
+          Using Julia version 1.11.0.</p>
+        </section>
+        <footer class="modal-card-foot"></footer>
+      </div>
+    </div>
+  </div>
+</body>
+</html>
