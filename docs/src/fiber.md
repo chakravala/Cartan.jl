@@ -218,7 +218,7 @@ To apply the `metricextensor` to any `Grassmann` element of ``\Lambda V``, the f
 
 ## Tensor field topology and fiber bundles
 
-**Definition**. Commonly used fundamental building blocks are 
+**Definition**. Commonly used fundamental building blocks are
 * `ProductSpace{V,```\mathbb{K}```,N} <: AbstractArray{Chain{V,1,```\mathbb{K}```,N},N}`
     * uses Cartesian products of interval subsets of `` \mathbb{R}\times\mathbb{R}\times\cdots\times\mathbb{R} = \Lambda^1 \mathbb{R}^n ``,
     * generates lazy array of `Chain{V,1}` point vectors from input ranges
@@ -259,7 +259,7 @@ All these methods apply to `SimplexTopology` except `isopen`, `iscompact`
 * `isopen` is true if `QuotientTopology` is an `OpenTopology` instance
 * `iscompact` is true if `QuotientTopology` is a `CompactTopology`
 * `nodes` counts number of `vertices` associated to `SimplexTopology`
-* `sdims` counts the number of vertices $N$ of a `SimplexTopology{N}`
+* `sdims` counts the number of vertices ``N`` of a `SimplexTopology{N}`
 * `subelements` subspace element indices associated to `fulltopology`
 * `subimmersion` modified with vertices re-indexed based on subspace
 * `topology` view into `fulltopology` based on `subelements` structure
@@ -342,7 +342,7 @@ These methods relate to `FrameBundle` and `TensorField` instances
 * `pointtype` is type ``P`` of `Coordinate{P,G}` or `Coordinates{P,G}`
 * `metrictensor` returns the grade 1 block of the `metricextensor`
 * `metricextensor` is `AbstractArray{G}` data for `Coordinates{P,G}`
-* `metrictype` is type $G$ of `Coordinate{P,G}` or `Coordinates{P,G}`
+* `metrictype` is type ``G`` of `Coordinate{P,G}` or `Coordinates{P,G}`
 * `fullcoordinates` returns full `FiberBundle{Coordinate{P,G}}`
 * `fullimmersion` returns superset `ImmersedTopology` which `isfull`
 * `fulltopology` returns composition of `topology` ``\circ`` `fullimmersion`
@@ -361,15 +361,15 @@ Various interpolation methods are also supported and can be invoked by applying 
 * `gradienthat` returns the hat gradients for the `SimplexBundle`
 
 For `GridBundle` initialization it is typical to invoke a combination of `ProductSpace` and `QuotientTopology`, while optional Julia packages extend `SimplexBundle` initialization, such as
-`Meshes`, 
-`GeometryBasics`, 
-`Delaunay`, 
-`QHull`, 
-`MiniQhull`, 
-`Triangulate`, 
-`TetGen`,
-`MATLAB`,
-`FlowGeometry`.
+[Meshes.jl](https://github.com/JuliaGeometry/Meshes.jl),
+[GeometryBasics.jl](https://github.com/JuliaGeometry/GeometryBasics.jl),
+[Delaunay.jl](https://github.com/eschnett/Delaunay.jl),
+[QHull.jl](https://github.com/JuliaPolyhedra/QHull.jl),
+[MiniQhull.jl](https://github.com/gridap/MiniQhull.jl),
+[Triangulate.jl](https://github.com/JuliaGeometry/Triangulate.jl),
+[TetGen.jl](https://github.com/JuliaGeometry/TetGen.jl),
+[MATLAB.jl](https://github.com/JuliaInterop/MATLAB.jl),
+[FlowGeometry.jl](https://github.com/chakravala/FlowGeometry.jl).
 
 **Definition**. Let ``\gamma:[a,b] \rightarrow \mathbb R^n`` be a curve ``\gamma(t)`` with parameter ``t``.
 * `integral(::IntervalMap)` cumulative trapezoidal sum ``\int_a^t\gamma(\xi)d\xi``

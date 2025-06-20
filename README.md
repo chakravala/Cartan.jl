@@ -13,12 +13,130 @@
 [![PDF 2021](https://img.shields.io/badge/PDF-2021-blue.svg)](https://www.dropbox.com/sh/tphh6anw0qwija4/AAACiaXig5djrLVAKLPFmGV-a/Geometric-Algebra?preview=differential-geometric-algebra-2021.pdf)
 [![PDF 2025](https://img.shields.io/badge/PDF-2025-blue.svg)](https://www.dropbox.com/sh/tphh6anw0qwija4/AAACiaXig5djrLVAKLPFmGV-a/Geometric-Algebra?preview=grassmann-cartan-2025.pdf)
 
+*Cartan.jl* introduces a pioneering unified numerical framework for comprehensive differential geometric algebra, purpose-built for the formulation and solution of partial differential equations on manifolds with non-trivial topological structure and [Grassmann.jl](https://github.com/chakravala/Grassmann.jl) algebra.
+Written in Julia, [Cartan.jl](https://github.com/chakravala/Cartan.jl) unifies differential geometry, geometric algebra, and tensor calculus with support for fiber product topology; enabling directly executable generalized treatment of geometric PDEs over grids, meshes, and simplicial decompositions.
+
+The system supports intrinsic formulations of differential operators (including the exterior derivative, codifferential, Lie derivative, interior product, and Hodge star) using a coordinate-free algebraic language grounded in Grassmann-Cartan multivector theory.
+Its core architecture accomodates numerical representations of fiber bundles, product manifolds, and submanifold immersion, providing native support for PDE models defined on structured or unstructured domains.
+
+*Cartan.jl* integrates naturally with simplex-based finite element exterior calculus, allowing for geometrical discretizations of field theories and conservation laws.
+With its synthesis of symbolic abstraction and numerical execution, *Cartan.jl* empowers researchers to develop PDE models that are simultaneously founded in differential geometry, algebraically consistent, and computationally expressive, opening new directions for scientific computing at the interface of geometry, algebra, and analysis.
+
+```
+ _________                __                  __________
+ \_   ___ \_____ ________/  |______    ____   \\       /
+ /    \  \/\__  \\_  __ \   __\__  \  /    \   \\     /
+ \     \____/ __ \|  | \/|  |  / __ \|   |  \   \\   /
+  \______  (____  /__|   |__| (____  /___|  /    \\ /
+         \/     \/                 \/     \/      \/
+```
+developed by [chakravala](https://github.com/chakravala) with [Grassmann.jl](https://github.com/chakravala/Grassmann.jl)
+
+## Tensor field topology and fiber bundles
+
 Provides `TensorField{B,F,N} <: GlobalFiber{LocalTensor{B,F},N}` implementation for both a local `ProductSpace` and general `ImmersedTopology` specifications on any `FrameBundle` expressed with [Grassmann.jl](https://github.com/chakravala/Grassmann.jl) algebra.
 Many of these modular methods can work on input meshes or product topologies of any dimension, although there are some methods which are specialized.
 Building on this, `Cartan` provides an algebra for `FiberBundle` sections and associated bundles on a manifold, such as general `Connection`, `LieDerivative`, and `CovariantDerivative` operators in terms of `Grassmann` elements.
 Calculus of `Variation` fields can also be generated with the combined topology of a `FiberProductBundle`.
 Furthermore, the `FiberProduct` structure enables construction of `HomotopyBundle` types.
 Utility package for differential geometry and tensor calculus intended for [Adapode.jl](https://github.com/chakravala/Adapode.jl).
+
+**Definition**. Commonly used fundamental building blocks are
+* `ProductSpace{V,K,N} <: AbstractArray{Chain{V,1,K,N},N}`
+    * uses Cartesian products of interval subsets of real line products
+    * generates lazy array of `Chain{V,1}` point vectors from input ranges
+* `Global{N,T}` represents array with same `T` value at all indices
+* `LocalFiber{B,F}` has a local `basetype` of `B` and `fibertype` of `F`
+    * `Coordinate{P,G}` has `pointtype` of `P` and `metrictype` of `G`
+* `ImmersedTopology{N,M} = AbstractArray{Values{N,Int},M}`
+    * `ProductTopology` generates basic product topologies for grids
+    * `SimplexTopology` defines continuous simplex immersion
+    * `DiscontinuousTopology` disconnects for discontinuous
+    * `LagrangeTopology` extends for Lagrange polynomial base
+    * `QuotientTopology` defines classes of quotient identification
+
+Generalizing upon `ProductTopology`, the `QuotientTopology` defines a quotient identification across the boundary fluxes of the region,
+which then enables different specializations of `QuotientTopology` as
+
+* `OpenTopology`: all boundaries don't have accumulation points,
+* `CompactTopology`: all points have a neighborhood topology,
+* `CylinderTopology`: closed ribbon with two edge open endings,
+* `MobiusTopology`: twisted ribbon with one edge open ending,
+* `WingTopology`: upper and lower surface topology of wing,
+* `MirrorTopology`: reflection boundary along mirror (basis) axis,
+* `ClampedTopology`: each boundary face is reflected to be compact,
+* `TorusTopology`: generalized compact torus up to 5 dimensions,
+* `HopfTopology`: compact topology of the Hopf fibration in 3D,
+* `KleinTopology`: compact topology of the Klein bottle domain,
+* `PolarTopology`: polar compactification with open edge boundary,
+* `SphereTopology`: generalized mathematical sphere, compactified,
+* `GeographicTopology`: axis swapped from `SphereTopology` in 2D.
+
+Combination of `PointArray <: Coordinates` and `ImmersedTopology` leads into definition of `TensorField` as a global section of a `FrameBundle`.
+
+Utility methods for `QuotientTopology` include `isopen` and `iscompact`, while utility methods for `SimplexTopology` include `nodes`, `sdims`, `subelements`, `subimmersion`, `topology`, `totalelements`, `totalnodes`, `vertices`, `elements`, `isfull`, `istotal`, `iscover`, `isdiscontinuous`, `isdisconnected`, `continuous`, `disconnect`, `getfacet`, `getimage`, `edges`, `facets`, `complement`, `interior`, `∂`, `degrees`, `weights`, `adjacency`, `antiadjacency`, `incidence`, `laplacian`, `neighbors`.
+
+**Definition**. A *fiber bundle* is a manifold `E` having projection which commutes with local trivializations paired to neighborhoods of manifold `B`, where `B` is the `basetype` and `F` is the `fibertype` of `E`.
+
+`FiberBundle{E,N} <: AbstractArray{E,N}` where `E` is the `eltype`
+* `Coordinates{P,G,N} <: FiberBundle{Coordinate{P,G},N}`
+    * `PointArray{P,G,N}` has `pointtype` of `P`, `metrictype` of `G`
+    * `FiberProduct` introduces fiber product structure for manifolds
+* `FrameBundle{C,N}` has `coordinatetype` of `C` and `immersion`
+    * `GridBundle{N,C}` `N`-grid with `coordianates` and `immersion`
+    * `SimplexBundle{N,C}` defines `coordinates` and an `immersion`
+    * `FaceBundle{N,C}` defines `element` faces and their `immersion`
+    * `FiberProductBundle` for extruding dimensions from simplices
+    * `HomotopyBundle` encapsulates a variation as `FrameBundle`
+* `TensorField` defines fibers in a global section of a `FrameBundle`
+
+When a `TensorField` has a `fibertype` from `<:TensorGraded{V,g}`, then it is a grade `g` differential form.
+In general the `TensorField` type can deal with more abstract `fibertype` varieties than only those used for differential forms, as it unifies many different forms of tensor analysis.
+
+By default, the `InducedMetric` is defined globally in each `PointArray`, unless a particular metric tensor specification is provided.
+When the default `InducedMetric` is invoked, the metric tensor from the `TensorAlgebra{V}` type is used for the global manifold, instead of the extra allocation to specify metric tensors at each point.
+`FrameBundle` then defines local charts along with metric tensor in a `PointArray` and pairs it with an `ImmersedTopology`.
+Then the fiber of a `FrameBundle` section is a fiber of a `TensorField`.
+
+These methods relate to `FrameBundle` and `TensorField` instances
+* `coordinates(m::FiberBundle)` returns `Coordinates` data type
+* `coordinatetype` return applies to `FiberBundle` or `LocalFiber`
+* `immersion(m::FiberBundle)` returns `ImmersedTopology` data
+* `immersiontype` return applies to `FiberBundle` or `LocalFiber`
+* `base` returns the `B` element of a `LocalFiber{B,F}` or `FiberBundle`
+* `basetype` returns type `B` of a `LocalFiber{B,F}` or `FiberBundle`
+* `fiber` returns the `F` element of `LocalFiber{B,F}` or `FiberBundle`
+* `fibertype` returns the `F` type of `LocalFiber{B,F}` or `FiberBundle`
+* `points` returns `AbstractArray{P}` data for `Coordinates{P,G}`
+* `pointtype` is type `P` of `Coordinate{P,G}` or `Coordinates{P,G}`
+* `metrictensor` returns the grade 1 block of the `metricextensor`
+* `metricextensor` is `AbstractArray{G}` data for `Coordinates{P,G}`
+* `metrictype` is type `G` of `Coordinate{P,G}` or `Coordinates{P,G}`
+* `fullcoordinates` returns full `FiberBundle{Coordinate{P,G}}`
+* `fullimmersion` returns superset `ImmersedTopology` which `isfull`
+* `fulltopology` returns composition of `topology ∘ fullimmersion`
+* `fullvertices` list of `vertices` associated to the `fullimmersion`
+* `fullpoints` is full `AbstractArray{P}` instead of possibly subspace
+* `fullmetricextensor` is full `AbstractArray{G}` instead of subspace
+* `isinduced` is true if the `metrictype` is an `InducedMetric` type
+* `bundle` returns the integer identification of bundle cache
+
+Various interpolation methods are also supported and can be invoked by applying `TensorField` instances as function evaluations on base manifold or applying some form of resampling method to the manifold topology.
+Some utility methods include `volumes`, `initmesh`, `refinemesh`, `affinehull`, `affineframe`, `gradienthat`, etc.
+
+For `GridBundle` initialization it is typical to invoke a combination of `ProductSpace` and `QuotientTopology`, while optional Julia packages extend `SimplexBundle` initialization, such as
+[Meshes.jl](https://github.com/JuliaGeometry/Meshes.jl),
+[GeometryBasics.jl](https://github.com/JuliaGeometry/GeometryBasics.jl),
+[Delaunay.jl](https://github.com/eschnett/Delaunay.jl),
+[QHull.jl](https://github.com/JuliaPolyhedra/QHull.jl),
+[MiniQhull.jl](https://github.com/gridap/MiniQhull.jl),
+[Triangulate.jl](https://github.com/JuliaGeometry/Triangulate.jl),
+[TetGen.jl](https://github.com/JuliaGeometry/TetGen.jl),
+[MATLAB.jl](https://github.com/JuliaInterop/MATLAB.jl),
+[FlowGeometry.jl](https://github.com/chakravala/FlowGeometry.jl).
+
+Standard differential geometry methods for curves includes `integral`, `integrate`, `arclength`, `tangent`, `unittangent`, `speed`, `normal`, `unitnormal`, `curvature`, `radius`, `evolute`, `involute`, `osculatingplane`, `unitosculatingplane`, `binormal`, `unitbinormal`, `torsion`, `frame`, `unitframe`, `curvatures`, `bishopframe`, `bishopunitframe`, `bishoppolar`, `bishop`, `planecurve`, `linkmap`, and `linknumber`.
+Standard differential geometry methods for surfaces includees `graph`, `normal`, `unitnormal`, `normalnorm`, `jacobian`, `weingarten`, `sectordet`, `sectorintegral`, `sectorintegrate`, `surfacearea`, `surfacemetric`, `surfacemetricdiag`, `surfaceframe`, `frame`, `unitframe`, `firstform`, `firstformdiag`, `secondform`, `thirdform`, `shape`, `principals`, `principalaxes`, `curvatures`, `meancurvature`, `gaussintrinsic`, `gaussextrinsic`, `gausssign`.
 
 The `Cartan` package is intended to standardize the composition of various methods and functors applied to specialized categories transformed with a unified representation over a product topology, especially having fibers of the `Grassmann` algebra.
 Initial topologies include `ProductSpace` types and in general the `ImmersedTopology`.
@@ -79,15 +197,7 @@ there are explicit techniques to construct a `TensorField` as well as implicit m
 Additional packages such as `Adapode` build on the `TensorField` concept by generating them from differential equations.
 Many of these methods can automatically generalize to higher dimensional manifolds and are compatible with discrete differential geometry.
 
-```
- _________                __                  __________
- \_   ___ \_____ ________/  |______    ____   \\       /
- /    \  \/\__  \\_  __ \   __\__  \  /    \   \\     /
- \     \____/ __ \|  | \/|  |  / __ \|   |  \   \\   /
-  \______  (____  /__|   |__| (____  /___|  /    \\ /
-         \/     \/                 \/     \/      \/
-```
-developed by [chakravala](https://github.com/chakravala) with [Grassmann.jl](https://github.com/chakravala/Grassmann.jl)
+## References
 
 * Michael Reed, [Differential geometric algebra with Leibniz and Grassmann](https://crucialflow.com/grassmann-juliacon-2019.pdf) (2019)
 * Michael Reed, [Foundatons of differential geometric algebra](https://vixra.org/abs/2304.0228) (2021)
@@ -97,6 +207,5 @@ developed by [chakravala](https://github.com/chakravala) with [Grassmann.jl](htt
 * John Browne, [Grassmann Algebra, Volume 1: Foundations](https://www.grassmannalgebra.com/) (2011)
 * C. Doran, D. Hestenes, F. Sommen, and N. Van Acker, [Lie groups as spin groups](http://geocalc.clas.asu.edu/pdf/LGasSG.pdf), J. Math Phys. (1993)
 * David Hestenes, [Tutorial on geometric calculus](http://geocalc.clas.asu.edu/pdf/Tutorial%20on%20Geometric%20Calculus.pdf). Advances in Applied Clifford Algebra (2013)
-* Lachlan Gunn, Derek Abbott, James Chappell, Ashar Iqbal, [Functions of multivector variables](https://www.ncbi.nlm.nih.gov/pmc/articles/PMC4361175/pdf/pone.0116943.pdf) (2011)
 * Vladimir and Tijana Ivancevic, [Undergraduate lecture notes in DeRahm-Hodge theory](https://arxiv.org/abs/0807.4991). arXiv (2011)
 
