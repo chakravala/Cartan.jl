@@ -457,6 +457,7 @@ lines(planecurve(cos(t)-t*sin(t)))
 
 *Example* (Lorenz). Observe vector fields by integrating streamlines
 ```julia
+using Grassmann, Cartan, Adapode, Makie # GLMakie
 Lorenz(s,r,b) = x -> Chain(
     s*(x[2]-x[1]), x[1]*(r-x[3])-x[2], x[1]*x[2]-b*x[3])
 p = TensorField(ProductSpace(-40:0.2:40,-40:0.2:40,10:0.2:90))
@@ -465,7 +466,6 @@ streamplot(vf,gridsize=(10,10)) # visualize vector field
 ```
 ODE solvers in the `Adapode` package are built on `Cartan`, providing both Runge-Kutta and multistep methods with optional adaptive time stepping.
 ```julia
-using Grassmann, Cartan, Adapode, Makie # GLMakie
 fun,x0 = Lorenz(10.0,60.0,8/3),Chain(10.0,10.0,10.0)
 ic = InitialCondition(fun,x0,2pi) # tmax = 2pi
 lines(odesolve(ic,MultistepIntegrator{4}(2^-15)))
@@ -872,7 +872,7 @@ Further advanced features such as `DiscontinuousTopology` have been implemented 
 *Example* (Heatflow around airfoil).
 `FlowGeometry` builds on `Cartan` to provide NACA airfoil shapes, and `Adapode` can solve transport diffusion.
 ```julia
-using Grassmann, Cartan, Adapode, FlowGeometry, MATLAB, Makie
+using Grassmann, Cartan, Adapode, FlowGeometry, MATLAB, Makie # GLMakie
 pt,pe = initmesh(decsg(NACA"6511"),"hmax"=>0.1)
 tf = solvepoisson(pt,pe,1,0,
     x->(x[2]>3.49 ? 1e6 : 0.0),0,x->(x[2]<-1.49 ? 1.0 : 0.0))
