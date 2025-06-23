@@ -698,7 +698,7 @@ function __init__()
             @eval function $fun(M::VectorField,t::TensorField{B,<:TensorOperator} where B;args...)
                 kwargs = $(gridargs(fun))
                 s = spacing(M)/minimum(value(sum(map.(norm,fiber(value(t))))/length(t)))
-                $pla(M,t;lengthscale=s/2,kwargs...)
+                Makie.$pla(M,t;lengthscale=s/2,kwargs...)
             end
         end
         export planes, planes!
@@ -755,11 +755,11 @@ function __init__()
         end
         @eval begin
             function Makie.arrows(M::VectorField,t::TensorField{B,<:TensorOperator,N,<:GridBundle} where B;args...) where N
-                kwargs = $(gridargs(:arrows))
+                kwargs = $(gridargs(:(Makie.arrows)))
                 Makie.arrows(TensorField(fiber(M),fiber(t));args...)
             end
             function Makie.arrows!(M::VectorField,t::TensorField{B,<:TensorOperator,N,<:GridBundle} where B;args...) where N
-                kwargs = $(gridargs(:arrows!))
+                kwargs = $(gridargs(:(Makie.arrows!)))
                 Makie.arrows!(TensorField(fiber(M),fiber(t));args...)
             end
         end
@@ -889,7 +889,7 @@ function __init__()
                 end
             end
         end
-        for (fun,fun2,fun3) ∈ ((:arrows,:arrows2d,:arrows3d),(:arrows!,:arrows2d!,:arrows3d))
+        for (fun,fun2,fun3) ∈ ((:arrows,:arrows2d,:arrows3d),(:arrows!,:arrows2d!,:arrows3d!))
             @eval begin
                 function Makie.$fun(t::VectorField;args...)
                     mdims(fibertype(t))≠3 ? Makie.$fun2(t;args...) : Makie.$fun3(t;args...)
