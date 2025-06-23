@@ -111,6 +111,9 @@
           <a class="tocitem" href="../library/">Library</a>
         </li>
         <li>
+          <a class="tocitem" href="../plot/">Plotting</a>
+        </li>
+        <li>
           <a class="tocitem" href="../agpl/">AGPL-3.0</a>
         </li>
       </ul>
@@ -219,6 +222,21 @@
           <li>
             <a href="../library/#Cartan.jl-Library">Cartan.jl
             Library</a>
+          </li>
+          <li>
+            <a href="../plot/#Cartan.jl-plotting">Cartan.jl
+            plotting</a>
+          </li>
+          <li class="no-marker">
+            <ul>
+              <li>
+                <a href="../plot/#Makie.jl">Makie.jl</a>
+              </li>
+              <li>
+                <a href=
+                "../plot/#UnicodePlots.jl">UnicodePlots.jl</a>
+              </li>
+            </ul>
           </li>
         </ul>
         <p>Initially, <em>Grassmann.jl</em> and <em>Cartan.jl</em>
@@ -1513,7 +1531,8 @@ lines(planecurve(cos(t)-t*sin(t)))</code></pre>
         <p><em>Example</em> (Lorenz). Observe vector fields by
         integrating streamlines</p>
         <pre><code class=
-        "language-julia hljs">Lorenz(s,r,b) = x -&gt; Chain(
+        "language-julia hljs">using Grassmann, Cartan, Adapode, Makie # GLMakie
+Lorenz(s,r,b) = x -&gt; Chain(
     s*(x[2]-x[1]), x[1]*(r-x[3])-x[2], x[1]*x[2]-b*x[3])
 p = TensorField(ProductSpace(-40:0.2:40,-40:0.2:40,10:0.2:90))
 vf = Lorenz(10.0,60.0,8/3).(p) # pick Lorenz parameters, apply
@@ -1523,8 +1542,7 @@ streamplot(vf,gridsize=(10,10)) # visualize vector field</code></pre>
         and multistep methods with optional adaptive time
         stepping.</p>
         <pre><code class=
-        "language-julia hljs">using Grassmann, Cartan, Adapode, Makie # GLMakie
-fun,x0 = Lorenz(10.0,60.0,8/3),Chain(10.0,10.0,10.0)
+        "language-julia hljs">fun,x0 = Lorenz(10.0,60.0,8/3),Chain(10.0,10.0,10.0)
 ic = InitialCondition(fun,x0,2pi) # tmax = 2pi
 lines(odesolve(ic,MultistepIntegrator{4}(2^-15)))</code></pre>
         <p><em>Example</em> (Riemann sphere). Project
@@ -1950,7 +1968,7 @@ end</code></pre>
         provide NACA airfoil shapes, and <code>Adapode</code> can
         solve transport diffusion.</p>
         <pre><code class=
-        "language-julia hljs">using Grassmann, Cartan, Adapode, FlowGeometry, MATLAB, Makie
+        "language-julia hljs">using Grassmann, Cartan, Adapode, FlowGeometry, MATLAB, Makie # GLMakie
 pt,pe = initmesh(decsg(NACA"6511"),"hmax"=&gt;0.1)
 tf = solvepoisson(pt,pe,1,0,
     x-&gt;(x[2]&gt;3.49 ? 1e6 : 0.0),0,x-&gt;(x[2]&lt;-1.49 ? 1.0 : 0.0))
@@ -2315,7 +2333,7 @@ integrate(F.(f.(t)) ⋅ tangent(f.(t)))</code></pre>
           <p>This document was generated with <a href=
           "https://github.com/JuliaDocs/Documenter.jl">Documenter.jl</a>
           version 1.12.0 on <span class="colophon-date" title=
-          "Friday 20 June 2025 12:00">Friday 20 June 2025</span>.
+          "Monday 23 June 2025 10:39">Monday 23 June 2025</span>.
           Using Julia version 1.11.0.</p>
         </section>
         <footer class="modal-card-foot"></footer>
