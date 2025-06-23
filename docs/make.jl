@@ -13,6 +13,7 @@ makedocs(
         "Fiber" => "fiber.md",
         "Videos" => "videos.md",
         "Library" => "library.md",
+        "Plotting" => "plot.md",
         "AGPL-3.0" => "agpl.md"
         ]
 )

@@ -39,7 +39,7 @@ The `Cartan` package is intended to standardize the composition of various metho
 Initial topologies include `ProductSpace` types and in general the `ImmersedTopology`.
 
 ```@contents
-Pages = ["fiber.md","videos.md","library.md"]
+Pages = ["fiber.md","videos.md","library.md","plot.md"]
 ```
 
 This `Cartan` package for the Julia language was created by [github.com/chakravala](https://github.com/chakravala) for mathematics and computer algebra research with differential geometric algebras.

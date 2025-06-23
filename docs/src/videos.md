@@ -10,7 +10,7 @@
 [![PDF 2025](https://img.shields.io/badge/PDF-2025-blue.svg)](https://www.dropbox.com/sh/tphh6anw0qwija4/AAACiaXig5djrLVAKLPFmGV-a/Geometric-Algebra?preview=grassmann-cartan-2025.pdf)
 
 ```@contents
-Pages = ["index.md","fiber.md","library.md"]
+Pages = ["index.md","fiber.md","library.md","plot.md"]
 ```
 
 [youtube.com/@CrucialFlowResearch](https://www.youtube.com/@CrucialFlowResearch), [odysee.com/@dreamscatter](https://odysee.com/@dreamscatter)

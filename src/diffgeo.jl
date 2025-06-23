@@ -176,6 +176,7 @@ export gaussextrinsic_slow, gaussextrinsicnorm_slow, principals, principalaxes
 export tangent_slow, normal_slow, unittangent_slow, unitnormal_slow, jacobian_slow
 export sector, sectordet, sectorintegral, sectorintegrate, linkintegral, linknumber
 export sector_slow, sectordet_slow, sectorintegral_slow, sectorintegrate_slow
+export unitjacobian, unitjacobian_slow
 
 # use graph for IntervalMap? or RealFunction!
 tangent(f::IntervalMap) = gradient(f)
@@ -191,6 +192,9 @@ normalnorm(f) = Real(abs(normal(f)))
 jacobian(f::IntervalMap) = gradient(f)
 jacobian(f::ScalarField) = jacobian(graph(f))
 jacobian(f::VectorField) = TensorOperator(gradient(f))
+unitjacobian(f::IntervalMap) = unitgradient(f)
+unitjacobian(f::ScalarField) = unitjacobian(graph(f))
+unitjacobian(f::VectorField) = TensorField(base(f),TensorOperator.(map.(unit,fiber(gradient(f)))))
 weingarten(f::VectorField) = jacobian(unitnormal(f))
 Base.adjoint(f::IntervalMap) = jacobian(f)
 Base.adjoint(f::ScalarField) = jacobian(f)
@@ -206,7 +210,12 @@ unittangent_slow(f::VectorField,n=tangent_slow(f)) = unit(n)
 unittangent_slow(f::IntervalMap) = unitgradient_slow(f)
 unitnormal_slow(f) = ⋆unittangent_slow(f)
 normalnorm_slow(f) = Real(abs(normal_slow(f)))
+jacobian_slow(f::IntervalMap) = gradient_slow(f)
+jacobian_slow(f::ScalarField) = jacobian_slow(graph(f))
 jacobian_slow(f::VectorField) = TensorOperator(gradient_slow(f))
+unitjacobian_slow(f::IntervalMap) = unitgradient_slow(f)
+unitjacobian_slow(f::ScalarField) = unitjacobian_slow(graph(f))
+unitjacobian_slow(f::VectorField) = TensorField(base(f),TensorOperator.(map.(unit,fiber(gradient_slow(f)))))
 weingarten_slow(f::VectorField) = jacobian_slow(unitnormal_slow(f))
 
 ribbon(f::AbstractCurve,g::Vector{<:AbstractCurve}) = TensorField(points(f)⊕LinRange(0,1,length(g)+1),hcat(fiber(f),fiber.(g)...))

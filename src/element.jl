@@ -539,6 +539,7 @@ for T ∈ (:Values,:Variables)
     end
 end
 
+laplacian(t::SimplexTopology) = Diagonal(degrees(t)) - adjacency(t)
 weights(t::FrameBundle) = inv(degrees(t))
 weights(t::FrameBundle,B::SparseMatrixCSC) = inv(degrees(t,B))
 weights(t::SimplexTopology) = inv.(degrees(t))
