@@ -65,9 +65,9 @@ export alteration, variation, modification, alteration!, variation!, modificatio
 # TensorField
 
 """
-    TensorField{B,F,N} <: GlobalFiber{LocalTensor{B,F},N}
+    TensorField{B,F,N} <: FiberBundle{LocalTensor{B,F},N}
 
-Defines a `GlobalFiber` type with `eltype` of `LocalTensor{B,F}` and `immersion`.
+Defines a section of a `FrameBundle` with `eltype` of `LocalTensor{B,F}` and `immersion`.
 ```Julia
 coordinates(s) # ::AbstractArray{B,N}
 fiber(s) # ::AbstractArray{F,N}
@@ -90,7 +90,7 @@ there are explicit techniques to construct a `TensorField` as well as implicit m
 Additional packages such as `Adapode` build on the `TensorField` concept by generating them from differential equations.
 Many of these methods can automatically generalize to higher dimensional manifolds and are compatible with discrete differential geometry.
 """
-struct TensorField{B,F,N,M<:FrameBundle{B,N},A<:AbstractArray{F,N}} <: GlobalFiber{LocalTensor{B,F},N}
+struct TensorField{B,F,N,M<:FrameBundle{B,N},A<:AbstractArray{F,N}} <: FiberBundle{LocalTensor{B,F},N}
     dom::M
     cod::A
     function TensorField(dom::M,cod::A) where {B,F,N,M<:FrameBundle{B,N},A<:AbstractArray{F,N}}
@@ -103,7 +103,7 @@ function TensorField(dom::AbstractArray{P,N},cod::AbstractArray,met::AbstractArr
     TensorField(GridBundle(PointArray(0,dom,met)),cod)
 end
 TensorField(dom::PointArray,cod::AbstractArray) = TensorField(GridBundle(dom),cod)
-TensorField(dom,cod::AbstractArray,met::GlobalFiber) = TensorField(dom,cod,fiber(met))
+TensorField(dom,cod::AbstractArray,met::FiberBundle) = TensorField(dom,cod,fiber(met))
 TensorField(dom::FrameBundle,cod::FrameBundle) = TensorField(dom,points(cod))
 TensorField(a::TensorField,b::TensorField) = TensorField(fiber(a),fiber(b))
 
@@ -150,8 +150,6 @@ TensorField(dom::FrameBundle,fun::Function) = fun.(dom)
 TensorField(dom::AbstractArray,fun::Number) = TensorField(dom, fill(fun,size(dom)...))
 TensorField(dom::AbstractArray) = TensorField(dom, dom)
 TensorField(f::F,r::AbstractVector{<:Real}=-2π:0.0001:2π) where F<:Function = TensorField(r,vector.(f.(r)))
-base(t::TensorField) = t.dom
-fiber(t::TensorField) = t.cod
 coordinatetype(t::TensorField) = basetype(t)
 coordinatetype(t::Type{<:TensorField}) = basetype(t)
 basetype(::TensorField{B}) where B = B
@@ -161,14 +159,42 @@ fibertype(::Type{<:TensorField{B,F} where B}) where F = F
 Base.broadcast(f,t::TensorField) = TensorField(domain(t), f.(codomain(t)))
 #TensorField(dom::SimplexBundle{1}) = TensorField(dom,getindex.(points(dom),2))
 
-for fun ∈ (:points,:metricextensor,:coordinates,:immersion,:vertices,:fullcoordinates)
-    @eval $fun(t::TensorField) = $fun(base(t))
+"""
+    PrincipalFiber{M,G,N} <: FiberBundle{LocalPrincipal{M,G},N}
+
+Defines a principal `FiberBundle` morphism type with `eltype` of `LocalPrincipal{M,G}`.
+```Julia
+coordinates(s) # ::AbstractArray{X,N}
+principalbase(s) # ::AbstractArray{M,N}
+principalfiber(s) # ::AbstractArray{G,N}
+coordinatetype(s) # X
+principalbasetype(s) # M
+principalfibertype(s) # G
+immersion(s) # ::ImmersedTopology
+```
+Various methods work on any `PrincipalFiber`, such as `isbundle`, `base`, `fiber`, `coordinates`, `points`, `metricextensor`, `basetype`, `fibertype`, `coordinatetype`, `pointtype`, `metrictype`, `immersion`.
+"""
+struct PrincipalFiber{M,G,N,XM<:TensorField{X,M,N} where X,XG<:TensorField{X,G,N} where X} <: FiberBundle{LocalPrincipal{M,G},N}
+    dom::XM
+    cod::XG
+end
+
+coordinatetype(t::PrincipalFiber) = coordinatetype(base(t))
+coordinatetype(t::Type{<:PrincipalFiber{M,G,N,XM} where {M,G,N}}) where XM = coordinatetype(XM)
+basetype(::PrincipalFiber{M}) where M = M
+basetype(::Type{<:PrincipalFiber{M}}) where M = M
+fibertype(::PrincipalFiber{M,G} where M) where G = G
+fibertype(::Type{<:PrincipalFiber{M,G} where M}) where G = G
+
+for fun ∈ (:points,:metricextensor,:coordinates,:immersion,:vertices,:fullcoordinates,:metricextensorfield,:metrictensorfield)
+    @eval begin
+        $fun(t::TensorField) = $fun(base(t))
+        $fun(t::PrincipalFiber) = $fun(base(t))
+    end
 end
 
 ←(F,B) = B → F
 const → = TensorField
-metricextensorfield(t::TensorField) = metricextensorfield(base(t))
-metrictensorfield(t::TensorField) = metrictensorfield(base(t))
 metricextensorfield(t::GridBundle) = TensorField(GridBundle(PointArray(0,points(t)),immersion(t)),metricextensor(t))
 metrictensorfield(t::GridBundle) = TensorField(GridBundle(PointArray(0,points(t)),immersion(t)),metrictensor(t))
 metricextensorfield(t::SimplexBundle) = TensorField(SimplexBundle(PointCloud(0,points(t)),immersion(t)),metricextensor(t))
@@ -242,14 +268,30 @@ function Base.similar(bc::Broadcast.Broadcasted{Broadcast.ArrayStyle{FaceBundle{
     TensorField(t,similar(Vector{ElType}, axes(bc)))
 end
 
-#"`A = find_tf(As)` returns the first TensorField among the arguments."
-find_tf(bc::Base.Broadcast.Broadcasted) = find_tf(bc.args)
-find_tf(bc::Base.Broadcast.Extruded) = find_tf(bc.x)
-find_tf(args::Tuple) = find_tf(find_tf(args[1]), Base.tail(args))
-find_tf(x) = x
-find_tf(::Tuple{}) = nothing
-find_tf(a::TensorField, rest) = a
-find_tf(::Any, rest) = find_tf(rest)
+@findobject find_tf TensorField
+
+@pure Base.eltype(::Type{<:PrincipalFiber{M,G}}) where {M,G} = LocalPrincipal{M,G}
+Base.getindex(m::PrincipalFiber,i::Vararg{Int}) = LocalPrincipal(getindex(principalbase(m),i...), getindex(principalfiber(m),i...))
+Base.getindex(m::PrincipalFiber,i::Vararg{Union{Int,Colon}}) = PrincipalFiber(base(m)(i...), getindex(fiber(m),i...))
+#Base.setindex!(m::TensorField{M,G,1,<:Interval},s::LocalTensor,i::Vararg{Int}) where {M,G} = setindex!(principalfiber(m),fiber(s),i...)
+Base.setindex!(m::PrincipalFiber{M,Gm} where Gm,s::G,i::Vararg{Int}) where {M,G} = setindex!(principalfiber(m),s,i...)
+function Base.setindex!(m::PrincipalFiber,s::LocalTensor,i::Vararg{Int})
+    setindex!(principalbase(m),base(s),i...)
+    setindex!(principalfiber(m),fiber(s),i...)
+    return s
+end
+
+Base.BroadcastStyle(::Type{<:PrincipalFiber{M,G,N,XM,XG}}) where {M,G,N,XM,XG} = Broadcast.ArrayStyle{PrincipalFiber{M,G,N,XM,XG}}()
+
+#=function Base.similar(bc::Broadcast.Broadcasted{Broadcast.ArrayStyle{PrincipalFiber{M,G,N,XM,XG}}}, ::Type{ElType}) where {M,G,N,XM,XG,ElType}
+    # Scan the inputs for the PrincipalFiber:
+    t = find_pf(bc)
+    # Use the domain field of t to create the output
+    #TensorField(domain(t), similar(Array{basetype(ElType),N}, axes(bc)))
+    TensorField(domain(t), similar(Array{fibertype(ElType),N}, axes(bc)))
+end=#
+
+@findobject find_pf PrincipalFiber
 
 (m::TensorField{B,F,N,<:SimplexBundle} where {B,F,N})(i::ImmersedTopology) = TensorField(coordinates(m)(i),fiber(m)[vertices(i)])
 (m::TensorField{B,F,N,<:GridBundle} where {B,F,N})(i::ImmersedTopology) = TensorField(base(m)(i),fiber(m))
@@ -295,9 +337,9 @@ for op ∈ (:+,:-,:&,:∧,:∨)
 end
 (m::TensorNested)(t::TensorField) = TensorField(base(t), m.(fiber(t)))
 (m::TensorField{B,<:TensorNested} where B)(t::TensorField) = m⋅t
-@inline Base.:<<(a::GlobalFiber,b::GlobalFiber) = contraction(b,~a)
-@inline Base.:>>(a::GlobalFiber,b::GlobalFiber) = contraction(~a,b)
-@inline Base.:<(a::GlobalFiber,b::GlobalFiber) = contraction(b,a)
+@inline Base.:<<(a::FiberBundle,b::FiberBundle) = contraction(b,~a)
+@inline Base.:>>(a::FiberBundle,b::FiberBundle) = contraction(~a,b)
+@inline Base.:<(a::FiberBundle,b::FiberBundle) = contraction(b,a)
 Base.sign(a::TensorField) = TensorField(base(a), sign.(fiber(Real(a))))
 Base.inv(a::TensorField{B,<:Real} where B) = TensorField(base(a), inv.(fiber(a)))
 Base.inv(a::TensorField{B,<:Complex} where B) = TensorField(base(a), inv.(fiber(a)))
@@ -366,7 +408,7 @@ LinearAlgebra.norm(t::TensorField) = TensorField(domain(t), norm.(codomain(t)))
 Grassmann.Phasor(s::TensorField) = TensorField(domain(s), Phasor(codomain(s)))
 Grassmann.Couple(s::TensorField) = TensorField(domain(s), Couple(codomain(s)))
 
-checkdomain(a::GlobalFiber,b::GlobalFiber) = domain(a)≠domain(b) ? error("GlobalFiber base not equal") : true
+checkdomain(a::FiberBundle,b::FiberBundle) = domain(a)≠domain(b) ? error("GlobalFiber base not equal") : true
 
 disconnect(t::FaceMap) = TensorField(disconnect(base(t)),fiber(t))
 discontinuous(t::FaceMap) = discontinuous(t,discontinuous(base(t)))
@@ -595,7 +637,7 @@ function __init__()
         unorientedpoly(p,v1,v2) = Makie.Point.(polytransform(_unorientedplane(p,v1,v2)))
         orientedpoly(p,v1,v2) = Makie.Point.(polytransform(_orientedplane(p,v1,v2)))
         argarrows2(s) = (;lengthscale=s)
-        argarrows3(s,siz=2s/33) = (;lengthscale=s,tipradius=siz/3,tiplength=siz,shaftradius=siz/7)
+        argarrows3(s,siz=2s/33) = (;lengthscale=s)#,tipradius=siz/3,tiplength=siz,shaftradius=siz/7)
         function argarrows(t::TensorField{B,<:TensorOperator{V,W}},s,siz=2s/33) where {B,V,W}
             mdims(W) ≠ 3 ? argarrows2(s) : argarrows3(s,siz)
         end
@@ -698,7 +740,7 @@ function __init__()
             @eval function $fun(M::VectorField,t::TensorField{B,<:TensorOperator} where B;args...)
                 kwargs = $(gridargs(fun))
                 s = spacing(M)/minimum(value(sum(map.(norm,fiber(value(t))))/length(t)))
-                Makie.$pla(M,t;lengthscale=s/2,kwargs...)
+                $pla(M,t;lengthscale=s/2,kwargs...)
             end
         end
         export planes, planes!

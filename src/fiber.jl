@@ -175,6 +175,26 @@ const ComplexSpace{N,P<:Chain{V,1,<:Complex} where V,G} = AbstractArray{<:Coordi
 #const RectanglePatch{P,G} = RealSpace{2,P,G}
 #const HyperrectanglePatch{P,G} = RealSpace{3,P,G}
 
+# LocalPrincipal
+
+"""
+    LocalPrincipal{M,G} <: LocalFiber{M,G} <: Number
+
+A `LocalPrincipal` bundled with `principalbasetype` of `M` and `principalfibertype` of `G`.
+```Julia
+principalbase(s) # ::M
+principalfiber(s) # ::G
+principalbasetype(s) # M
+principalfibertype(s) # G
+```
+A `LocalPrincipal{M,G}` consists of two components: `M`, which represents the `principalbase` manifold, and `G`, which represents the `principalfiber` bundle over `M`.
+"""
+struct LocalPrincipal{M,G} <: LocalFiber{M,G}
+    v::Pair{M,G}
+    LocalPrincipal(v::Pair{M,G}) where {M,G} = new{M,G}(v)
+    LocalPrincipal(x::M,g::G) where {M,G} = new{M,G}(x=>g)
+end
+
 # LocalTensor
 
 """
@@ -278,15 +298,35 @@ end
 # FiberBundle
 
 """
-    FiberBundle{T,N} <: Number
+    FiberBundle{T,N} <: AbstractArray{T,N}
 
 Defines a global `FiberBundle` type with `basetype` and `fibertype` over `N` dimensions.
 """
 abstract type FiberBundle{T,N} <: AbstractArray{T,N} end
+Base.@pure isfiberbundle(::FiberBundle) = true
+Base.@pure isfiberbundle(::Any) = false
 
+globalfiber(x) = x
+globalfiber(x::FiberBundle) = fiber(x)
+const GlobalFiber = FiberBundle
+
+for fun ∈ (:sdims,:subimmersion,:fullimmersion,:fulltopology,:topology,:subtopology,:totalelements,:elements,:subelements,:totalnodes,:nodes,:vertices,:verticesinv,:isopen,:iscompact,:isfull,:iscover,:istotal,:immersiontype,:refnodes,:isdisconnected,:isdiscontinuous)
+    @eval export $fun
+    @eval $fun(m::FiberBundle) = $fun(immersion(m))
+end
+sdims(m::Type{<:FiberBundle}) = sdims(immersiontype(m))
+#imagepoints(m::FiberBundle) = iscover(m) ? points(m) : points(m)[vertices(m)]
+
+unitdomain(t::FiberBundle) = base(t)*inv(base(t)[end])
+arcdomain(t::FiberBundle) = unitdomain(t)*arclength(codomain(t))
+graph(t::FiberBundle) = graph.(t)
+
+Base.size(m::FiberBundle) = size(base(m))
+Base.resize!(m::FiberBundle,i) = ((resize!(base(m),i),resize!(fiber(m),i)); m)
+resize_lastdim!(m::FiberBundle,i) = ((resize_lastdim!(base(m),i),resize_lastdim!(fiber(m),i)); m)
 
 """
-    Coordinates{P,G,N} <: FiberBundle{Coordinate{P,G},N} <: Number
+    Coordinates{P,G,N} <: FiberBundle{Coordinate{P,G},N}
 
 Defines a `FiberBundle` type with `pointtype` of `P` and `metrictype` of `G`.
 ```Julia
@@ -416,7 +456,7 @@ export PointArray, PointVector, PointMatrix, PointCloud, Coordinates, FiberBundl
 point_id = 0
 
 """
-    PointArray{P,G,N} <: FiberBundle{Coordinate{P,G},N} <: Number
+    PointArray{P,G,N} <: FiberBundle{Coordinate{P,G},N}
 
 Defines a `FiberBundle` type with `pointtype` of `P` and `metrictype` of `G`.
 ```Julia
@@ -500,11 +540,9 @@ cross(a::PointArray,b::PointArray) = a⊕b
 cross(a::PointArray,b::AbstractVector{<:Real}) = a⊕b
 
 Base.size(m::PointArray) = size(points(m))
-Base.resize!(m::PointCloud,i::Int) = ((resize!(points(m),i),resize!(metricextensor(m),i)); m)
 Base.broadcast(f,t::PointArray) = PointArray(f.(points(t)),f.(metricextensor(t)))
 Base.broadcast(f,t::PointCloud) = PointCloud(f.(points(t)),f.(metricextensor(t)))
 resize_lastdim!(m::Global,i) = m
-resize_lastdim!(m::PointArray,i) = ((resize_lastdim!(m.dom,i),resize_lastdim!(m.cod,i)); m)
 
 getindex(m::PointCloud,i::ImmersedTopology) = points(m)[i]
 
@@ -551,14 +589,20 @@ function Base.similar(bc::Broadcast.Broadcasted{Broadcast.ArrayStyle{PointArray{
     PointArray(similar(Array{ElType,N}, axes(bc)), metricextensor(t))
 end
 
-#"`A = find_pa(As)` returns the first PointArray among the arguments."
-find_pa(bc::Base.Broadcast.Broadcasted) = find_pa(bc.args)
-find_pa(bc::Base.Broadcast.Extruded) = find_pa(bc.x)
-find_pa(args::Tuple) = find_pa(find_pa(args[1]), Base.tail(args))
-find_pa(x) = x
-find_pa(::Tuple{}) = nothing
-find_pa(a::PointArray, rest) = a
-find_pa(::Any, rest) = find_pa(rest)
+macro findobject(name,type)
+    quote
+        #"`A = $name(As)` returns the first $type among the arguments."
+        $(esc(name))(bc::Base.Broadcast.Broadcasted) = $(esc(name))(bc.args)
+        $(esc(name))(bc::Base.Broadcast.Extruded) = $(esc(name))(bc.x)
+        $(esc(name))(args::Tuple) = $(esc(name))($(esc(name))(args[1]), Base.tail(args))
+        $(esc(name))(x) = x
+        $(esc(name))(::Tuple{}) = nothing
+        $(esc(name))(a::$(esc(type)), rest) = a
+        $(esc(name))(::Any, rest) = $(esc(name))(rest)
+    end
+end
+
+@findobject find_pa PointArray
 
 # FiberProduct
 
@@ -597,44 +641,15 @@ function Base.setindex!(m::FiberProduct,s::Coordinate,i::Int,j::Vararg{Int})
     return s
 end
 
-# GlobalFiber
-
-"""
-    GlobalFiber{E,N} <: FiberBundle{E,N} <: Number
-
-Defines a `FiberBundle` type with `basetype` and `fibertype`.
-"""
-abstract type GlobalFiber{E,N} <: FiberBundle{E,N} end
-Base.@pure isfiberbundle(::GlobalFiber) = true
-Base.@pure isfiberbundle(::Any) = false
-
-globalfiber(x) = x
-globalfiber(x::GlobalFiber) = fiber(x)
-
-for fun ∈ (:sdims,:subimmersion,:fullimmersion,:fulltopology,:topology,:subtopology,:totalelements,:elements,:subelements,:totalnodes,:nodes,:vertices,:verticesinv,:isopen,:iscompact,:isfull,:iscover,:istotal,:immersiontype,:refnodes,:isdisconnected,:isdiscontinuous)
-    @eval export $fun
-    @eval $fun(m::GlobalFiber) = $fun(immersion(m))
-end
-sdims(m::Type{<:GlobalFiber}) = sdims(immersiontype(m))
-#imagepoints(m::GlobalFiber) = iscover(m) ? points(m) : points(m)[vertices(m)]
-
-unitdomain(t::GlobalFiber) = base(t)*inv(base(t)[end])
-arcdomain(t::GlobalFiber) = unitdomain(t)*arclength(codomain(t))
-graph(t::GlobalFiber) = graph.(t)
-
-Base.size(m::GlobalFiber) = size(m.cod)
-Base.resize!(m::GlobalFiber,i) = ((resize!(domain(m),i),resize!(codomain(m),i)); m)
-resize_lastdim!(m::GlobalFiber,i) = ((resize_lastdim!(domain(m),i),resize_lastdim!(codomain(m),i)); m)
-
 # FrameBundle
 
 export FrameBundle, GridBundle, SimplexBundle, FaceBundle, ElementBundle
 export IntervalRange, AlignedRegion, AlignedSpace
 
 """
-    FrameBundle{C,N} <: GlobalFiber{C,N} <: FiberBundle{C,N}
+    FrameBundle{C,N} <: FiberBundle{C,N}
 
-Defines a `GlobalFiber` type with `coordinatetype` of `C` and `immersion`.
+Defines a `FiberBundle` type with `coordinatetype` of `C` and `immersion`.
 ```Julia
 coordinates(s) # ::AbstractArray{C,N}
 points(s) # ::AbstractArray{P,N}
@@ -646,7 +661,7 @@ immersion(s) # ::ImmersedTopology
 ```
 Various methods work on any `FrameBundle`, such as `isbundle`, `base`, `fiber`, `coordinates`, `points`, `metricextensor`, `basetype`, `fibertype`, `coordinatetype`, `pointtype`, `metrictype`, `immersion`.
 """
-abstract type FrameBundle{C,N} <: GlobalFiber{C,N} end
+abstract type FrameBundle{C,N} <: FiberBundle{C,N} end
 
 base(m::FrameBundle) = points(m)
 fiber(m::FrameBundle) = metricextensor(m)
@@ -763,14 +778,7 @@ end
     GridBundle(similar(Array{ElType,N}, axes(bc)), metricextensor(t))
 end=#
 
-#"`A = find_gf(As)` returns the first GridBundle among the arguments."
-find_gf(bc::Base.Broadcast.Broadcasted) = find_gf(bc.args)
-find_gf(bc::Base.Broadcast.Extruded) = find_gf(bc.x)
-find_gf(args::Tuple) = find_gf(find_gf(args[1]), Base.tail(args))
-find_gf(x) = x
-find_gf(::Tuple{}) = nothing
-find_gf(a::FrameBundle, rest) = a
-find_gf(::Any, rest) = find_gf(rest)
+@findobject find_gf FrameBundle
 
 # ElementBundle
 
