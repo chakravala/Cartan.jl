@@ -273,6 +273,7 @@ end
 @pure Base.eltype(::Type{<:PrincipalFiber{M,G}}) where {M,G} = LocalPrincipal{M,G}
 Base.getindex(m::PrincipalFiber,i::Vararg{Int}) = LocalPrincipal(getindex(principalbase(m),i...), getindex(principalfiber(m),i...))
 Base.getindex(m::PrincipalFiber,i::Vararg{Union{Int,Colon}}) = PrincipalFiber(base(m)(i...), getindex(fiber(m),i...))
+Base.getindex(m::PrincipalFiber,i::TensorField) = PrincipalFiber(base(m).(i), fiber(m).(i))
 #Base.setindex!(m::TensorField{M,G,1,<:Interval},s::LocalTensor,i::Vararg{Int}) where {M,G} = setindex!(principalfiber(m),fiber(s),i...)
 Base.setindex!(m::PrincipalFiber{M,Gm} where Gm,s::G,i::Vararg{Int}) where {M,G} = setindex!(principalfiber(m),s,i...)
 function Base.setindex!(m::PrincipalFiber,s::LocalTensor,i::Vararg{Int})

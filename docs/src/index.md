@@ -13,7 +13,7 @@
 Written in Julia, [Cartan.jl](https://github.com/chakravala/Cartan.jl) unifies differential geometry, geometric algebra, and tensor calculus with support for fiber product topology; enabling directly executable generalized treatment of geometric PDEs over grids, meshes, and simplicial decompositions.
 
 The system supports intrinsic formulations of differential operators (including the exterior derivative, codifferential, Lie derivative, interior product, and Hodge star) using a coordinate-free algebraic language grounded in Grassmann-Cartan multivector theory.
-Its core architecture accomodates numerical representations of fiber bundles, product manifolds, and submanifold immersion, providing native support for PDE models defined on structured or unstructured domains.
+Its core architecture accomodates numerical representations of principal G-fiber bundles, product manifolds, and submanifold immersion, providing native support for PDE models defined on structured or unstructured domains.
 
 *Cartan.jl* integrates naturally with simplex-based finite element exterior calculus, allowing for geometrical discretizations of field theories and conservation laws.
 With its synthesis of symbolic abstraction and numerical execution, *Cartan.jl* empowers researchers to develop PDE models that are simultaneously founded in differential geometry, algebraically consistent, and computationally expressive, opening new directions for scientific computing at the interface of geometry, algebra, and analysis.
@@ -28,9 +28,9 @@ With its synthesis of symbolic abstraction and numerical execution, *Cartan.jl* 
 ```
 developed by [chakravala](https://github.com/chakravala) with [Grassmann.jl](https://github.com/chakravala/Grassmann.jl)
 
-Provides `TensorField{B,F,N} <: GlobalFiber{LocalTensor{B,F},N}` implementation for both a local `ProductSpace` and general `ImmersedTopology` specifications on any `FrameBundle` expressed with [Grassmann.jl](https://github.com/chakravala/Grassmann.jl) algebra.
+Provides `TensorField{B,F,N} <: FiberBundle{LocalTensor{B,F},N}` implementation for both a local `ProductSpace` and general `ImmersedTopology` specifications on any `FrameBundle` expressed with [Grassmann.jl](https://github.com/chakravala/Grassmann.jl) algebra.
 Many of these modular methods can work on input meshes or product topologies of any dimension, although there are some methods which are specialized.
-Building on this, `Cartan` provides an algebra for `FiberBundle` sections and associated bundles on a manifold, such as general `Connection`, `LieDerivative`, and `CovariantDerivative` operators in terms of `Grassmann` elements.
+Building on this, `Cartan` provides an algebra for `FiberBundle` sections and associated bundles on a manifold, such as general `PrincipalFiber`, `Connection`, `LieDerivative`, and `CovariantDerivative` operators in terms of `Grassmann` elements.
 Calculus of `Variation` fields can also be generated with the combined topology of a `FiberProductBundle`.
 Furthermore, the `FiberProduct` structure enables construction of `HomotopyBundle` types.
 Utility package for differential geometry and tensor calculus intended for [Adapode.jl](https://github.com/chakravala/Adapode.jl).

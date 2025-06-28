@@ -35,7 +35,7 @@ Additionally, the universal interoperability between different sub-algebras is e
 The design is based on `TensorAlgebra{V}` abstract type interoperability from *AbstractTensors.jl* with a ``\mathbb{K}``-module type parameter ``V`` from *DirectSum.jl*.
 Abstract vector space type operations happen at compile-time, resulting in a differential geometric algebra of multivectors.
 
-Building on the *Grassmann.jl* foundation, the *Cartan.jl* extension then defines `TensorField{B,F,N} <: GlobalFiber{LocalTensor{B,F},N}` for both a local `ProductSpace` and general `ImmersedTopology` specifications on any `FrameBundle` expressed with *Grassmann.jl* algebra.
+Building on the *Grassmann.jl* foundation, the *Cartan.jl* extension then defines `TensorField{B,F,N} <: FiberBundle{LocalTensor{B,F},N}` for both a local `ProductSpace` and general `ImmersedTopology` specifications on any `FrameBundle` expressed with *Grassmann.jl* algebra.
 Many of these modular methods can work on input meshes or product topologies of any dimension, although there are some methods which are specialized.
 `Cartan` provides an algebra for `FiberBundle` sections and any associated bundles on a manifold in terms of `Grassmann` elements.
 Calculus of `Variation` fields can also be generated with the combined topology of a `FiberProductBundle`.
@@ -333,7 +333,7 @@ These methods relate to `FrameBundle` and `TensorField` instances
 * `coordinates(m::FiberBundle)` returns `Coordinates` data type
 * `coordinatetype` return applies to `FiberBundle` or `LocalFiber`
 * `immersion(m::FiberBundle)` returns `ImmersedTopology` data
-* `immersiontype` return applies to `FiberBundle` or `LocalFiber`
+* `immersiontype` return applies to the topology of a `FiberBundle`
 * `base` returns the ``B`` element of a `LocalFiber{B,F}` or `FiberBundle`
 * `basetype` returns type ``B`` of a `LocalFiber{B,F}` or `FiberBundle`
 * `fiber` returns the ``F`` element of `LocalFiber{B,F}` or `FiberBundle`
@@ -946,6 +946,7 @@ streamplot!(F.(cube),gridsize=(11,11,11))
 ```
 ```julia
 integrate(disk*(curl(F.(cube)).(S) ⋅ normal(S)))
+fluxintegrate(S,curl(F.(cube)),disk) # alternative syntax
 ```
 ```math
 \int_{\partial(S)} F\cdot ds = \int_0^{2\pi} F(f(t))\cdot f'(t) dt
@@ -954,6 +955,7 @@ integrate(disk*(curl(F.(cube)).(S) ⋅ normal(S)))
 t = TensorField(0:0.001:2pi)
 f(t) = Chain(3cos(t[1]),3sin(t[1]),0.0)
 integrate(F.(f.(t)) ⋅ tangent(f.(t)))
+integrate(f.(t),F) # alternate syntax
 ```
 ```math
 \int_S \nabla\times F\cdot dS = \int_{\partial(S)} F\cdot ds
