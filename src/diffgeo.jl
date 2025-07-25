@@ -18,22 +18,22 @@ export bound, boundabove, boundbelow, boundlog, isclosed, updatetopology
 
 boundabove(s::LocalTensor{B,T},lim=10) where {B,T<:Real} = fiber(s)≤lim ? s : LocalTensor(base(s),T(lim))
 boundabove(x::T,lim=10) where T<:Real = x≤lim ? x : T(lim)
-boundabove(t::TensorField,lim=10) = TensorField(base(t), boundabove.(codomain(t),lim))
+boundabove(t::TensorField,lim=10) = TensorField(base(t), boundabove.(fiber(t),lim))
 boundbelow(s::LocalTensor{B,T},lim=-10) where {B,T<:Real} = fiber(s)≥lim ? s : LocalTensor(base(s),T(lim))
 boundbelow(x::T,lim=-10) where T<:Real = x≥lim ? x : T(lim)
-boundbelow(t::TensorField,lim=-10) = TensorField(base(t), boundbelow.(codomain(t),lim))
+boundbelow(t::TensorField,lim=-10) = TensorField(base(t), boundbelow.(fiber(t),lim))
 bound(s::LocalTensor{B,T},lim=10) where {B,T<:Real} = abs(fiber(s))≤lim ? s : LocalTensor(base(s),T(sign(fiber(s)*lim)))
 bound(s::LocalTensor{B,T},lim=10) where {B,T} = (x=abs(fiber(s)); x≤lim ? s : ((lim/x)*s))
 bound(x::T,lim=10) where T<:Real = abs(x)≤lim ? x : T(sign(x)*lim)
 bound(z,lim=10) = (x=abs(z); x≤lim ? z : (lim/x)*z)
-bound(t::TensorField,lim=10) = TensorField(base(t), bound.(codomain(t),lim))
+bound(t::TensorField,lim=10) = TensorField(base(t), bound.(fiber(t),lim))
 boundlog(s::LocalTensor{B,T},lim=10) where {B,T<:Real} = (x=abs(fiber(s)); x≤lim ? s : LocalTensor(base(s),T(sign(fiber(s))*(lim+log(x+1-lim)))))
 boundlog(s::LocalTensor{B,T},lim=10) where {B,T} = (x=abs(fiber(s)); x≤lim ? s : LocalTensor(base(s),T(fiber(s)*((lim+log(x+1-lim))/x))))
 boundlog(z::T,lim=10) where T<:Real = (x=abs(z); x≤lim ? z : T(sign(z)*(lim+log(x+1-lim))))
 boundlog(z,lim=10) = (x=abs(fiber(s)); x≤lim ? s : LocalTensor(base(s),T(fiber(s)*((lim+log(x+1-lim))/x))))
-boundlog(t::TensorField,lim=10) = TensorField(base(t), boundlog.(codomain(t),lim))
+boundlog(t::TensorField,lim=10) = TensorField(base(t), boundlog.(fiber(t),lim))
 
-isclosed(t::IntervalMap) = norm(codomain(t)[end]-codomain(t)[1]) ≈ 0
+isclosed(t::IntervalMap) = norm(fiber(t)[end]-fiber(t)[1]) ≈ 0
 updatetopology(t::IntervalMap) = isclosed(t) ? TorusTopology(t) : t
 
 (::Derivation)(t::TensorField) = getnabla(t)
@@ -54,14 +54,14 @@ Grassmann.d(t::TensorField) = TensorField(fromany(∇(t)∧Chain(t)))
 Grassmann.∂(t::TensorField) = TensorField(fromany(Chain(t)⋅∇(t)))
 Grassmann.d(t::ScalarField{B,<:AbstractReal,N,<:FrameBundle,<:AbstractArray} where {B,N}) = gradient(t)
 #Grassmann.∂(t::ScalarField) = gradient(t)
-#Grassmann.∂(t::VectorField) = TensorField(domain(t), sum.(value.(codomain(t))))
+#Grassmann.∂(t::VectorField) = TensorField(base(t), sum.(value.(fiber(t))))
 #=function Grassmann.∂(t::VectorField{G,B,<:Chain{V},N,T} where {B,N,T}) where {G,V}
     n = mdims(V)
-    TensorField(domain(t), Real.(Chain{V,G}(ones(Values{binomial(n,G),Int})).⋅codomain(t)))
+    TensorField(base(t), Real.(Chain{V,G}(ones(Values{binomial(n,G),Int})).⋅fiber(t)))
 end
 function Grassmann.∂(t::GradedField{G,B,<:Chain{V}} where B) where {G,V}
     n = mdims(V)
-    TensorField(domain(t), (Chain{V,G}(ones(Values{binomial(n,G),Int})).⋅codomain(t)))
+    TensorField(base(t), (Chain{V,G}(ones(Values{binomial(n,G),Int})).⋅fiber(t)))
 end=#
 
 @generated function dvec(t::TensorField{B,<:Chain{V,G} where {V,G}} where B)
@@ -105,28 +105,28 @@ function Base.:*(n::Submanifold,t::TensorField)
     if istangent(n)
         gradient(t,Val(indices(n)[1]))
     else
-        TensorField(domain(t), (Ref(n).*codomain(t)))
+        TensorField(base(t), (Ref(n).*fiber(t)))
     end
 end
 function Base.:*(t::TensorField,n::Submanifold)
     if istangent(n)
         gradient(t,Val(indices(n)[1]))
     else
-        TensorField(domain(t), (codomain(t).*Ref(n)))
+        TensorField(base(t), (fiber(t).*Ref(n)))
     end
 end
 function LinearAlgebra.dot(n::Submanifold,t::TensorField)
     if istangent(n)
         gradient(t,Val(indices(n)[1]))
     else
-        TensorField(domain(t), dot.(Ref(n),codomain(t)))
+        TensorField(base(t), dot.(Ref(n),fiber(t)))
     end
 end
 function LinearAlgebra.dot(t::TensorField,n::Submanifold)
     if istangent(n)
         gradient(t,Val(indices(n)[1]))
     else
-        TensorField(domain(t), dot.(codomain(t),Ref(n)))
+        TensorField(base(t), dot.(fiber(t),Ref(n)))
     end
 end
 
@@ -172,14 +172,15 @@ export normalnorm, area, surfacearea, weingarten, gausssign, jacobian, evolute, 
 export normalnorm_slow, area_slow, surfacearea_slow, weingarten_slow, gausssign_slow
 export gaussintrinsic, gaussextrinsic, gaussintrinsicnorm, gaussextrinsicnorm
 export gaussintrinsic_slow, gausseintrinsicnorm_slow, curvatures, meancurvature
-export gaussextrinsic_slow, gaussextrinsicnorm_slow, principals, principalaxes
+export gaussextrinsic_slow, gaussextrinsicnorm_slow, principals, principalaxes, unithelix
 export tangent_slow, normal_slow, unittangent_slow, unitnormal_slow, jacobian_slow
+export ruledsurface, linedsurface, scrollsurface, revolve, revolvesphere, revolvepolar
 export sector, sectordet, sectorintegral, sectorintegrate, linkintegral, linknumber
-export sector_slow, sectordet_slow, sectorintegral_slow, sectorintegrate_slow
+export sector_slow, sectordet_slow, sectorintegral_slow, sectorintegrate_slow, unitcircle
 export unitjacobian, unitjacobian_slow, principal, principalbasetype, principalfibertype
 export PrincipalFiber, LocalPrincipal, principalbase, principalfiber, principalnorm
-export TangentBundle, Pullback, NormalBundle, principalbundle
-export UnitTangentBundle, UnitNormalBundle, UnitPullback, SubNormalBundle
+export TangentBundle, Pullback, NormalBundle, principalbundle, conoid, rightconoid
+export UnitTangentBundle, UnitNormalBundle, UnitPullback, SubNormalBundle, principalaction
 
 principalnorm(x::LocalPrincipal) = Real(abs(det(principalfiber(x))))
 principalbase(x::LocalPrincipal) = base(x)
@@ -189,27 +190,38 @@ principalfibertype(x::LocalPrincipal) = fibertype(x)
 
 Base.inv(T::LocalPrincipal) = LocalPrincipal(principalbase(T),inv(principalfiber(T)))
 
-(P::LocalPrincipal)(f::TensorField) = select_action(P,f(principalbase(P)))
-(P::LocalPrincipal)(f::Function) = select_action(P,f(principalbase(P)))
-(P::LocalPrincipal)(f::Real) = principalfiber(P)*f
-(P::LocalPrincipal)(f::Complex) = principalfiber(P)*f
-(P::LocalPrincipal)(f::TensorAlgebra) = principalfiber(P)⋅f
-(P::LocalPrincipal)() = principalfiber(P)
+(P::LocalPrincipal)(f) = principalaction(P,f)
+(P::LocalPrincipal)() = principalaction(P)
+(P::PrincipalFiber)(f) = principalaction(P,f)
+(P::PrincipalFiber)() = principalaction(P)
 
-(P::PrincipalFiber{M,G,N,<:IntervalMap,<:AbstractCurve} where {M,G,N})(f::AbstractCurve) = principalnorm(P)*pre_action(P,f)
-#(P::PrincipalFiber{M,G,N,<:IntervalMap,<:AbstractCurve} where {M,G,N})(f::Function) = principalnorm(P)*f.(base(P))
-(P::PrincipalFiber{M,G,N,<:IntervalMap,<:AbstractCurve} where {M,G,N})(f::Number) = principalnorm(P)*f
-(P::PrincipalFiber{M,G,N,<:IntervalMap} where {M,G,N})(f::TensorField) = principal(P)⋅pre_action(P,f)
-(P::PrincipalFiber{M,G,N,<:IntervalMap} where {M,G,N})(f::Function) = principal(P)⋅f.(base(P))
-(P::PrincipalFiber{M,G,N,<:IntervalMap} where {M,G,N})(f::Real) = principal(P)*f
-(P::PrincipalFiber{M,G,N,<:IntervalMap} where {M,G,N})(f::Complex) = principal(P)*f
-(P::PrincipalFiber{M,G,N,<:IntervalMap} where {M,G,N})(f::TensorAlgebra) = principal(P)⋅f
-(P::PrincipalFiber)(f::TensorField) = select_action(P,pre_action(P,f))
-(P::PrincipalFiber)(f::Function) = select_action(P,f.(base(P)))
-(P::PrincipalFiber)(f::Real) = principal(P)*f
-(P::PrincipalFiber)(f::Complex) = principal(P)*f
-(P::PrincipalFiber)(f::TensorAlgebra) = principal(P)⋅f
-(P::PrincipalFiber)() = principal(P)
+principalaction(P::LocalPrincipal,f::TensorField) = select_action(P,f(principalbase(P)))
+principalaction(P::LocalPrincipal,f::Function) = select_action(P,f(principalbase(P)))
+principalaction(P::LocalPrincipal,f::Real) = principalfiber(P)*f
+principalaction(P::LocalPrincipal,f::Complex) = principalfiber(P)*f
+principalaction(P::LocalPrincipal,f::TensorAlgebra) = principalfiber(P)⋅f
+principalaciton(P::LocalPrincipal) = principalfiber(P)
+
+principalaction(P::PrincipalFiber{M,G,N,<:IntervalMap,<:AbstractCurve} where {M,G,N},f::AbstractCurve) = principalnorm(P)*pre_action(P,f)
+#principalaction(P::PrincipalFiber{M,G,N,<:IntervalMap,<:AbstractCurve} where {M,G,N},f::Function) = principalnorm(P)*f.(base(P))
+principalaction(P::PrincipalFiber{M,G,N,<:IntervalMap,<:AbstractCurve} where {M,G,N},f::Number) = principalnorm(P)*f
+principalaction(P::PrincipalFiber{M,G,N,<:IntervalMap} where {M,G,N},f::TensorField) = principal(P)⋅pre_action(P,f)
+principalaction(P::PrincipalFiber{M,G,N,<:IntervalMap} where {M,G,N},f::Function) = principal(P)⋅f.(base(P))
+principalaction(P::PrincipalFiber{M,G,N,<:IntervalMap} where {M,G,N},f::Real) = principal(P)*f
+principalaction(P::PrincipalFiber{M,G,N,<:IntervalMap} where {M,G,N},f::Complex) = principal(P)*f
+principalaction(P::PrincipalFiber{M,G,N,<:IntervalMap} where {M,G,N},f::TensorAlgebra) = principal(P)⋅f
+principalaction(P::PrincipalFiber,f::TensorField) = select_action(P,pre_action(P,f))
+principalaction(P::PrincipalFiber,f::Function) = select_action(P,f.(base(P)))
+principalaction(P::PrincipalFiber,f::Real) = principal(P)*f
+principalaction(P::PrincipalFiber,f::Complex) = principal(P)*f
+principalaction(P::PrincipalFiber,f::TensorAlgebra) = principal(P)⋅f
+principalaction(P::PrincipalFiber) = principal(P)
+
+principalaction(t,d,f) = principalaction(PrincipalFiber(t,_outermorphism(d)),f)
+principalaction(t,d,f::ScalarField) = principalaction(PrincipalFiber(t,d),f)
+principalaction(t,d,f::GradedField{0}) = principalaction(PrincipalFiber(t,d),f)
+principalaction(t,d,f::GradedField{1}) = principalaction(PrincipalFiber(t,d),f)
+principalaction(t,d,f::GradedField{G}) where G = principalaction(PrincipalFiber(t,compound(d,Val(G))),f)
 
 select_action(P,f) = principal(P)⋅f
 select_action(P,f::ScalarField) = principalnorm(P)*f
@@ -226,14 +238,25 @@ localfiber(P::PrincipalFiber,x::GradedVector) = PrincipalFiber(base(P)(x),fiber(
 
 Base.inv(P::PrincipalFiber) = PrincipalFiber(base(P),inv(principal(P)))
 
-UnitTangentBundle(t,d=unitjacobian(t)) = PrincipalFiber(t,d)
-TangentBundle(t,d=jacobian(t)) = PrincipalFiber(t,d)
-UnitPullback(t,d=unitjacobian(t)) = PrincipalFiber(t,inv(d))
-Pullback(t,d=jacobian(t)) = PrincipalFiber(t,inv(d))
-UnitNormalBundle(t,d=normalunitframe(t)) = PrincipalFiber(t,d)
-NormalBundle(t,d=normalframe(t)) = PrincipalFiber(t,d)
+_outermorphism(x::VectorField) = x
+_outermorphism(x::ScalarField) = x
+_outermorphism(x) = Outermorphism(x)
+
+UnitTangentBundle(t,d=unitjacobian(t)) = PrincipalFiber(t,_outermorphism(d))
+TangentBundle(t,d=jacobian(t)) = PrincipalFiber(t,_outermorphism(d))
+UnitPullback(t,d=unitjacobian(t)) = PrincipalFiber(t,_outermorphism(inv(d)))
+Pullback(t,d=jacobian(t)) = PrincipalFiber(t,_outermorphism(inv(d)))
+UnitNormalBundle(t,d=normalunitframe(t)) = PrincipalFiber(t,_outermorphism(d))
+NormalBundle(t,d=normalframe(t)) = PrincipalFiber(t,_outermorphism(d))
 SubNormalBundle(t,i::AbstractCurve) = SubNormalBundle(NormalBundle(t),i)
-SubNormalBundle(P::PrincipalFiber,i::AbstractCurve) = PrincipalFiber(base(P).(i), _normalframe(fiber(P).(i)))
+SubNormalBundle(P::PrincipalFiber,i::AbstractCurve) = PrincipalFiber(base(P).(i), _outermorphism(_normalframe(fiber(P).(i))))
+
+unittangentaction(f,t,d=unitjacobian(t)) = principalaction(t,d,f)
+tangentaction(f,t,d=jacobian(t)) = principalaction(t,d,f)
+unitpullbackaction(f,t,d=unitjacobian(t)) = principalaction(t,d,f)
+pullbackaction(f,t,d=jacobian(t)) = principalaction(t,d,f)
+unitnormalaction(f,t,d=normalunitframe(t)) = principalaction(t,d,f)
+normalaction(f,t,d=normalframe(t)) = principalaction(t,d,f)
 
 export transport, paralleltransport, retract
 retract(f,x=-normal(f)) = inv(normalframe(f))⋅(x-f)
@@ -252,16 +275,16 @@ end
 for fun ∈ (:trapz,:cumtrapz)
     for typ ∈ (:TensorField,:Function,:AbstractFloat)
         @eval begin
-            $fun(ϕ::TensorField,f::$typ) =  $fun(TangentBundle(ϕ)(f))
-            $fun(ϕ::TensorField,f::$typ,Ω) =  $fun(Ω*TangentBundle(ϕ)(f))
+            $fun(ϕ::TensorField,f::$typ) =  $fun(tangentaction(f,ϕ))
+            $fun(ϕ::TensorField,f::$typ,Ω) =  $fun(Ω*tangentaction(f,ϕ))
         end
     end
 end
 for (flx,fun) ∈ ((:fluxintegral,:cumtrapz),(:fluxintegrate,:trapz))
     for typ ∈ (:TensorField,:Function,:AbstractFloat)
         @eval begin
-            $flx(N::TensorField,f::$typ) =  $fun(NormalBundle(N)(f))
-            $flx(N::TensorField,f::$typ,Ω) =  $fun(Ω*NormalBundle(N)(f))
+            $flx(N::TensorField,f::$typ) =  $fun(normalaction(f,N))
+            $flx(N::TensorField,f::$typ,Ω) =  $fun(Ω*normalaction(f,N))
         end
     end
 end
@@ -381,60 +404,60 @@ function speed(f::IntervalMap,d=centraldiffpoints(f),t=centraldifffiber(f,d))
 end
 function normal(f::IntervalMap,d=centraldiffpoints(f),t=centraldifffiber(f,d))
     s = abs.(t,refmetric(f))
-    TensorField(domain(f), centraldiff(t./s,d)./s)
+    TensorField(base(f), centraldiff(t./s,immersion(f),d)./s)
 end
 function unitnormal(f::IntervalMap,d=centraldiffpoints(f),t=centraldifffiber(f,d))
-    TensorField(domain(f), unit.(centraldiff(unit.(t,refmetric(f)),d),refmetric(f)))
+    TensorField(base(f), unit.(centraldiff(unit.(t,refmetric(f)),immersion(f),d),refmetric(f)))
 end
 
 export curvature, radius, osculatingplane, unitosculatingplane, binormal, unitbinormal, torsion, frame, unitframe, normalframe, normalunitframe, frenet, darboux, wronskian, bishoppolar, bishop, bishopframe, bishopunitframe
 
 function curvature(f::AbstractCurve,d=centraldiffpoints(f),t=centraldifffiber(f,d))
     s = abs.(t,refmetric(f))
-    TensorField(domain(f), Real.(abs.(centraldiff(t./s,d),refmetric(f))./s))
+    TensorField(base(f), Real.(abs.(centraldiff(t./s,immersion(f),d),refmetric(f))./s))
 end
 function radius(f::AbstractCurve,d=centraldiffpoints(f),t=centraldifffiber(f,d))
     s = abs.(t,refmetric(f))
-    TensorField(domain(f), Real.(s./abs.(centraldiff(t./s,d),refmetric(f))))
+    TensorField(base(f), Real.(s./abs.(centraldiff(t./s,immersion(f),d),refmetric(f))))
 end
 function localevolute(f::AbstractCurve,d=centraldiffpoints(f),t=centraldifffiber(f,d))
     s = abs.(t,refmetric(f))
-    n = centraldiff(t./s,d)
+    n = centraldiff(t./s,immersion(f),d)
     an2 = abs2.(n,refmetric(f))
-    TensorField(domain(f), (s./an2).*n)
+    TensorField(base(f), (s./an2).*n)
 end
 evolute(f::AbstractCurve) = f+localevolute(f)
 Grassmann.involute(f::AbstractCurve) = f-unittangent(f)*arclength(f)
 function osculatingplane(f::AbstractCurve,d=centraldiffpoints(f),t=centraldifffiber(f,d))
-    TensorField(domain(f), TensorOperator.(Chain.(t,fiber(normal(f,d,t)))))
+    TensorField(base(f), TensorOperator.(Chain.(t,fiber(normal(f,d,t)))))
 end
 function unitosculatingplane(f::AbstractCurve,d=centraldiffpoints(f),t=centraldifffiber(f,d))
     T = unit.(t,refmetric(f))
-    TensorField(domain(f),TensorOperator.(Chain.(T,unit.(centraldiff(T,d),refmetric(f)))))
+    TensorField(base(f),TensorOperator.(Chain.(T,unit.(centraldiff(T,immersion(f),d),refmetric(f)))))
 end
 function binormal(f::SpaceCurve,d=centraldiffpoints(f),t=centraldifffiber(f,d))
-    TensorField(domain(f), .⋆(t.∧fiber(normal(f,d,t)),refmetric(f)))
+    TensorField(base(f), .⋆(t.∧fiber(normal(f,d,t)),refmetric(f)))
 end
 function unitbinormal(f::SpaceCurve,d=centraldiffpoints(f),t=centraldifffiber(f,d))
     T = unit.(t)
-    TensorField(domain(f), .⋆(T.∧(unit.(centraldiff(T,d),refmetric(f))),refmetric(f)))
+    TensorField(base(f), .⋆(T.∧(unit.(centraldiff(T,immersion(f),d),refmetric(f))),refmetric(f)))
 end
 function torsion(f::SpaceCurve,d=centraldiffpoints(f),t=centraldifffiber(f,d))
-    n = centraldiff(t,d)
+    n = centraldiff(t,immersion(f),d)
     b = t.∧n
-    TensorField(domain(f), Real.((b.∧centraldiff(n,d))./abs2.(.⋆b,refmetric(f))))
+    TensorField(base(f), Real.((b.∧centraldiff(n,immersion(f),d))./abs2.(.⋆b,refmetric(f))))
 end
-#=function curvaturetrivector(f::SpaceCurve,d=centraldiffpoints(f),t=centraldifffiber(f,d),n=centraldiff(t,d),b=t.∧n)
+#=function curvaturetrivector(f::SpaceCurve,d=centraldiffpoints(f),t=centraldifffiber(f,d),n=centraldiff(t,immersion(f),d),b=t.∧n)
     a=abs.(t,refmetric(f)); ut=t./a
-    TensorField(domain(f), (abs2.(centraldiff(ut,d)./a)).*(b.∧centraldiff(n,d))./abs2.(.⋆b))
+    TensorField(base(f), (abs2.(centraldiff(ut,immersion(f),d)./a)).*(b.∧centraldiff(n,immersion(f),d))./abs2.(.⋆b))
 end=#
-#torsion(f::TensorField,d=centraldiffpoints(f),t=centraldifffiber(f,d),n=centraldiff(t,d),a=abs.(t)) = TensorField(domain(f), abs.(centraldiff(.⋆((t./a).∧(n./abs.(n))),d))./a)
+#torsion(f::TensorField,d=centraldiffpoints(f),t=centraldifffiber(f,d),n=centraldiff(t,immersion(f),d),a=abs.(t)) = TensorField(base(f), abs.(centraldiff(.⋆((t./a).∧(n./abs.(n))),immersion(f),d))./a)
 frame(f::PlaneCurve,d=centraldiffpoints(f),e1=centraldifffiber(f,d)) = osculatingplane(f,d,e1)
 @generated function frame(f::AbstractCurve,d=centraldiffpoints(f),e1=centraldifffiber(f,d))
     N = mdims(fibertype(f))
     syms = Symbol.(:e,list(1,N-1))
     Expr(:block,:(s = abs.(e1,refmetric(f))),
-        [:($(syms[i]) = centraldiff(unit.($(syms[i-1]),refmetric(f)),d)./s) for i ∈ list(2,N-1)]...,
+        [:($(syms[i]) = centraldiff(unit.($(syms[i-1]),refmetric(f)),immersion(f),d)./s) for i ∈ list(2,N-1)]...,
         :(TensorField(base(f),TensorOperator.(Chain.($(syms...),.⋆(.∧($(syms...)),refmetric(f)))))))
 end
 unitframe(f::PlaneCurve,d=centraldiffpoints(f),t=centraldifffiber(f,d)) = unitosculatingplane(f,d,t)
@@ -442,7 +465,7 @@ unitframe(f::PlaneCurve,d=centraldiffpoints(f),t=centraldifffiber(f,d)) = unitos
     N = mdims(fibertype(f))
     syms = Symbol.(:e,list(1,N-1))
     Expr(:block,:(e1 = unit.(t,refmetric(f))),
-        [:($(syms[i]) = unit.(centraldiff($(syms[i-1]),d),refmetric(f))) for i ∈ list(2,N-1)]...,
+        [:($(syms[i]) = unit.(centraldiff($(syms[i-1]),immersion(f),d),refmetric(f))) for i ∈ list(2,N-1)]...,
         :($(Symbol(:e,N)) = .⋆(.∧($(syms...)),refmetric(f))),
         :(TensorField(base(f),TensorOperator.(Chain.($([:($(Symbol(:e,i))) for i ∈ list(1,N)]...))))))
 end
@@ -452,7 +475,7 @@ normalframe(f::AbstractCurve,d=centraldiffpoints(f),e1=centraldifffiber(f,d)) = 
     N = mdims(fibertype(f))
     syms = Symbol.(:e,list(1,N-1))
     Expr(:block,:(s = abs.(e1,refmetric(f))),
-        [:($(syms[i]) = centraldiff(unit.($(syms[i-1]),refmetric(f)),d)./s) for i ∈ list(2,N-1)]...,
+        [:($(syms[i]) = centraldiff(unit.($(syms[i-1]),refmetric(f)),immersion(f),d)./s) for i ∈ list(2,N-1)]...,
         :(TensorField(base(f),TensorOperator.(Chain.($(syms[2:end]...),.⋆(.∧($(syms...)),refmetric(f)))))))
 end=#
 normalunitframe(f::PlaneCurve,d=centraldiffpoints(f),t=centraldifffiber(f,d)) = unitnormal(f,d,t)
@@ -461,23 +484,23 @@ normalunitframe(f::AbstractCurve,d=centraldiffpoints(f),t=centraldifffiber(f,d))
     N = mdims(fibertype(f))
     syms = Symbol.(:e,list(1,N-1))
     Expr(:block,:(e1 = unit.(t,refmetric(f))),
-        [:($(syms[i]) = unit.(centraldiff($(syms[i-1]),d),refmetric(f))) for i ∈ list(2,N-1)]...,
+        [:($(syms[i]) = unit.(centraldiff($(syms[i-1]),immersion(f),d),refmetric(f))) for i ∈ list(2,N-1)]...,
         :($(Symbol(:e,N)) = .⋆(.∧($(syms...)),refmetric(f))),
         :(TensorField(base(f),TensorOperator.(Chain.($([:($(Symbol(:e,i))) for i ∈ list(2,N)]...))))))
 end=#
 function _normal(t::IntervalMap,d=centraldiffpoints(t))
     s = fiber(abs(t))
-    TensorField(domain(t), centraldiff(fiber(t)./s,d)./s)
+    TensorField(base(t), centraldiff(fiber(t)./s,immersion(t),d)./s)
 end
 function _unitnormal(t::IntervalMap,d=centraldiffpoints(t))
-    TensorField(domain(t), unit.(centraldiff(unit.(fiber(t),refmetric(t)),d),refmetric(t)))
+    TensorField(base(t), unit.(centraldiff(unit.(fiber(t),refmetric(t)),immersion(t),d),refmetric(t)))
 end
 _normalframe(t::PlaneCurve,d=centraldiffpoints(t),e1=fiber(t)) = _normal(f,d)
 @generated function _normalframe(t::AbstractCurve,d=centraldiffpoints(t),e1=fiber(t))
     N = mdims(fibertype(t))
     syms = Symbol.(:e,list(1,N-1))
     Expr(:block,:(s = abs.(e1,refmetric(t))),
-        [:($(syms[i]) = centraldiff(unit.($(syms[i-1]),refmetric(t)),d)./s) for i ∈ list(2,N-1)]...,
+        [:($(syms[i]) = centraldiff(unit.($(syms[i-1]),refmetric(t)),immersion(t),d)./s) for i ∈ list(2,N-1)]...,
         :(TensorField(base(t),TensorOperator.(Chain.($(syms[2:end]...),.⋆(.∧($(syms...)),refmetric(t)))))))
 end
 _normalunitframe(t::PlaneCurve,d=centraldiffpoints(t),e1=fiber(t)) = _unitnormal(t,d)
@@ -485,20 +508,20 @@ _normalunitframe(t::PlaneCurve,d=centraldiffpoints(t),e1=fiber(t)) = _unitnormal
     N = mdims(fibertype(T))
     syms = Symbol.(:e,list(1,N-1))
     Expr(:block,:(e1 = unit.(t,refmetric(T))),
-        [:($(syms[i]) = unit.(centraldiff($(syms[i-1]),d),refmetric(T))) for i ∈ list(2,N-1)]...,
+        [:($(syms[i]) = unit.(centraldiff($(syms[i-1]),immersion(T),d),refmetric(T))) for i ∈ list(2,N-1)]...,
         :($(Symbol(:e,N)) = .⋆(.∧($(syms...)),refmetric(T))),
         :(TensorField(base(T),TensorOperator.(Chain.($([:($(Symbol(:e,i))) for i ∈ list(2,N)]...))))))
 end
 
 function cartan(f::PlaneCurve,d=centraldiffpoints(f),t=centraldifffiber(f,d))
     κ = curvature(f,d,t)
-    TensorField(domain(f), Chain.(Chain.(0,κ),Chain.(.-κ,0)))
+    TensorField(base(f), Chain.(Chain.(0,κ),Chain.(.-κ,0)))
 end
 function cartan(f::SpaceCurve,d=centraldiffpoints(f),t=centraldifffiber(f,d))
-    n = centraldiff(t,d)
+    n = centraldiff(t,immersion(f),d)
     s,b = abs.(t,refmetric(f)),t.∧n
-    κ = Real.(abs.(centraldiff(t./s,d),refmetric(f))./s)
-    τ = Real.((b.∧centraldiff(n,d))./abs2.(.⋆(b,refmetric(f)),refmetric(f)))
+    κ = Real.(abs.(centraldiff(t./s,immersion(f),d),refmetric(f))./s)
+    τ = Real.((b.∧centraldiff(n,immersion(f),d))./abs2.(.⋆(b,refmetric(f)),refmetric(f)))
     TensorField(base(f),TensorOperator.(Chain.(Chain.(0,κ,0),Chain.(.-κ,0,τ),Chain.(0,.-τ,0))))
 end
 @generated function cartan(f::AbstractCurve,d=centraldiffpoints(f),t=centraldifffiber(f,d))
@@ -506,7 +529,7 @@ end
     N = mdims(V)
     bas = Grassmann.bladeindex.(N,UInt.(Λ(V).b[list(2,N)].∧Λ(V).b[list(3,N+1)]))
     syms,curvs = Symbol.(:e,list(1,N)),Symbol.(:κ,list(1,N-1))
-    vals = [:($(curvs[i]) = Real.(Grassmann.contraction_metric.($(syms[i+1]),centraldiff($(syms[i]),d),refmetric(f))./s)) for i ∈ list(1,N-1)]
+    vals = [:($(curvs[i]) = Real.(Grassmann.contraction_metric.($(syms[i+1]),centraldiff($(syms[i]),immersion(f),d),refmetric(f))./s)) for i ∈ list(1,N-1)]
     Expr(:block,:(s=abs.(t)),:(uf = fiber(unitframe(f,d,t))),
         [:($(syms[i]) = getindex.(uf,$i)) for i ∈ list(1,N)]...,vals...,
         :(TensorField(base(f),TensorOperator.(Chain.($([:(Chain.($([j ∈ (i-1,i+1) ? j==i-1 ? :(.-$(curvs[j])) : curvs[j-1] : 0 for j ∈ list(1,N)]...))) for i ∈ list(1,N)]...))))))
@@ -514,14 +537,14 @@ end # cartan(unitframe(f))
 function frenet(f::PlaneCurve,d=centraldiffpoints(f),t=centraldifffiber(f,d))
     s = abs.(t,refmetric(f))
     T = t./s
-    N = unit.(centraldiff(T,d),refmetric(f))
-    TensorField(domain(f), TensorOperator.(centraldiff(Chain.(T,N),d)./s))
+    N = unit.(centraldiff(T,immersion(f),d),refmetric(f))
+    TensorField(base(f), TensorOperator.(centraldiff(Chain.(T,N),immersion(f),d)./s))
 end
 function frenet(f::SpaceCurve,d=centraldiffpoints(f),t=centraldifffiber(f,d))
     s = abs.(t,refmetric(f))
     T = t./s
-    N = unit.(centraldiff(T,d),refmetric(f))
-    TensorField(domain(f), TensorOperator.(centraldiff(Chain.(T,N,.⋆(T.∧N,refmetric(f))),d)./s))
+    N = unit.(centraldiff(T,immersion(f),d),refmetric(f))
+    TensorField(base(f), TensorOperator.(centraldiff(Chain.(T,N,.⋆(T.∧N,refmetric(f))),immersion(f),d)./s))
 end
 frenet(f::AbstractCurve) = (F = unitframe(f); F⋅cartan(F))
 
@@ -537,16 +560,16 @@ end
 function curvatures(f::SpaceCurve,d::Vector=centraldiffpoints(f),t=centraldifffiber(f,d))
     V = Manifold(fibertype(f))
     s = abs.(t,refmetric(f))
-    n = centraldiff(t./s,d)./s
+    n = centraldiff(t./s,immersion(f),d)./s
     b = t.∧n
-    TensorField(domain(f), Chain{V,2}.(value.(abs.(n,refmetric(f))),0,getindex.((b.∧centraldiff(n,d))./abs.(.⋆(b,refmetric(f)),refmetric(f)).^2,1)))
+    TensorField(base(f), Chain{V,2}.(value.(abs.(n,refmetric(f))),0,getindex.((b.∧centraldiff(n,immersion(f),d))./abs.(.⋆(b,refmetric(f)),refmetric(f)).^2,1)))
 end
 @generated function curvatures(f::AbstractCurve,d=centraldiffpoints(f),t=centraldifffiber(f,d))
     V = Manifold(fibertype(f))
     N = mdims(V)
     bas = Grassmann.bladeindex.(N,UInt.(Λ(V).b[list(2,N)].∧Λ(V).b[list(3,N+1)]))
     syms = Symbol.(:e,list(1,N))
-    vals = [:(Real.(Grassmann.contraction_metric.($(syms[i+1]),centraldiff($(syms[i]),d),refmetric(f))./s)) for i ∈ list(1,N-1)]
+    vals = [:(Real.(Grassmann.contraction_metric.($(syms[i+1]),centraldiff($(syms[i]),immersion(f),d),refmetric(f))./s)) for i ∈ list(1,N-1)]
     Expr(:block,:(s=abs.(t)),:(uf = fiber(unitframe(f,d,t))),
         [:($(syms[i]) = getindex.(uf,$i)) for i ∈ list(1,N)]...,
         :(TensorField(base(f),Chain{$V,2}.($([j ∈ bas ? vals[searchsortedfirst(bas,j)] : 0 for j ∈ list(1,Grassmann.binomial(N,2))]...)))))
@@ -557,7 +580,7 @@ end
     j==1 && (return :(curvature(f,d,e1)*$(Λ(V).b[N+2])))
     syms = Symbol.(:e,list(1,N-1))
     Expr(:block,:(s=abs.(e1)),
-        [:($(syms[i]) = centraldiff($(syms[i-1])./s,d)) for i ∈ list(2,j<N-1 ? j+1 : N-1)]...,
+         [:($(syms[i]) = centraldiff($(syms[i-1])./s,immersion(f),d)) for i ∈ list(2,j<N-1 ? j+1 : N-1)]...,
         j==N-1 ? :($(Symbol(:e,N)) = .⋆(.∧($(syms...)),refmetric(f))) : nothing,
         :(TensorField(base(f),Real.(Grassmann.contraction_metric.(unit.($(Symbol(:e,j+1)),refmetric(f)),centraldiff(unit.($(syms[j]),refmetric(f)),d),refmetric(f))./abs.(e1)).*$(Λ(V).b[j+1]∧Λ(V).b[j+2]))))
 end
@@ -567,59 +590,111 @@ darboux(f::AbstractCurve,j) = compound(unitframe(f),Val(2))⋅curvatures(f,j)
 function bishopframe(f::SpaceCurve,θ0=0.0,d=centraldiffpoints(f),t=centraldifffiber(f,d))
     s,b = Real.(abs.(t,refmetric(f)))
     T = t./s
-    N = centraldiff(T,d)./s
+    N = centraldiff(T,immersion(f),d)./s
     B = .⋆(T.∧N,refmetric(f))
     τs = fiber(torsion(f,d,t)).*s
     θ = (diff(points(f))/2).*cumsum(τs[2:end]+τs[1:end-1]).+θ0
     pushfirst!(θ,θ0)
     cθ,sθ = cos.(θ),sin.(θ)
-    TensorField(domain(f), TensorOperator.(Chain.(T,cθ.*N.-sθ.*B,sθ.*N+cθ.*B)))
+    TensorField(base(f), TensorOperator.(Chain.(T,cθ.*N.-sθ.*B,sθ.*N+cθ.*B)))
 end
 function bishopunitframe(f::SpaceCurve,θ0=0.0,d=centraldiffpoints(f),t=centraldifffiber(f,d))
     s,b = Real.(abs.(t,refmetric(f)))
     T = unit.(t)
-    N = unit.(centraldiff(t./s,d))
+    N = unit.(centraldiff(t./s,immersion(f),d))
     B = .⋆(T.∧N,refmetric(f))
     τs = fiber(torsion(f,d,t)).*s
     θ = (diff(points(f))/2).*cumsum(τs[2:end]+τs[1:end-1]).+θ0
     pushfirst!(θ,θ0)
     cθ,sθ = cos.(θ),sin.(θ)
-    TensorField(domain(f), TensorOperator.(Chain.(T,cθ.*N.-sθ.*B,sθ.*N+cθ.*B)))
+    TensorField(base(f), TensorOperator.(Chain.(T,cθ.*N.-sθ.*B,sθ.*N+cθ.*B)))
 end
 function bishoppolar(f::SpaceCurve,θ0=0.0,d=centraldiffpoints(f),t=centraldifffiber(f,d))
-    n = centraldiff(t,d)
+    n = centraldiff(t,immersion(f),d)
     s,b = abs.(t,refmetric(f)),t.∧n
-    κ = Real.(abs.(centraldiff(t./s,d),refmetric(f))./s)
-    τs = Real.(((b.∧centraldiff(n,d))./abs2.(.⋆(b,refmetric(f)),refmetric(f))).*s)
+    κ = Real.(abs.(centraldiff(t./s,immersion(f),d),refmetric(f))./s)
+    τs = Real.(((b.∧centraldiff(n,immersion(f),d))./abs2.(.⋆(b,refmetric(f)),refmetric(f))).*s)
     θ = (diff(points(f))/2).*cumsum(τs[2:end]+τs[1:end-1]).+θ0
     pushfirst!(θ,θ0)
-    TensorField(domain(f), Chain.(κ,θ))
+    TensorField(base(f), Chain.(κ,θ))
 end
 function bishop(f::SpaceCurve,θ0=0.0,d=centraldiffpoints(f),t=centraldifffiber(f,d))
-    n = centraldiff(t,d)
+    n = centraldiff(t,immersion(f),d)
     s,b = abs.(t,refmetric(f)),t.∧n
-    κ = Real.(abs.(centraldiff(t./s,d),refmetric(f))./s)
-    τs = Real.(((b.∧centraldiff(n,d))./abs2.(.⋆(b,refmetric(f)),refmetric(f))).*s)
+    κ = Real.(abs.(centraldiff(t./s,immersion(f),d),refmetric(f))./s)
+    τs = Real.(((b.∧centraldiff(n,immersion(f),d))./abs2.(.⋆(b,refmetric(f)),refmetric(f))).*s)
     θ = (diff(points(f))/2).*cumsum(τs[2:end]+τs[1:end-1]).+θ0
     pushfirst!(θ,θ0)
-    TensorField(domain(f), Chain.(κ.*cos.(θ),κ.*sin.(θ)))
+    TensorField(base(f), Chain.(κ.*cos.(θ),κ.*sin.(θ)))
 end
-#bishoppolar(f::TensorField) = TensorField(domain(f), Chain.(value.(codomain(curvature(f))),getindex.(codomain(cumtrapz(torsion(f))),1)))
-#bishop(f::TensorField,κ=value.(codomain(curvature(f))),θ=getindex.(codomain(cumtrapz(torsion(f))),1)) = TensorField(domain(f), Chain.(κ.*cos.(θ),κ.*sin.(θ)))
+#bishoppolar(f::TensorField) = TensorField(base(f), Chain.(value.(fiber(curvature(f))),getindex.(fiber(cumtrapz(torsion(f))),1)))
+#bishop(f::TensorField,κ=value.(fiber(curvature(f))),θ=getindex.(fiber(cumtrapz(torsion(f))),1)) = TensorField(base(f), Chain.(κ.*cos.(θ),κ.*sin.(θ)))
 
 function planecurve(κ::RealFunction,φ::Real=0.0)
     int = iszero(φ) ? integral(κ) : integral(κ)+φ
     integral(Chain.(cos(int),sin(int)))
 end
 
-function wronskian(f::SpaceCurve,d=centraldiffpoints(f),t=centraldifffiber(f,d),n=centraldiff(t,d))
-    TensorField(domain(f), f.cod.∧t.∧n)
+function wronskian(f::SpaceCurve,d=centraldiffpoints(f),t=centraldifffiber(f,d),n=centraldiff(t,immersion(f),d))
+    TensorField(base(f), f.cod.∧t.∧n)
 end
 
-function linkmap(f::SpaceCurve,g::SpaceCurve)
-    TensorField(base(f)×base(g),[fiber(g)[j]-fiber(f)[i] for i ∈ OneTo(length(f)), j ∈ OneTo(length(g))])
+scrollsurface(f::AbstractCurve,g::AbstractCurve,n::Int=60) = linedsurface(f,g-f,n)
+scrollsurface(f::AbstractCurve,g::AbstractCurve,t) = ruledsurface(f,g-f,t)
+
+linedsurface(f::AbstractCurve,g::AbstractCurve=tangent(f),n::Int=60) = ruledsurface(f,g,OpenParameter(n))
+ruledsurface(f::AbstractCurve,g::AbstractCurve,n::Int=60) = ruledsurface(f,g,TensorField(LinRange(-1,1,n)))
+function ruledsurface(f::AbstractCurve,g::AbstractCurve,t)
+    TensorField(base(f)×base(t),[fiber(f)[i]+fiber(t)[j]*fiber(g)[i] for i ∈ OneTo(length(f)), j ∈ OneTo(length(t))])
 end
-link(tf::Chain,tg::Chain,f::Chain,g::Chain) = (gf = g-f; ngf = norm(gf); ∧(gf,tf,tg)/(ngf*ngf*ngf))
+
+function _product(f::AbstractCurve,g::AbstractCurve,fun::Function)
+    [fun(fiber(f)[i],fiber(g)[j]) for i ∈ OneTo(length(f)), j ∈ OneTo(length(g))]
+end
+function product(f::AbstractCurve,g::AbstractCurve,fun::Function)
+    TensorField(base(f)×base(g),_product(f,g,fun))
+end
+function productsphere(f::AbstractCurve,g::AbstractCurve,fun::Function)
+    TensorField(cross_sphere(base(f),base(g)),_product(f,g,fun))
+end
+function productpolar(f::AbstractCurve,g::AbstractCurve,fun::Function)
+    TensorField(cross_polar(base(f),base(g)),_product(f,g,fun))
+end
+
+unitcircle(n::Int=60) = unitcircle(TorusParameter(n))
+unitcircle(t::RealFunction) = Chain.(cos.(t),sin.(t))
+
+_helix(f,g) = Chain(g[1],g[2],f[1])
+unithelix(n::Int=60) = unithelix(TensorField(LinRange(0,2π,n)))
+unithelix(f::RealFunction,g::PlaneCurve=unitcircle(TensorField(base(f)))) = TensorField(base(f),_helix.(f,g))
+
+revolve33(f::Chain,g::Chain) = Chain(f[1]*g[1],f[2]*g[2],f[3]*g[3])
+revolve32(f::Chain,g::Chain) = Chain(f[1]*g[1],f[2]*g[2],f[3])
+revolve23(f::Chain,g::Chain) = Chain(f[1]*g[1],f[1]*g[2],f[2]*g[3])
+revolve22(f::Chain,g::Chain) = Chain(f[1]*g[1],f[1]*g[2],f[2])
+for (fun,prod) ∈ ((:revolve,:product),(:revolvesphere,:productsphere),(:revolvepolar,:productpolar))
+    @eval begin
+        $fun(f::AbstractCurve,n::Int=60) = $fun(f,unitcircle(n))
+        $fun(f::PlaneCurve,g::PlaneCurve) = $prod(f,g,revolve22)
+        $fun(f::PlaneCurve,g::SpaceCurve) = $prod(f,g,revolve23)
+        $fun(f::SpaceCurve,g::SpaceCurve) = $prod(f,g,revolve33)
+        $fun(f::SpaceCurve,g::PlaneCurve) = $prod(f,g,revolve32)
+        $fun(f::RealFunction,g...) = $fun(graph(f),g...)
+    end
+end
+conoid(f::SpaceCurve,n::Int=60) = revolve(TensorField(LinRange(-1,1,n),1),f)
+conoid(f::RealFunction,n::Int) = conoid(unithelix(f),n)
+conoid(f::RealFunction,g::PlaneCurve=unitcircle(TensorField(base(f))),n::Int=60) = conoid(unithelix(f,g),n)
+rightconoid(f::SpaceCurve,n::Int=60) = revolve(TensorField(OpenParameter(n),1),f)
+rightconoid(f::RealFunction,n::Int) = rightconoid(unithelix(f),n)
+rightconoid(f::RealFunction,g::PlaneCurve=unitcircle(TensorField(base(f))),n::Int=60) = rightconoid(unithelix(f,g),n)
+
+linkmap(f::Chain,g::Chain) = g-f
+linkmap(f::SpaceCurve,g::SpaceCurve) = product(f,g,linkmap)
+function link(tf::Chain,tg::Chain,f::Chain,g::Chain)
+    gf = g-f; ngf = norm(gf)
+    ∧(gf,tf,tg)/(ngf*ngf*ngf)
+end
 function link(f::SpaceCurve,g::SpaceCurve)
     tf,tg = fiber(tangent(f)),fiber(tangent(g))
     TensorField(base(f)×base(g),[link(tf[i],tg[j],fiber(f)[i],fiber(g)[j]) for i ∈ OneTo(length(f)), j ∈ OneTo(length(g))])
@@ -631,23 +706,23 @@ linknumber(f::SpaceCurve,g::SpaceCurve) = integrate(link(f,g))/4π
 function compare(f::TensorField)#???
     d = centraldiffpoints(f)
     t = centraldifffiber(f,d)
-    n = centraldiff(t,d)
+    n = centraldiff(t,immersion(f),d)
     s = abs.(t)
-    TensorField(domain(f), centraldiff(t./s,d).-n./s)
+    TensorField(fiber(f), centraldiff(t./s,immersion(f),d).-n./s)
 end #????
 
-function frame(f::VectorField{<:Coordinate{<:Chain},<:Chain,2,<:RealSpace{2}})#,d=centraldiff(points(f)),t=centraldiff(codomain(f),d),n=centraldiff(t,d))
+function frame(f::VectorField{<:Coordinate{<:Chain},<:Chain,2,<:RealSpace{2}})#,d=centraldiff(points(f)),t=centraldiff(fiber(f),immersion(f),d),n=centraldiff(t,immersion(f),d))
     Ψ = gradient(f)
     Ψu,Ψv = getindex.(Ψ,1),getindex.(Ψ,2)
     ξ3 = ⋆(Ψu∧Ψv)
-    TensorField(domain(f), TensorOperator.(Chain.(fiber(Ψu),fiber(⋆(ξ3∧Ψu)),fiber(ξ3))))
+    TensorField(base(f), TensorOperator.(Chain.(fiber(Ψu),fiber(⋆(ξ3∧Ψu)),fiber(ξ3))))
 end
-function unitframe(f::VectorField{<:Coordinate{<:Chain},<:Chain,2,<:RealSpace{2}})#,d=centraldiff(points(f)),t=centraldiff(codomain(f),d),n=centraldiff(t,d))
+function unitframe(f::VectorField{<:Coordinate{<:Chain},<:Chain,2,<:RealSpace{2}})#,d=centraldiff(points(f)),t=centraldiff(fiber(f),immersion(f),d),n=centraldiff(t,immersion(f),d))
     Ψ = gradient(f)
     Ψu,Ψv = getindex.(Ψ,1),getindex.(Ψ,2)
     ξ3 = ⋆(Ψu∧Ψv)
     ξ2 = ⋆(ξ3∧Ψu)
-    TensorField(domain(f), TensorOperator.(Chain.(fiber(Ψu/abs(Ψu)),fiber(ξ2/abs(ξ2)),fiber(ξ3/abs(ξ3)))))
+    TensorField(base(f), TensorOperator.(Chain.(fiber(Ψu/abs(Ψu)),fiber(ξ2/abs(ξ2)),fiber(ξ3/abs(ξ3)))))
 end
 
 export surfacemetric, surfacemetricdiag, surfaceframe, shape

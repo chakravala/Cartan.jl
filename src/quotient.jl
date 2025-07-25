@@ -48,6 +48,7 @@ QuotientTopology(n::ProductTopology) = OpenTopology(n.v)
 OpenTopology(n::ProductTopology) = OpenTopology(n.v)
 OpenTopology(n::QuotientTopology) = OpenTopology(size(n))
 OpenTopology(n::Values{N,Int}) where N = QuotientTopology(Values{0,Int}(),Values{0,Array{Values{N-1,Int},N-1}}(),zeros(Values{2N,Int}),n)
+RevolvedTopology(n::Values{2,Int}) = QuotientTopology(Values(4,3),Values(ProductTopology(n[1]),ProductTopology(n[1])),Values(0,0,1,2),n)
 CylinderTopology(n::Values{2,Int}) = QuotientTopology(Values(2,1),Values(ProductTopology(n[2]),ProductTopology(n[2])),Values(1,2,0,0),n)
 MobiusTopology(n::Values{2,Int}) = QuotientTopology(Values(2,1),Values(ProductTopology(n[2]:-1:1),ProductTopology(n[2]:-1:1)),Values(1,2,0,0),n)
 WingTopology(n::Values{2,Int}) = QuotientTopology(Values(1,2),Values(ProductTopology(n[2]:-1:1),ProductTopology(n[2]:-1:1)),Values(1,2,0,0),n)
@@ -70,7 +71,7 @@ HopfTopology(n::Values{2,Int}) = QuotientTopology(Values(2,1,4,3),Values(Product
 HopfTopology(n::Values{3,Int}) = QuotientTopology(Values(2,1,4,3,6,5),Values(ProductTopology(OneTo(n[2]),CrossRange(n[3])),ProductTopology(OneTo(n[2]),CrossRange(n[3])),ProductTopology(OneTo(n[1]),CrossRange(n[3])),ProductTopology(OneTo(n[1]),CrossRange(n[3])),ProductTopology(n[1],n[2]),ProductTopology(n[1],n[2])),Values(1,2,3,4,5,6),n)
 KleinTopology(n::Values{2,Int}) = QuotientTopology(Values(2,1,4,3),Values(ProductTopology(n[2]:-1:1),ProductTopology(n[2]:-1:1),ProductTopology(1:1:n[1]),ProductTopology(1:1:n[1])),Values(1,2,3,4),n)
 ConeTopology(n::Values{2,Int}) = QuotientTopology(Values(1,4,3),Values(ProductTopology(CrossRange(n[2])),ProductTopology(n[1]),ProductTopology(n[1])),Values(1,0,2,3),n)
-PolarTopology(n::Values{2,Int}) = QuotientTopology(Values(1,2,4,3),Values(ProductTopology(CrossRange(n[2])),ProductTopology(n[2]),ProductTopology(n[1]),ProductTopology(n[1])),Values(1,2,3,4),n)
+PolarTopology(n::Values{2,Int}) = QuotientTopology(Values(1,2,4,3),Values(ProductTopology(CrossRange(n[2])),ProductTopology(n[2]),ProductTopology(n[1]),ProductTopology(n[1])),Values(1,2,3,4),n,Values(1,0,0,0))
 SphereTopology(n::Values{1,Int}) = TorusTopology(n)
 SphereTopology(n::Values{2,Int}) = QuotientTopology(Values(1,2,4,3),Values(ProductTopology(CrossRange(n[2])),ProductTopology(CrossRange(n[2])),ProductTopology(n[1]),ProductTopology(n[1])),Values(1,2,3,4),n,Values(1,1,0,0))
 SphereTopology(n::Values{3,Int}) = QuotientTopology(Values(1,2,3,4,6,5),Values(ProductTopology(OneTo(n[2]),CrossRange(n[3])),ProductTopology(OneTo(n[2]),CrossRange(n[3])),ProductTopology(OneTo(n[1]),CrossRange(n[3])),ProductTopology(OneTo(n[1]),CrossRange(n[3])),ProductTopology(n[1],n[2]),ProductTopology(n[1],n[2])),Values(1,2,3,4,5,6),n)
@@ -84,6 +85,7 @@ OpenParameter(n::Values{2,Int}) = OpenTopology(LinRange(0,1,n[1])⊕LinRange(0,1
 OpenParameter(n::Values{3,Int}) = OpenTopology(LinRange(0,1,n[1])⊕LinRange(0,1,n[2])⊕LinRange(0,1,n[3]))
 OpenParameter(n::Values{4,Int}) = OpenTopology(LinRange(0,1,n[1])⊕LinRange(0,1,n[2])⊕LinRange(0,1,n[3])⊕LinRange(0,1,n[4]))
 OpenParameter(n::Values{5,Int}) = OpenTopology(LinRange(0,1,n[1])⊕LinRange(0,1,n[2])⊕LinRange(0,1,n[3])⊕LinRange(0,1,n[4])⊕LinRange(0,1,n[5]))
+RevolvedParameter(n::Values{2,Int}) = RevolvedTopology(LinRange(-1,1,n[1])⊕LinRange(0,2π,n[2]))
 CylinderParameter(n::Values{2,Int}) = CylinderTopology(LinRange(0,2π,n[1])⊕LinRange(-1,1,n[2]))
 MobiusParameter(n::Values{2,Int}) = MobiusTopology(LinRange(0,2π,n[1])⊕LinRange(-1,1,n[2]))
 WingParameter(n::Values{2,Int}) = WingParameter(LinRange(0,1,n[1])⊕LinRange(-1,1,n[2]))
@@ -114,7 +116,7 @@ SphereParameter(n::Values{4,Int}) = SphereTopology(LinRange(0,π,n[1])⊕LinRang
 SphereParameter(n::Values{5,Int}) = SphereTopology(LinRange(0,π,n[1])⊕LinRange(0,π,n[2])⊕LinRange(0,π,n[3])⊕LinRange(0,π,n[4])⊕LinRange(0,2π,n[5]))
 GeographicParameter(n::Values{2,Int}) = GeographicTopology(LinRange(-π,π,n[1])⊕LinRange(-π/2,π/2,n[2]))
 
-for fun ∈ (:Open,:Cylinder,:Mobius,:Wing,:Mirror,:Clamped,:Torus,:Hopf,:Klein,:Cone,:Polar,:Sphere,:Geographic)
+for fun ∈ (:Open,:Revolved,:Cylinder,:Mobius,:Wing,:Mirror,:Clamped,:Torus,:Hopf,:Klein,:Cone,:Polar,:Sphere,:Geographic)
     for typ ∈ (Symbol(fun,:Topology),Symbol(fun,:Parameter))
         @eval begin
             export $typ
@@ -158,6 +160,19 @@ isopen(t::OpenTopology) = true
 iscompact(t::QuotientTopology) = false
 iscompact(t::CompactTopology) = true
 _to_axis(f::Int) = (iseven(f) ? f : f+1)÷2
+
+function cross_sphere(m::QuotientTopology{1},n::QuotientTopology{1})
+    M,N = m.s[1],n.s[1]
+    QuotientTopology(Values(1,2,(n.p.+2)...),
+        Values((ProductTopology(CrossRange(N)),ProductTopology(CrossRange(N)),zeroprodtop(n.r[1],M)...,zeroprodtop(n.r[2],M)...)),
+        Values(1,2,iszero(n.r[1]) ? 0 : n.r[1]+2,iszero(n.r[2]) ? 0 : n.r[2]+2),Values(M,N),Values(1,1,0,0))
+end
+function cross_polar(m::QuotientTopology{1},n::QuotientTopology{1})
+    M,N = m.s[1],n.s[1]
+    QuotientTopology(Values(1,2,(n.p.+2)...),
+        Values((ProductTopology(CrossRange(N)),ProductTopology(N),zeroprodtop(n.r[1],M)...,zeroprodtop(n.r[2],M)...)),
+        Values(1,2,iszero(n.r[1]) ? 0 : n.r[1]+2,iszero(n.r[2]) ? 0 : n.r[2]+2),Values(M,N),Values(1,0,0,0))
+end
 
 zeroprodtop(r,n) = iszero(r) ? () : (ProductTopology(n),)
 LinearAlgebra.cross(m::OpenTopology,n::OpenTopology) = OpenTopology(m.s...,n.s...)

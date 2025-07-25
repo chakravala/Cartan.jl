@@ -81,10 +81,10 @@ end
 #=function (m::IntervalMap)(t::Vector,d=diff(m.cod)./diff(m.dom))
     [parametric(i,m,d) for i ∈ t]
 end=#
-function parametric(t,m,d=diff(codomain(m))./diff(domain(m)))
+function parametric(t,m,d=diff(fiber(m))./diff(points(m)))
     p = points(m)
     i,i0 = searchpoints(p,t)
-    codomain(m)[i]+(t-p[i])*d[i]
+    fiber(m)[i]+(t-p[i])*d[i]
 end
 
 (m::RectangleMap)(t::Real) = leaf(m,t)
@@ -342,16 +342,16 @@ for fun ∈ (:_slow,:_fast)
         $cdp(f,args...) = $cdg(GridBundle(PointArray(0,points(f)),immersion(f)),args...)
         $cdp(f::TensorField{B,F,Nf,<:RealSpace{Nf,P,<:InducedMetric} where P} where {B,F,Nf},n::Val{N},args...) where N = $cd(points(f).v[N],subtopology(immersion(f),n),args...)
         function $grad(f::IntervalMap,d::AbstractVector=$cdp(f))
-            TensorField(domain(f), $cdf(f,d))
+            TensorField(base(f), $cdf(f,d))
         end
         function $grad(f::TensorField{B,F,N,<:AbstractArray} where {B,F,N},d::AbstractArray=$cd(base(f)))
-            TensorField(domain(f), $cdf(f,d))
+            TensorField(base(f), $cdf(f,d))
         end
         function $grad(f::IntervalMap,::Val{1},d::AbstractVector=$cdp(f))
-            TensorField(domain(f), $cdf(f,d))
+            TensorField(base(f), $cdf(f,d))
         end
         function $grad(f::TensorField{B,F,Nf,<:RealSpace{Nf,P,<:InducedMetric} where P} where {B,F,Nf},n::Val{N},d::AbstractArray=$cd(points(f).v[N])) where N
-            TensorField(domain(f), $cdf(f,n,d))
+            TensorField(base(f), $cdf(f,n,d))
         end
         function $grad(f::TensorField{B,F,Nf,<:RealSpace} where {B,F,Nf},n::Val{N},d::AbstractArray=$cd(points(f).v[N])) where N
             l = size(points(f))
@@ -359,10 +359,10 @@ for fun ∈ (:_slow,:_fast)
             @threads for i ∈ l[1]; for j ∈ l[2]
                 dg[i,j] *= d[isone(N) ? i : j]
             end end
-            TensorField(domain(f), $cdf(f,n,dg))
+            TensorField(base(f), $cdf(f,n,dg))
         end
         function $grad(f::TensorField,n::Val,d::AbstractArray=$cdp(f,n))
-            TensorField(domain(f), $cdf(f,n,d))
+            TensorField(base(f), $cdf(f,n,d))
         end
         $grad(f::TensorField,n::Int,args...) = $grad(f,Val(n),args...)
         $cd(f::AbstractArray,args...) = $cdg(GridBundle(PointArray(0,f)),args...)
@@ -491,33 +491,37 @@ function centraldiff_slow_calc(f::GridBundle{M,T,PA,<:OpenTopology} where {M,T,P
 end
 function Cartan.centraldiff_slow_calc(f::GridBundle,l::Int,n::Val{N},i::Vararg{Int}) where N #l=size(f)[N]
     if isone(i[N])
-        if iszero(immersion(f).r[2N-1])
+        r = immersion(f).r[2N-1]
+        if iszero(r)
             18f[1,n,i...]-9f[2,n,i...]+2f[3,n,i...]-11points(f)[i...]
-        elseif immersion(f).p[2N-1]≠2N-1
+        elseif immersion(f).p[r]≠2N-1
             f[-2,n,i...]+7(f[0,n,i...]-points(f)[i...])+8(f[1,n,i...]-f[-1,n,i...])-f[2,n,i...]
         else
             (-f[-2,n,i...])+7(-f[0,n,i...]-points(f)[i...])+8(f[1,n,i...]+f[-1,n,i...])-f[2,n,i...]
         end
     elseif i[N]==l
-        if iszero(immersion(f).r[2N])
+        r = immersion(f).r[2N]
+        if iszero(r)
             11points(f)[i...]-18f[-1,n,i...]+9f[-2,n,i...]-2f[-3,n,i...]
-        elseif immersion(f).p[2N]≠2N
+        elseif immersion(f).p[r]≠2N
             f[-2,n,i...]+8(f[1,n,i...]-f[-1,n,i...])+7(points(f)[i...]-f[0,n,i...])-f[2,n,i...]
         else
             f[-2,n,i...]+8(-f[1,n,i...]-f[-1,n,i...])+7(points(f)[i...]-f[0,n,i...])+f[2,n,i...]
         end
     elseif i[N]==2
-        if iszero(immersion(f).r[2N-1])
+        r = immersion(f).r[2N-1]
+        if iszero(r)
             6f[1,n,i...]-f[2,n,i...]-3points(f)[i...]-2f[-1,n,i...]
-        elseif immersion(f).p[2N-1]≠2N-1
+        elseif immersion(f).p[r]≠2N-1
             f[-2,n,i...]-f[-1,n,i...]+8f[1,n,i...]-7getpoint(f,-1,n,i...)-f[2,n,i...]
         else
             (-f[-2,n,i...])+f[-1,n,i...]+8f[1,n,i...]-7getpoint(f,-1,n,i...)-f[2,n,i...]
         end
     elseif i[N]==l-1
-        if iszero(immersion(f).r[2N])
+        r = immersion(f).r[2N]
+        if iszero(r)
             3points(f)[i...]-6f[-1,n,i...]+f[-2,n,i...]+2f[1,n,i...]
-        elseif immersion(f).p[2N]≠2N
+        elseif immersion(f).p[r]≠2N
             f[-2,n,i...]+7getpoint(f,1,n,i...)-8f[-1,n,i...]+f[1,n,i...]-f[2,n,i...]
         else
             f[-2,n,i...]+7getpoint(f,1,n,i...)-8f[-1,n,i...]-f[1,n,i...]+f[2,n,i...]
@@ -592,17 +596,19 @@ function centraldiff_fast_calc(f::GridBundle{M,T,PA,<:OpenTopology} where {M,T,P
 end
 function Cartan.centraldiff_fast_calc(f::GridBundle,l::Int,n::Val{N},i::Vararg{Int}) where N
     if isone(i[N])
-        if iszero(immersion(f).r[2N-1])
+        r = immersion(f).r[2N-1]
+        if iszero(r)
             18f[1,n,i...]-9f[2,n,i...]+2f[3,n,i...]-11points(f)[i...]
-        elseif immersion(f).p[2N-1]≠2N-1
+        elseif immersion(f).p[r]≠2N-1
             (f[1,n,i...]-points(f)[i...])+(f[0,n,i...]-f[-1,n,i...])
         else # mirror
             (f[1,n,i...]-points(f)[i...])-(f[0,n,i...]-f[-1,n,i...])
         end
     elseif i[N]==l
-        if iszero(immersion(f).r[2N])
+        r = immersion(f).r[2N]
+        if iszero(r)
             11points(f)[i...]-18f[-1,n,i...]+9f[-2,n,i...]-2f[-3,n,i...]
-        elseif immersion(f).p[2N]≠2N
+        elseif immersion(f).p[r]≠2N
             (f[1,n,i...]-f[0,n,i...])+(points(f)[i...]-f[-1,n,i...])
         else # mirror
             (f[0,n,i...]-f[1,n,i...])+(points(f)[i...]-f[-1,n,i...])
@@ -666,8 +672,8 @@ trapz1(f::DenseVector,h::Real) = h*((f[1]+f[end])/2+sum(f[2:end-1]))
 trapz(f::IntervalMap,j::Int) = trapz(f,Val(j))
 trapz(f::IntervalMap,j::Val{1}) = trapz(f)
 trapz(f::ParametricMap,j::Int) = trapz(f,Val(j))
-trapz(f::ParametricMap,j::Val{J}) where J = remove(domain(f),j) → trapz2(codomain(f),j,diff(points(f).v[J]))
-trapz(f::ParametricMap{B,F,N,<:AlignedSpace} where {B,F,N},j::Val{J}) where J = remove(domain(f),j) → trapz1(codomain(f),j,step(points(f).v[J]))
+trapz(f::ParametricMap,j::Val{J}) where J = remove(base(f),j) → trapz2(fiber(f),j,diff(points(f).v[J]))
+trapz(f::ParametricMap{B,F,N,<:AlignedSpace} where {B,F,N},j::Val{J}) where J = remove(base(f),j) → trapz1(fiber(f),j,step(points(f).v[J]))
 gentrapz1(n,j,h=:h,f=:f) = :($h*(($(select1(n,j,1,f))+$(select1(n,j,:(size(f)[$j]),f)))/2+$(select1(n,j,1,:(sum($(select1(n,j,:(2:$(:end)-1),f)),dims=$j))))))
 @generated function trapz1(f::DenseArray{T,N} where T,::Val{J},h::Real,s::Tuple=size(f)) where {N,J}
     gentrapz1(N,J)
@@ -687,14 +693,14 @@ function gentrapz2(n,j,f=:f,d=:(d[$j]))
     end
 end
 function trapz(f::IntervalMap{B,F,<:IntervalRange} where {B<:AbstractReal,F})
-    trapz1(codomain(f),step(points(f)))
+    trapz1(fiber(f),step(points(f)))
 end
 for N ∈ list(2,5)
     @eval function trapz(f::ParametricMap{B,F,$N,<:AlignedSpace{$N}} where {B,F})
-        trapz1(codomain(f),$([:(step(points(f).v[$j])) for j ∈ 1:N]...))
+        trapz1(fiber(f),$([:(step(points(f).v[$j])) for j ∈ 1:N]...))
     end
     @eval function trapz(m::ParametricMap{B,F,$N,T} where {B,F,T},D::AbstractVector=diff.(points(m).v))
-        c = codomain(m)
+        c = fiber(m)
         f,s,d = similar(c),size(c),D./2
         $(Expr(:block,vcat([gentrapz2(j,j,j≠N ? :f : :c).args for j ∈ N:-1:1]...)...))
     end
@@ -735,12 +741,12 @@ totalarclength(f::IntervalMap) = sum(arcsteps(f))
 function arclength(f::IntervalMap)
     int = cumsum(arcsteps(f))
     pushfirst!(int,zero(eltype(int)))
-    TensorField(domain(f), int)
+    TensorField(base(f), int)
 end # cumtrapz(speed(f))
 function cumtrapz(f::IntervalMap,d::AbstractVector=diff(points(f)))
     i = (d/2).*cumsum(f.cod[2:end]+f.cod[1:end-1])
     pushfirst!(i,zero(eltype(i)))
-    TensorField(domain(f), i)
+    TensorField(base(f), i)
 end
 function cumtrapz1(f::DenseVector,h::Real)
     i = (h/2)*cumsum(f[2:end]+f[1:end-1])
@@ -750,8 +756,8 @@ end
 cumtrapz(f::IntervalMap,j::Int) = cumtrapz(f,Val(j))
 cumtrapz(f::IntervalMap,j::Val{1}) = cumtrapz(f)
 cumtrapz(f::ParametricMap,j::Int) = cumtrapz(f,Val(j))
-cumtrapz(f::ParametricMap,j::Val{J}) where J = TensorField(domain(f), cumtrapz2(codomain(f),j,diff(points(f).v[J])))
-cumtrapz(f::ParametricMap{B,F,N,<:AlignedSpace{N}} where {B,F,N},j::Val{J}) where J = TensorField(domain(f), cumtrapz1(codomain(f),j,step(points(f).v[J])))
+cumtrapz(f::ParametricMap,j::Val{J}) where J = TensorField(base(f), cumtrapz2(fiber(f),j,diff(points(f).v[J])))
+cumtrapz(f::ParametricMap{B,F,N,<:AlignedSpace{N}} where {B,F,N},j::Val{J}) where J = TensorField(base(f), cumtrapz1(fiber(f),j,step(points(f).v[J])))
 selectzeros(n,j) = :(zeros(T,$([i≠j ? :(s[$i]) : 1 for i ∈ 1:n]...)))
 selectzeros2(n,j) = :(zeros(T,$([i≠j ? i<j ? :(s[$i]) : :(s[$i]-1) : 1 for i ∈ 1:n]...)))
 gencat(n,j=n,cat=n≠2 ? :cat : j≠2 ? :vcat : :hcat) = :($cat($(selectzeros2(n,j)),$(j≠1 ? gencat(n,j-1) : :i);$((cat≠:cat ? () : (Expr(:kw,:dims,j),))...)))
@@ -773,17 +779,17 @@ function gencumtrapz2(n,j,d=:(d[$j]),f=j≠1 ? :i : :f)
     end
 end
 function cumtrapz(f::IntervalMap{B,F,<:IntervalRange} where {B<:AbstractReal,F})
-    TensorField(domain(f), cumtrapz1(codomain(f),step(points(f))))
+    TensorField(base(f), cumtrapz1(fiber(f),step(points(f))))
 end
 for N ∈ 2:5
     @eval function cumtrapz(f::ParametricMap{B,F,$N,<:AlignedSpace{$N}} where {B,F})
-        TensorField(domain(f), cumtrapz1(codomain(f),$([:(step(points(f).v[$j])) for j ∈ 1:N]...)))
+        TensorField(base(f), cumtrapz1(fiber(f),$([:(step(points(f).v[$j])) for j ∈ 1:N]...)))
     end
     @eval function cumtrapz(m::ParametricMap{B,F,$N,T} where {B,F},D::AbstractVector=diff.(points(m).v)) where T
-        f = codomain(m)
+        f = fiber(m)
         s,d = size(f),D./2
         $(Expr(:block,vcat([gencumtrapz2(N,j,:(d[$j])).args for j ∈ 1:N]...)...))
-        TensorField(domain(m), $(gencat(N)))
+        TensorField(base(m), $(gencat(N)))
     end
     for J ∈ 1:N
         @eval function cumtrapz2(c::DenseArray{T,$N},::Val{$J}) where T
@@ -794,6 +800,6 @@ for N ∈ 2:5
     end
 end
 function linecumtrapz(γ::IntervalMap,f::Function)
-    cumtrapz(TensorField(domain(γ),f.(codomain(γ)).⋅codomain(gradient(γ))))
+    cumtrapz(TensorField(base(γ),f.(fiber(γ)).⋅fiber(gradient(γ))))
 end
 

@@ -124,7 +124,7 @@ widths(t::ProductSpace) = widths.(t.v)
 
 remove(t::ProductSpace{V,T,2} where {V,T},::Val{1}) = (@inbounds t.v[2])
 remove(t::ProductSpace{V,T,2} where {V,T},::Val{2}) = (@inbounds t.v[1])
-@generated remove(t::ProductSpace{V,T,N} where {V,T},::Val{J}) where {N,J} = :(ProductSpace(domain(t).v[$(Values([i for i ∈ 1:N if i≠J]...))]))
+@generated remove(t::ProductSpace{V,T,N} where {V,T},::Val{J}) where {N,J} = :(ProductSpace(t.v[$(Values([i for i ∈ 1:N if i≠J]...))]))
 
 # 1
 (m::ProductSpace)(c::Colon,i::Int...) = (@inbounds m.v[1])

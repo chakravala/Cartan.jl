@@ -496,7 +496,7 @@ function gradienthat(t::FaceBundle,m=volumes(t))
     end)
 end
 
-function laplacian(t::ElementMap,m=volumes(domain(t)),g=gradienthat(domain(t),m))
+function laplacian(t::ElementMap,m=volumes(base(t)),g=gradienthat(base(t),m))
     out = gradient(t,m,g)
     TensorField(base(out),Real.(abs.(fiber(out))))
 end

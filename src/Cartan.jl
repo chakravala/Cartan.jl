@@ -156,7 +156,7 @@ basetype(::TensorField{B}) where B = B
 basetype(::Type{<:TensorField{B}}) where B = B
 fibertype(::TensorField{B,F} where B) where F = F
 fibertype(::Type{<:TensorField{B,F} where B}) where F = F
-Base.broadcast(f,t::TensorField) = TensorField(domain(t), f.(codomain(t)))
+Base.broadcast(f,t::TensorField) = TensorField(base(t), f.(fiber(t)))
 #TensorField(dom::SimplexBundle{1}) = TensorField(dom,getindex.(points(dom),2))
 
 """
@@ -202,7 +202,7 @@ metrictensorfield(t::SimplexBundle) = TensorField(SimplexBundle(PointCloud(0,poi
 Grassmann.grade(::GradedField{G}) where G = G
 Grassmann.antigrade(t::GradedField) = antigrade(fibertype(t))
 
-resize(t::TensorField) = TensorField(resize(domain(t)),codomain(t))
+resize(t::TensorField) = TensorField(resize(base(t)),fiber(t))
 
 function resample(t::TensorField,i::NTuple)
     rg = resample(base(t),i)
@@ -210,25 +210,25 @@ function resample(t::TensorField,i::NTuple)
 end
 
 @pure Base.eltype(::Type{<:TensorField{B,F}}) where {B,F} = LocalTensor{B,F}
-Base.getindex(m::TensorField,i::Vararg{Int}) = LocalTensor(getindex(domain(m),i...), getindex(codomain(m),i...))
-Base.getindex(m::TensorField,i::Vararg{Union{Int,Colon}}) = TensorField(domain(m)(i...), getindex(codomain(m),i...))
-#Base.setindex!(m::TensorField{B,F,1,<:Interval},s::LocalTensor,i::Vararg{Int}) where {B,F} = setindex!(codomain(m),fiber(s),i...)
-Base.setindex!(m::TensorField{B,Fm} where Fm,s::F,i::Vararg{Int}) where {B,F} = setindex!(codomain(m),s,i...)
-Base.setindex!(m::TensorField{B,Fm} where Fm,s::TensorField,::Colon,i::Int) where B = setindex!(codomain(m),codomain(s),:,i)
-Base.setindex!(m::TensorField{B,Fm} where Fm,s::TensorField,::Colon,::Colon,i::Int) where B = setindex!(codomain(m),codomain(s),:,:,i)
-Base.setindex!(m::TensorField{B,Fm} where Fm,s::TensorField,::Colon,::Colon,::Colon,i::Int) where B = setindex!(codomain(m),codomain(s),:,:,:,i)
-Base.setindex!(m::TensorField{B,Fm} where Fm,s::TensorField,::Colon,::Colon,::Colon,::Colon,i::Int) where B = setindex!(codomain(m),codomain(s),:,:,:,:,i)
+Base.getindex(m::TensorField,i::Vararg{Int}) = LocalTensor(getindex(base(m),i...), getindex(fiber(m),i...))
+Base.getindex(m::TensorField,i::Vararg{Union{Int,Colon}}) = TensorField(base(m)(i...), getindex(fiber(m),i...))
+#Base.setindex!(m::TensorField{B,F,1,<:Interval},s::LocalTensor,i::Vararg{Int}) where {B,F} = setindex!(fiber(m),fiber(s),i...)
+Base.setindex!(m::TensorField{B,Fm} where Fm,s::F,i::Vararg{Int}) where {B,F} = setindex!(fiber(m),s,i...)
+Base.setindex!(m::TensorField{B,Fm} where Fm,s::TensorField,::Colon,i::Int) where B = setindex!(fiber(m),fiber(s),:,i)
+Base.setindex!(m::TensorField{B,Fm} where Fm,s::TensorField,::Colon,::Colon,i::Int) where B = setindex!(fiber(m),fiber(s),:,:,i)
+Base.setindex!(m::TensorField{B,Fm} where Fm,s::TensorField,::Colon,::Colon,::Colon,i::Int) where B = setindex!(fiber(m),fiber(s),:,:,:,i)
+Base.setindex!(m::TensorField{B,Fm} where Fm,s::TensorField,::Colon,::Colon,::Colon,::Colon,i::Int) where B = setindex!(fiber(m),fiber(s),:,:,:,:,i)
 function Base.setindex!(m::TensorField{B,F,N,<:IntervalRange} where {B,F,N},s::LocalTensor,i::Vararg{Int})
-    setindex!(codomain(m),fiber(s),i...)
+    setindex!(fiber(m),fiber(s),i...)
     return s
 end
 function Base.setindex!(m::TensorField{B,F,N,<:AlignedSpace} where {B,F,N},s::LocalTensor,i::Vararg{Int})
-    setindex!(codomain(m),fiber(s),i...)
+    setindex!(fiber(m),fiber(s),i...)
     return s
 end
 function Base.setindex!(m::TensorField,s::LocalTensor,i::Vararg{Int})
-    #setindex!(domain(m),base(s),i...)
-    setindex!(codomain(m),fiber(s),i...)
+    #setindex!(base(m),base(s),i...)
+    setindex!(fiber(m),fiber(s),i...)
     return s
 end
 
@@ -250,7 +250,7 @@ function Base.similar(bc::Broadcast.Broadcasted{Broadcast.ArrayStyle{TensorField
     # Scan the inputs for the TensorField:
     t = find_tf(bc)
     # Use the domain field of t to create the output
-    TensorField(domain(t), similar(Array{fibertype(ElType),N}, axes(bc)))
+    TensorField(base(t), similar(Array{fibertype(ElType),N}, axes(bc)))
 end
 function Base.similar(bc::Broadcast.Broadcasted{Broadcast.ArrayStyle{GridBundle{N,C,PA,TA}}}, ::Type{ElType}) where {N,C,PA,TA,ElType}
     t = find_gf(bc)
@@ -288,15 +288,15 @@ Base.BroadcastStyle(::Type{<:PrincipalFiber{M,G,N,XM,XG}}) where {M,G,N,XM,XG} =
     # Scan the inputs for the PrincipalFiber:
     t = find_pf(bc)
     # Use the domain field of t to create the output
-    #TensorField(domain(t), similar(Array{basetype(ElType),N}, axes(bc)))
-    TensorField(domain(t), similar(Array{fibertype(ElType),N}, axes(bc)))
+    #TensorField(base(t), similar(Array{basetype(ElType),N}, axes(bc)))
+    TensorField(base(t), similar(Array{fibertype(ElType),N}, axes(bc)))
 end=#
 
 @findobject find_pf PrincipalFiber
 
 (m::TensorField{B,F,N,<:SimplexBundle} where {B,F,N})(i::ImmersedTopology) = TensorField(coordinates(m)(i),fiber(m)[vertices(i)])
 (m::TensorField{B,F,N,<:GridBundle} where {B,F,N})(i::ImmersedTopology) = TensorField(base(m)(i),fiber(m))
-for fun ∈ (:Open,:Mirror,:Clamped,:Torus,:Cylinder,:Wing,:Mobius,:Klein,:Cone,:Polar,:Sphere,:Geographic,:Hopf)
+for fun ∈ (:Open,:Mirror,:Clamped,:Torus,:Revolved,:Cylinder,:Wing,:Mobius,:Klein,:Cone,:Polar,:Sphere,:Geographic,:Hopf)
     for top ∈ (Symbol(fun,:Topology),)
         @eval begin
             $top(m::TensorField{B,F,N,<:GridBundle} where {B,F,N}) = TensorField($top(base(m)),fiber(m))
@@ -326,13 +326,13 @@ Grassmann.Chain(t::TensorField{B,<:Union{Real,Complex}} where B) = Chain{Submani
 function Grassmann.Chain(t::TensorField{B,<:Chain{V,G}} where B) where {V,G}
     Chain{V,G}((TensorField(base(t), getindex.(fiber(t),j)) for j ∈ 1:binomial(mdims(V),G))...)
 end
-Base.:^(t::TensorField,n::Int) = TensorField(domain(t), .^(codomain(t),n,refmetric(t)))
+Base.:^(t::TensorField,n::Int) = TensorField(base(t), .^(fiber(t),n,refmetric(t)))
 for op ∈ (:+,:-,:&,:∧,:∨)
     let bop = op ∈ (:∧,:∨) ? :(Grassmann.$op) : :(Base.$op)
         @eval begin
-            $bop(a::TensorField,b::TensorField) = checkdomain(a,b) && TensorField(domain(a), $op.(codomain(a),codomain(b)))
-            $bop(a::TensorField,b::Number) = TensorField(domain(a), $op.(codomain(a),Ref(b)))
-            $bop(a::Number,b::TensorField) = TensorField(domain(b), $op.(Ref(a),codomain(b)))
+            $bop(a::TensorField,b::TensorField) = checkdomain(a,b) && TensorField(base(a), $op.(fiber(a),fiber(b)))
+            $bop(a::TensorField,b::Number) = TensorField(base(a), $op.(fiber(a),Ref(b)))
+            $bop(a::Number,b::TensorField) = TensorField(base(b), $op.(Ref(a),fiber(b)))
         end
     end
 end
@@ -373,43 +373,43 @@ for (op,mop) ∈ ((:*,:wedgedot_metric),(:wedgedot,:wedgedot_metric),(:veedot,:v
     end end
 end
 for fun ∈ (:-,:!,:~,:real,:imag,:conj,:deg2rad,:transpose)
-    @eval Base.$fun(t::TensorField) = TensorField(domain(t), $fun.(codomain(t)))
+    @eval Base.$fun(t::TensorField) = TensorField(base(t), $fun.(fiber(t)))
 end
 for fun ∈ (:exp,:exp2,:exp10,:log,:log2,:log10,:sinh,:cosh,:abs,:sqrt,:cbrt,:cos,:sin,:tan,:cot,:sec,:csc,:asec,:acsc,:sech,:csch,:asech,:tanh,:coth,:asinh,:acosh,:atanh,:acoth,:asin,:acos,:atan,:acot,:sinc,:cosc,:cis,:abs2,:inv)
-    @eval Base.$fun(t::TensorField) = TensorField(domain(t), $fun.(codomain(t),ref(metricextensor(t))))
+    @eval Base.$fun(t::TensorField) = TensorField(base(t), $fun.(fiber(t),ref(metricextensor(t))))
 end
-for fun ∈ (:reverse,:clifford,:even,:odd,:scalar,:vector,:bivector,:volume,:value,:complementleft,:realvalue,:imagvalue,:outermorphism,:Outermorphism,:DiagonalOperator,:TensorOperator,:eigen,:eigvecs,:eigvals,:eigvalsreal,:eigvalscomplex,:eigvecsreal,:eigvecscomplex,:eigpolys,:∧,:↑,:↓)
-    @eval Grassmann.$fun(t::TensorField) = TensorField(domain(t), $fun.(codomain(t)))
+for fun ∈ (:reverse,:clifford,:even,:odd,:scalar,:vector,:bivector,:volume,:value,:complementleft,:realvalue,:imagvalue,:outermorphism,:Outermorphism,:DiagonalOperator,:TensorOperator,:eigen,:eigvecs,:eigvals,:eigvalsreal,:eigvalscomplex,:eigvecsreal,:eigvecscomplex,:eigpolys,:pfaffian,:∧,:↑,:↓)
+    @eval Grassmann.$fun(t::TensorField) = TensorField(base(t), $fun.(fiber(t)))
 end
 for fun ∈ (:⋆,:angle,:radius,:complementlefthodge,:pseudoabs,:pseudoabs2,:pseudoexp,:pseudolog,:pseudoinv,:pseudosqrt,:pseudocbrt,:pseudocos,:pseudosin,:pseudotan,:pseudocosh,:pseudosinh,:pseudotanh,:metric,:unit)
-    @eval Grassmann.$fun(t::TensorField) = TensorField(domain(t), $fun.(codomain(t),ref(metricextensor(t))))
+    @eval Grassmann.$fun(t::TensorField) = TensorField(base(t), $fun.(fiber(t),ref(metricextensor(t))))
 end
 for fun ∈ (:sum,:prod)
-    @eval Base.$fun(t::TensorField) = LocalTensor(domain(t)[end], $fun(codomain(t)))
+    @eval Base.$fun(t::TensorField) = LocalTensor(base(t)[end], $fun(fiber(t)))
 end
 for fun ∈ (:cumsum,:cumprod)
     @eval function Base.$fun(t::TensorField)
-         out = $fun(codomain(t))
+         out = $fun(fiber(t))
          pushfirst!(out,zero(eltype(out)))
-         TensorField(domain(t), out)
+         TensorField(base(t), out)
     end
 end
 
 Grassmann.signbit(::TensorField) = false
-#Base.inv(t::TensorField) = TensorField(codomain(t), domain(t))
-Base.diff(t::TensorField) = TensorField(diff(domain(t)), diff(codomain(t)))
-absvalue(t::TensorField) = TensorField(domain(t), value.(abs.(codomain(t))))
-LinearAlgebra.tr(t::TensorField) = TensorField(domain(t), tr.(codomain(t)))
-LinearAlgebra.det(t::TensorField) = TensorField(domain(t), det.(codomain(t)))
-LinearAlgebra.norm(t::TensorField) = TensorField(domain(t), norm.(codomain(t)))
-(V::Submanifold)(t::TensorField) = TensorField(domain(t), V.(codomain(t)))
-(::Type{T})(t::TensorField) where T<:Real = TensorField(domain(t), T.(codomain(t)))
-(::Type{Complex})(t::TensorField) = TensorField(domain(t), Complex.(codomain(t)))
-(::Type{Complex{T}})(t::TensorField) where T = TensorField(domain(t), Complex{T}.(codomain(t)))
-Grassmann.Phasor(s::TensorField) = TensorField(domain(s), Phasor(codomain(s)))
-Grassmann.Couple(s::TensorField) = TensorField(domain(s), Couple(codomain(s)))
+#Base.inv(t::TensorField) = TensorField(fiber(t), base(t))
+Base.diff(t::TensorField) = TensorField(diff(base(t)), diff(fiber(t)))
+absvalue(t::TensorField) = TensorField(base(t), value.(abs.(fiber(t))))
+LinearAlgebra.tr(t::TensorField) = TensorField(base(t), tr.(fiber(t)))
+LinearAlgebra.det(t::TensorField) = TensorField(base(t), det.(fiber(t)))
+LinearAlgebra.norm(t::TensorField) = TensorField(base(t), norm.(fiber(t)))
+(V::Submanifold)(t::TensorField) = TensorField(base(t), V.(fiber(t)))
+(::Type{T})(t::TensorField) where T<:Real = TensorField(base(t), T.(fiber(t)))
+(::Type{Complex})(t::TensorField) = TensorField(base(t), Complex.(fiber(t)))
+(::Type{Complex{T}})(t::TensorField) where T = TensorField(base(t), Complex{T}.(fiber(t)))
+Grassmann.Phasor(s::TensorField) = TensorField(base(s), Phasor(fiber(s)))
+Grassmann.Couple(s::TensorField) = TensorField(base(s), Couple(fiber(s)))
 
-checkdomain(a::FiberBundle,b::FiberBundle) = domain(a)≠domain(b) ? error("GlobalFiber base not equal") : true
+checkdomain(a::FiberBundle,b::FiberBundle) = base(a)≠base(b) ? error("GlobalFiber base not equal") : true
 
 disconnect(t::FaceMap) = TensorField(disconnect(base(t)),fiber(t))
 discontinuous(t::FaceMap) = discontinuous(t,discontinuous(base(t)))
@@ -609,28 +609,28 @@ function __init__()
             end
         end
         function linegraph(t::GradedField{G,B,F,1} where G;args...) where {B<:Coordinate{<:AbstractReal},F}
-            x,y = Real.(points(t)),value.(codomain(t))
+            x,y = Real.(points(t)),value.(fiber(t))
             display(Makie.lines(x,Real.(getindex.(y,1));args...))
-            for i ∈ 2:binomial(mdims(codomain(t)),grade(t))
+            for i ∈ 2:binomial(mdims(fiber(t)),grade(t))
                 Makie.lines!(x,Real.(getindex.(y,i));args...)
             end
         end
         function linegraph!(t::GradedField{G,B,F,1} where G;args...) where {B<:Coordinate{<:AbstractReal},F}
-            x,y = Real.(points(t)),value.(codomain(t))
+            x,y = Real.(points(t)),value.(fiber(t))
             display(Makie.lines!(x,Real.(getindex.(y,1));args...))
-            for i ∈ 2:binomial(mdims(codomain(t)),grade(t))
+            for i ∈ 2:binomial(mdims(fiber(t)),grade(t))
                 Makie.lines!(x,Real.(getindex.(y,i));args...)
             end
         end
         function Makie.lines(t::IntervalMap{B,<:TensorOperator},f::Function=speed;args...) where B<:Coordinate{<:AbstractReal}
             display(Makie.lines(getindex.(t,1),f;args...))
-            for i ∈ 2:mdims(eltype(codomain(t)))
+            for i ∈ 2:mdims(eltype(fiber(t)))
                 Makie.lines!(getindex.(t,i),f;args...)
             end
         end
         function Makie.lines!(t::IntervalMap{B,<:TensorOperator},f::Function=speed;args...) where B<:Coordinate{<:AbstractReal}
             display(Makie.lines!(getindex.(t,1),f;args...))
-            for i ∈ 2:mdims(eltype(codomain(t)))
+            for i ∈ 2:mdims(eltype(fiber(t)))
                 Makie.lines!(getindex.(t,i),f;args...)
             end
         end
@@ -808,13 +808,13 @@ function __init__()
         end
         function Makie.arrows(t::VectorField{<:Coordinate{<:Chain},<:TensorOperator,2,<:RealSpace{2}};args...)
             display(Makie.arrows(getindex.(t,1);args...))
-            for i ∈ 2:mdims(eltype(codomain(t)))
+            for i ∈ 2:mdims(eltype(fiber(t)))
                 Makie.arrows!(getindex.(t,i);args...)
             end
         end
         function Makie.arrows!(t::VectorField{<:Coordinate{<:Chain},<:TensorOperator,2,<:RealSpace{2}};args...)
             display(Makie.arrows!(getindex.(t,1);args...))
-            for i ∈ 2:mdims(eltype(codomain(t)))
+            for i ∈ 2:mdims(eltype(fber(t)))
                 Makie.arrows!(getindex.(t,i);args...)
             end
         end
@@ -822,13 +822,13 @@ function __init__()
             @eval begin
                 function Makie.$fun(t::TensorField{<:Coordinate{<:Chain},<:TensorOperator,N,<:GridBundle};args...) where N
                     display(Makie.$fun(getindex.(t,1);args...))
-                    for i ∈ 2:mdims(eltype(codomain(t)))
+                    for i ∈ 2:mdims(eltype(fiber(t)))
                         Makie.$fun!(getindex.(t,i);args...)
                     end
                 end
                 function Makie.$fun!(t::TensorField{<:Coordinate{<:Chain},<:TensorOperator,N,<:GridBundle};args...) where N
                     display(Makie.$fun!(getindex.(t,1);args...))
-                    for i ∈ 2:mdims(eltype(codomain(t)))
+                    for i ∈ 2:mdims(eltype(fiber(t)))
                         Makie.$fun!(getindex.(t,i);args...)
                     end
                 end
@@ -836,59 +836,59 @@ function __init__()
         end
         function Makie.streamplot(t::TensorField{<:Coordinate{<:Chain},<:TensorOperator,2,<:RealSpace{2}},m::U;args...) where U<:Union{<:VectorField,<:Function}
             display(Makie.streamplot(getindex.(t,1),m;args...))
-            for i ∈ 2:mdims(eltype(codomain(t)))
+            for i ∈ 2:mdims(eltype(fiber(t)))
                 Makie.streamplot!(getindex.(t,i),m;args...)
             end
         end
         function Makie.streamplot!(t::TensorField{<:Coordinate{<:Chain},<:TensorOperator,2,<:RealSpace{2}},m::U;args...) where U<:Union{<:VectorField,<:Function}
             display(Makie.streamplot!(getindex.(t,1),m;args...))
-            for i ∈ 2:mdims(eltype(codomain(t)))
+            for i ∈ 2:mdims(eltype(fiber(t)))
                 Makie.streamplot!(getindex.(t,i),m;args...)
             end
         end
         for fun ∈ (:volume,:volume!,:contour,:contour!,:voxels,:voxels!)
             @eval function Makie.$fun(t::VolumeGrid;args...)
                 p = points(t).v
-                Makie.$fun(Makie.:..(p[1][1],p[1][end]),Makie.:..(p[2][1],p[2][end]),Makie.:..(p[3][1],p[3][end]),Real.(codomain(t));args...)
+                Makie.$fun(Makie.:..(p[1][1],p[1][end]),Makie.:..(p[2][1],p[2][end]),Makie.:..(p[3][1],p[3][end]),Real.(fiber(t));args...)
             end
         end
         for fun ∈ (:volumeslices,:volumeslices!)
-            @eval Makie.$fun(t::VolumeGrid;args...) = Makie.$fun(points(t).v...,Real.(codomain(t));args...)
+            @eval Makie.$fun(t::VolumeGrid;args...) = Makie.$fun(points(t).v...,Real.(fiber(t));args...)
         end
         for fun ∈ (:surface,:surface!)
             @eval begin
-                Makie.$fun(t::SurfaceGrid,f::Function=gradient_fast;args...) = Makie.$fun(points(t).v...,Real.(codomain(t));color=Real.(abs.(codomain(f(Real(t))))),args...)
-                Makie.$fun(t::ComplexMap{B,<:AbstractComplex,2,<:RealSpace{2}} where B;args...) = Makie.$fun(points(t).v...,Real.(radius.(codomain(t)));color=Real.(angle.(codomain(t))),colormap=:twilight,args...)
+                Makie.$fun(t::SurfaceGrid,f::Function=gradient_fast;args...) = Makie.$fun(points(t).v...,Real.(fiber(t));color=Real.(abs.(fiber(f(Real(t))))),args...)
+                Makie.$fun(t::ComplexMap{B,<:AbstractComplex,2,<:RealSpace{2}} where B;args...) = Makie.$fun(points(t).v...,Real.(radius.(fiber(t)));color=Real.(angle.(fiber(t))),colormap=:twilight,args...)
                 Makie.$fun(t::TensorField{B,<:AbstractReal,2,<:FiberProductBundle} where B;args...) = Makie.$fun(TensorField(GridBundle(base(t)),fiber(t)))
                 function Makie.$fun(t::GradedField{G,B,F,2,<:RealSpace{2}} where G,f::Function=gradient_fast;args...) where {B,F<:Chain}
-                    x,y = points(t),value.(codomain(t))
+                    x,y = points(t),value.(fiber(t))
                     yi = Real.(getindex.(y,1))
-                    display(Makie.$fun(x.v...,yi;color=Real.(abs.(codomain(f(x→yi)))),args...))
-                    for i ∈ 2:binomial(mdims(eltype(codomain(t))),grade(t))
+                    display(Makie.$fun(x.v...,yi;color=Real.(abs.(fiber(f(x→yi)))),args...))
+                    for i ∈ 2:binomial(mdims(eltype(fiber(t))),grade(t))
                         yi = Real.(getindex.(y,i))
-                        Makie.$(funsym(fun))(x.v...,yi;color=Real.(abs.(codomain(f(x→yi)))),args...)
+                        Makie.$(funsym(fun))(x.v...,yi;color=Real.(abs.(fiber(f(x→yi)))),args...)
                     end
                 end
             end
         end
         for fun ∈ (:contour,:contour!,:contourf,:contourf!,:contour3d,:contour3d!,:wireframe,:wireframe!)
             @eval begin
-                Makie.$fun(t::ComplexMap{B,<:AbstractComplex,2,<:RealSpace{2}} where B;args...) = Makie.$fun(points(t).v...,Real.(radius.(codomain(t)));args...)
+                Makie.$fun(t::ComplexMap{B,<:AbstractComplex,2,<:RealSpace{2}} where B;args...) = Makie.$fun(points(t).v...,Real.(radius.(fiber(t)));args...)
             end
         end
         for fun ∈ (:heatmap,:heatmap!)
             @eval begin
-                Makie.$fun(t::ComplexMap{B,<:AbstractComplex,2,<:RealSpace{2}} where B;args...) = Makie.$fun(points(t).v...,Real.(angle.(codomain(t)));colormap=:twilight,args...)
+                Makie.$fun(t::ComplexMap{B,<:AbstractComplex,2,<:RealSpace{2}} where B;args...) = Makie.$fun(points(t).v...,Real.(angle.(fiber(t)));colormap=:twilight,args...)
             end
         end
         for fun ∈ (:contour,:contour!,:contourf,:contourf!,:contour3d,:contour3d!,:heatmap,:heatmap!)
             @eval begin
-                Makie.$fun(t::SurfaceGrid;args...) = Makie.$fun(points(t).v...,Real.(codomain(t));args...)
+                Makie.$fun(t::SurfaceGrid;args...) = Makie.$fun(points(t).v...,Real.(fiber(t));args...)
                 Makie.$fun(t::TensorField{B,<:AbstractReal,2,<:FiberProductBundle} where B;args...) = Makie.$fun(TensorField(GridBundle(base(t)),fiber(t)))
                 function Makie.$fun(t::GradedField{G,B,F,2,<:RealSpace{2}} where G;args...) where {B,F}
-                    x,y = points(t),value.(codomain(t))
+                    x,y = points(t),value.(fiber(t))
                     display(Makie.$fun(x.v...,Real.(getindex.(y,1));args...))
-                    for i ∈ 2:binomial(mdims(eltype(codomain(t))),G)
+                    for i ∈ 2:binomial(mdims(eltype(fiber(t))),G)
                         Makie.$(funsym(fun))(x.v...,Real.(getindex.(y,i));args...)
                     end
                 end
@@ -946,7 +946,7 @@ function __init__()
         for fun ∈ (:arrows2d,:arrows3d,:arrows2d!,:arrows3d!)
             @eval begin
                 #Makie.$fun(t::ScalarField{<:Coordinate{<:Chain},F,2,<:RealSpace{2}} where F;args...) = Makie.$fun(vec(Makie.Point.(fiber(graph(Real(t))))),vec(Makie.Point.(fiber(normal(Real(t)))));args...)
-                Makie.$fun(t::VectorField{<:Coordinate{<:Chain{W,L,F,2} where {W,L,F}},<:Chain{V,G,T,2} where {V,G,T},2,<:AlignedRegion{2}};args...) = Makie.$fun(points(t).v...,getindex.(codomain(t),1),getindex.(codomain(t),2);args...)
+                Makie.$fun(t::VectorField{<:Coordinate{<:Chain{W,L,F,2} where {W,L,F}},<:Chain{V,G,T,2} where {V,G,T},2,<:AlignedRegion{2}};args...) = Makie.$fun(points(t).v...,getindex.(fiber(t),1),getindex.(fiber(t),2);args...)
                 Makie.$fun(t::VectorField{<:Coordinate{<:Chain},<:Chain,2,<:RealSpace{2}};args...) = Makie.$fun(Makie.Point.(vec(points(t))),Makie.Point.(vec(fiber(t)));args...)
                 Makie.$fun(t::VectorField{<:Coordinate{<:Chain},F,N,<:GridBundle} where {F,N};args...) = Makie.$fun(vec(Makie.Point.(points(t))),vec(Makie.Point.(fiber(t)));args...)
                 Makie.$fun(t::VectorField,f::VectorField;args...) = Makie.$fun(vec(Makie.Point.(fiber(t))),vec(Makie.Point.(fiber(f)));args...)
@@ -954,8 +954,8 @@ function __init__()
                 #Makie.$fun(t::Hyperrectangle,f::Function;args...) = Makie.$fun(t.v...,f;args...)
             end
         end
-        #Makie.wireframe(t::ElementFunction;args...) = Makie.wireframe(value(domain(t));color=Real.(codomain(t)),args...)
-        #Makie.wireframe!(t::ElementFunction;args...) = Makie.wireframe!(value(domain(t));color=Real.(codomain(t)),args...)
+        #Makie.wireframe(t::ElementFunction;args...) = Makie.wireframe(value(base(t));color=Real.(fiber(t)),args...)
+        #Makie.wireframe!(t::ElementFunction;args...) = Makie.wireframe!(value(base(t));color=Real.(fiber(t)),args...)
         Makie.convert_arguments(P::Makie.PointBased, a::SimplexBundle) = Makie.convert_arguments(P, Vector(points(a)))
         Makie.convert_single_argument(a::LocalFiber) = convert_arguments(P,Point(a))
         Makie.arrows(t::TensorField{B,F,N,<:SimplexBundle} where {B,F,N};args...) = Makie.arrows(GeometryBasics.Point.(↓(Manifold(base(t))).(points(t))),GeometryBasics.Point.(fiber(t));args...)
@@ -1038,8 +1038,8 @@ function __init__()
         Makie.wireframe!(M::TensorField{B,<:Chain,N,<:GridBundle} where {B,N};args...) = Makie.wireframe!(GridBundle(fiber(M));args...)
         Makie.mesh(M::TensorField{B,F,N,<:FaceBundle} where {B,F,N};args...) = Makie.mesh(interp(M);args...)
         Makie.mesh!(M::TensorField{B,F,N,<:FaceBundle} where {B,F,N};args...) = Makie.mesh!(interp(M);args...)
-        Makie.mesh(t::ScalarMap;args...) = Makie.mesh(domain(t);color=Real.(codomain(t)),args...)
-        Makie.mesh!(t::ScalarMap;args...) = Makie.mesh!(domain(t);color=Real.(codomain(t)),args...)
+        Makie.mesh(t::ScalarMap;args...) = Makie.mesh(base(t);color=Real.(fiber(t)),args...)
+        Makie.mesh!(t::ScalarMap;args...) = Makie.mesh!(base(t);color=Real.(fiber(t)),args...)
         function Makie.mesh(M::SimplexBundle;args...)
             if mdims(M) == 2
                 sm = submesh(M)[:,1]
@@ -1094,22 +1094,22 @@ function __init__()
         end
         UnicodePlots.scatterplot(t::TensorField{B,F,N,<:SimplexBundle} where {B,F,N};args...) = UnicodePlots.scatterplot(submesh(base(t))[:,1],fiber(t);args...)
         UnicodePlots.scatterplot!(P,t::TensorField{B,F,N,<:SimplexBundle} where {B,F,N};args...) = UnicodePlots.scatterplot!(P,submesh(base(t))[:,1],fiber(t);args...)
-        UnicodePlots.lineplot(t::ScalarMap;args...) = UnicodePlots.lineplot(getindex.(domain(t),2),codomain(t);args...)
-        UnicodePlots.lineplot!(p::UnicodePlots.Plot{<:UnicodePlots.Canvas},t::ScalarMap;args...) = UnicodePlots.lineplot!(p,getindex.(domain(t),2),codomain(t);args...)
-        UnicodePlots.lineplot(t::PlaneCurve;args...) = UnicodePlots.lineplot(getindex.(codomain(t),1),getindex.(codomain(t),2);args...)
-        UnicodePlots.lineplot!(p::UnicodePlots.Plot{<:UnicodePlots.Canvas},t::PlaneCurve;args...) = UnicodePlots.lineplot!(p,getindex.(codomain(t),1),getindex.(codomain(t),2);args...)
-        UnicodePlots.lineplot(t::RealFunction;args...) = UnicodePlots.lineplot(Real.(points(t)),Real.(codomain(t));args...)
-        UnicodePlots.lineplot!(p::UnicodePlots.Plot{<:UnicodePlots.Canvas},t::RealFunction;args...) = UnicodePlots.lineplot!(p,Real.(points(t)),Real.(codomain(t));args...)
-        UnicodePlots.lineplot(t::ComplexMap{B,<:AbstractComplex,1};args...) where B<:Coordinate{<:AbstractReal} = UnicodePlots.lineplot(real.(Complex.(codomain(t))),imag.(Complex.(codomain(t)));args...)
-        UnicodePlots.lineplot!(p::UnicodePlots.Plot{<:UnicodePlots.Canvas},t::ComplexMap{B,<:AbstractComplex,1};args...) where B<:Coordinate{<:AbstractReal} = UnicodePlots.lineplot!(p,real.(Complex.(codomain(t))),imag.(Complex.(codomain(t)));args...)
-        UnicodePlots.lineplot(t::GradedField{G,B,F,1} where {G,F};args...) where B<:Coordinate{<:AbstractReal} = UnicodePlots.lineplot(Real.(points(t)),Grassmann.array(codomain(t));args...)
-        UnicodePlots.lineplot!(p::UnicodePlots.Plot{<:UnicodePlots.Canvas},t::GradedField{G,B,F,1} where {G,F};args...) where B<:Coordinate{<:AbstractReal} = UnicodePlots.lineplot!(p,Real.(points(t)),Grassmann.array(codomain(t));args...)
-        UnicodePlots.polarplot(t::RealFunction;args...) = UnicodePlots.lineplot(Real.(points(t)),Real.(codomain(t));args...)
-        UnicodePlots.polarplot!(p::UnicodePlots.Plot{<:UnicodePlots.Canvas},t::RealFunction;args...) = UnicodePlots.polarplot!(p,Real.(points(t)),Real.(codomain(t));args...)
+        UnicodePlots.lineplot(t::ScalarMap;args...) = UnicodePlots.lineplot(getindex.(base(t),2),fiber(t);args...)
+        UnicodePlots.lineplot!(p::UnicodePlots.Plot{<:UnicodePlots.Canvas},t::ScalarMap;args...) = UnicodePlots.lineplot!(p,getindex.(base(t),2),fiber(t);args...)
+        UnicodePlots.lineplot(t::PlaneCurve;args...) = UnicodePlots.lineplot(getindex.(fiber(t),1),getindex.(fiber(t),2);args...)
+        UnicodePlots.lineplot!(p::UnicodePlots.Plot{<:UnicodePlots.Canvas},t::PlaneCurve;args...) = UnicodePlots.lineplot!(p,getindex.(fiber(t),1),getindex.(fiber(t),2);args...)
+        UnicodePlots.lineplot(t::RealFunction;args...) = UnicodePlots.lineplot(Real.(points(t)),Real.(fiber(t));args...)
+        UnicodePlots.lineplot!(p::UnicodePlots.Plot{<:UnicodePlots.Canvas},t::RealFunction;args...) = UnicodePlots.lineplot!(p,Real.(points(t)),Real.(fiber(t));args...)
+        UnicodePlots.lineplot(t::ComplexMap{B,<:AbstractComplex,1};args...) where B<:Coordinate{<:AbstractReal} = UnicodePlots.lineplot(real.(Complex.(fiber(t))),imag.(Complex.(fiber(t)));args...)
+        UnicodePlots.lineplot!(p::UnicodePlots.Plot{<:UnicodePlots.Canvas},t::ComplexMap{B,<:AbstractComplex,1};args...) where B<:Coordinate{<:AbstractReal} = UnicodePlots.lineplot!(p,real.(Complex.(fiber(t))),imag.(Complex.(fiber(t)));args...)
+        UnicodePlots.lineplot(t::GradedField{G,B,F,1} where {G,F};args...) where B<:Coordinate{<:AbstractReal} = UnicodePlots.lineplot(Real.(points(t)),Grassmann.array(fiber(t));args...)
+        UnicodePlots.lineplot!(p::UnicodePlots.Plot{<:UnicodePlots.Canvas},t::GradedField{G,B,F,1} where {G,F};args...) where B<:Coordinate{<:AbstractReal} = UnicodePlots.lineplot!(p,Real.(points(t)),Grassmann.array(fiber(t));args...)
+        UnicodePlots.polarplot(t::RealFunction;args...) = UnicodePlots.lineplot(Real.(points(t)),Real.(fiber(t));args...)
+        UnicodePlots.polarplot!(p::UnicodePlots.Plot{<:UnicodePlots.Canvas},t::RealFunction;args...) = UnicodePlots.polarplot!(p,Real.(points(t)),Real.(fiber(t));args...)
         UnicodePlots.scatterplot(t::TensorField;args...) = UnicodePlots.scatterplot(fiber(t);args...)
         UnicodePlots.scatterplot!(p::UnicodePlots.Plot{<:UnicodePlots.Canvas},t::TensorField;args...) = UnicodePlots.scatterplot!(p,fiber(t);args...)
-        UnicodePlots.scatterplot(t::RealFunction;args...) = UnicodePlots.scatterplot(Real.(points(t)),Real.(codomain(t));args...)
-        UnicodePlots.scatterplot!(p::UnicodePlots.Plot{<:UnicodePlots.Canvas},t::RealFunction;args...) = UnicodePlots.scatterplot!(p,Real.(points(t)),Real.(codomain(t));args...)
+        UnicodePlots.scatterplot(t::RealFunction;args...) = UnicodePlots.scatterplot(Real.(points(t)),Real.(fiber(t));args...)
+        UnicodePlots.scatterplot!(p::UnicodePlots.Plot{<:UnicodePlots.Canvas},t::RealFunction;args...) = UnicodePlots.scatterplot!(p,Real.(points(t)),Real.(fiber(t));args...)
         UnicodePlots.scatterplot(t::AbstractArray{<:Chain{V,G,K,2} where {V,G,K}};args...) = UnicodePlots.scatterplot(getindex.(vec(t),1),getindex.(vec(t),2);args...)
         UnicodePlots.scatterplot!(p::UnicodePlots.Plot{<:UnicodePlots.Canvas},t::AbstractArray{<:Chain{V,G,K,2} where {V,G,K}};args...) = UnicodePlots.scatterplot!(p,getindex.(vec(t),1),getindex.(vec(t),2);args...)
         UnicodePlots.densityplot(t::TensorField;args...) = UnicodePlots.densityplot(fiber(t);args...)
@@ -1126,10 +1126,10 @@ function __init__()
         UnicodePlots.boxplot(t::TensorField{B,<:Chain} where B;args...) = UnicodePlots.boxplot(fiber(t);args...)
         UnicodePlots.boxplot(t::AbstractVector{<:Chain{V,G,K,N} where K};args...) where {V,G,N} = UnicodePlots.boxplot(string.(Grassmann.chainbasis(V,G)),[getindex.(t,k) for k ∈ 1:N];args...)
         UnicodePlots.boxplot(t::AbstractArray{<:Chain{V,G,K,N} where K};args...) where {V,G,N} = UnicodePlots.boxplot(vec(t);args...)
-        UnicodePlots.spy(t::SurfaceGrid;args...) = UnicodePlots.spy(Real.(codomain(t));args...)
+        UnicodePlots.spy(t::SurfaceGrid;args...) = UnicodePlots.spy(Real.(fiber(t));args...)
         UnicodePlots.spy(p::SimplexBundle) = UnicodePlots.spy(antiadjacency(p))
-        UnicodePlots.heatmap(t::SurfaceGrid;args...) = UnicodePlots.heatmap(Real.(codomain(t));xfact=step(points(t).v[1]),yfact=step(points(t).v[2]),xoffset=points(t).v[1][1],yoffset=points(t).v[2][1],args...)
-        UnicodePlots.heatmap(t::ComplexMap{B,F,2,<:RealSpace{2}} where {B,F};args...) = UnicodePlots.heatmap(Real.(angle.(codomain(t)));xfact=step(points(t).v[1]),yfact=step(points(t).v[2]),xoffset=points(t).v[1][1],yoffset=points(t).v[2][1],colormap=:twilight,args...)
+        UnicodePlots.heatmap(t::SurfaceGrid;args...) = UnicodePlots.heatmap(Real.(fiber(t));xfact=step(points(t).v[1]),yfact=step(points(t).v[2]),xoffset=points(t).v[1][1],yoffset=points(t).v[2][1],args...)
+        UnicodePlots.heatmap(t::ComplexMap{B,F,2,<:RealSpace{2}} where {B,F};args...) = UnicodePlots.heatmap(Real.(angle.(fiber(t)));xfact=step(points(t).v[1]),yfact=step(points(t).v[2]),xoffset=points(t).v[1][1],yoffset=points(t).v[2][1],colormap=:twilight,args...)
         Base.display(t::PlaneCurve) = (display(typeof(t)); display(UnicodePlots.lineplot(t)))
         Base.display(t::RealFunction) = (display(typeof(t)); display(UnicodePlots.lineplot(t)))
         Base.display(t::ComplexMap{B,<:AbstractComplex,1,<:Interval}) where B = (display(typeof(t)); display(UnicodePlots.lineplot(t)))

@@ -257,7 +257,7 @@ for type ∈ (:Coordinate,:LocalTensor)
     for fun ∈ (:-,:!,:~,:real,:imag,:conj,:deg2rad,:transpose)
         @eval Base.$fun(s::$type) = $type(base(s), $fun(fiber(s)))
     end
-    for fun ∈ (:reverse,:involute,:clifford,:even,:odd,:scalar,:vector,:bivector,:volume,:value,:curl,:∂,:d,:complementleft,:realvalue,:imagvalue,:outermorphism,:Outermorphism,:DiagonalOperator,:TensorOperator,:eigen,:eigvecs,:eigvals,:eigvalsreal,:eigvalscomplex,:eigvecsreal,:eigvecscomplex,:eigpolys,:∧,:↑,:↓)
+    for fun ∈ (:reverse,:involute,:clifford,:even,:odd,:scalar,:vector,:bivector,:volume,:value,:curl,:∂,:d,:complementleft,:realvalue,:imagvalue,:outermorphism,:Outermorphism,:DiagonalOperator,:TensorOperator,:eigen,:eigvecs,:eigvals,:eigvalsreal,:eigvalscomplex,:eigvecsreal,:eigvecscomplex,:eigpolys,:pfaffian,:∧,:↑,:↓)
         @eval Grassmann.$fun(s::$type) = $type(base(s), $fun(fiber(s)))
     end
     for fun ∈ (:⋆,:angle,:radius,:complementlefthodge,:pseudoabs,:pseudoabs2,:pseudoexp,:pseudolog,:pseudoinv,:pseudosqrt,:pseudocbrt,:pseudocos,:pseudosin,:pseudotan,:pseudocosh,:pseudosinh,:pseudotanh,:metric,:unit)
@@ -318,7 +318,7 @@ sdims(m::Type{<:FiberBundle}) = sdims(immersiontype(m))
 #imagepoints(m::FiberBundle) = iscover(m) ? points(m) : points(m)[vertices(m)]
 
 unitdomain(t::FiberBundle) = base(t)*inv(base(t)[end])
-arcdomain(t::FiberBundle) = unitdomain(t)*arclength(codomain(t))
+arcdomain(t::FiberBundle) = unitdomain(t)*arclength(fiber(t))
 graph(t::FiberBundle) = graph.(t)
 
 Base.size(m::FiberBundle) = size(base(m))
@@ -722,6 +722,8 @@ GridBundle(dom::AbstractArray,fun::Function) = GridBundle(dom, fun.(dom))
 ⊕(a::GridBundle,b::AbstractVector{<:Real}) = GridBundle(coordinates(a)⊕b,immersion(a)×length(b))
 cross(a::GridBundle,b::GridBundle) = a⊕b
 cross(a::GridBundle,b::AbstractVector{<:Real}) = a⊕b
+cross_sphere(a::GridBundle{1},b::GridBundle{1}) = GridBundle(coordinates(a)⊕coordinates(b),cross_sphere(immersion(a),immersion(b)))
+cross_polar(a::GridBundle{1},b::GridBundle{1}) = GridBundle(coordinates(a)⊕coordinates(b),cross_polar(immersion(a),immersion(b)))
 
 fullcoordinates(m::GridBundle) = m.p
 coordinates(m::GridBundle) = m.p
