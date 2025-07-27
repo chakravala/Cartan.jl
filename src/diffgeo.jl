@@ -668,24 +668,26 @@ _helix(f,g) = Chain(g[1],g[2],f[1])
 unithelix(n::Int=60) = unithelix(TensorField(LinRange(0,2π,n)))
 unithelix(f::RealFunction,g::PlaneCurve=unitcircle(TensorField(base(f)))) = TensorField(base(f),_helix.(f,g))
 
-revolve33(f::Chain,g::Chain) = Chain(f[1]*g[1],f[2]*g[2],f[3]*g[3])
-revolve32(f::Chain,g::Chain) = Chain(f[1]*g[1],f[2]*g[2],f[3])
-revolve23(f::Chain,g::Chain) = Chain(f[1]*g[1],f[1]*g[2],f[2]*g[3])
 revolve22(f::Chain,g::Chain) = Chain(f[1]*g[1],f[1]*g[2],f[2])
+revolve32(f::Chain,g::Chain) = Chain(f[1]*g[1],f[2]*g[2],f[3])
+revolve23(f::Chain,g::Chain) = Chain(f[1]*g[1],f[1]*g[2],f[2]+g[3])
+revolve33(f::Chain,g::Chain) = Chain(f[1]*g[1],f[2]*g[2],f[3]+g[3])
 for (fun,prod) ∈ ((:revolve,:product),(:revolvesphere,:productsphere),(:revolvepolar,:productpolar))
     @eval begin
         $fun(f::AbstractCurve,n::Int=60) = $fun(f,unitcircle(n))
         $fun(f::PlaneCurve,g::PlaneCurve) = $prod(f,g,revolve22)
         $fun(f::PlaneCurve,g::SpaceCurve) = $prod(f,g,revolve23)
-        $fun(f::SpaceCurve,g::SpaceCurve) = $prod(f,g,revolve33)
         $fun(f::SpaceCurve,g::PlaneCurve) = $prod(f,g,revolve32)
+        $fun(f::SpaceCurve,g::SpaceCurve) = $prod(f,g,revolve33)
         $fun(f::RealFunction,g...) = $fun(graph(f),g...)
+        $fun(f,g::RealFunction) = $fun(f,unithelix(g))
+        #$fun(f::RealFunction,g::RealFunction) = $fun(graph(f),unithelix(g)) # ambiguous
     end
 end
-conoid(f::SpaceCurve,n::Int=60) = revolve(TensorField(LinRange(-1,1,n),1),f)
+conoid(f::SpaceCurve,n::Int=60) = revolve(TensorField(LinRange(-1,1,n),0),f)
 conoid(f::RealFunction,n::Int) = conoid(unithelix(f),n)
 conoid(f::RealFunction,g::PlaneCurve=unitcircle(TensorField(base(f))),n::Int=60) = conoid(unithelix(f,g),n)
-rightconoid(f::SpaceCurve,n::Int=60) = revolve(TensorField(OpenParameter(n),1),f)
+rightconoid(f::SpaceCurve,n::Int=60) = revolve(TensorField(OpenParameter(n),0),f)
 rightconoid(f::RealFunction,n::Int) = rightconoid(unithelix(f),n)
 rightconoid(f::RealFunction,g::PlaneCurve=unitcircle(TensorField(base(f))),n::Int=60) = rightconoid(unithelix(f,g),n)
 

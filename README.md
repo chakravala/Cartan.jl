@@ -4,7 +4,7 @@
 
 # Cartan.jl
 
-*TensorField topology over FrameBundle ∇ with [Grassmann.jl](https://github.com/chakravala/Grassmann.jl) elements*
+*TensorField topology over FrameBundle ∇ with [Grassmann.jl](https://github.com/chakravala/Grassmann.jl) finite elements*
 
 [![DOI](https://zenodo.org/badge/673606851.svg)](https://zenodo.org/badge/latestdoi/673606851)
 [![Docs Dev](https://img.shields.io/badge/docs-dev-blue.svg)](https://cartan.crucialflow.com)
@@ -36,7 +36,7 @@ developed by [chakravala](https://github.com/chakravala) with [Grassmann.jl](htt
 
 Provides `TensorField{B,F,N} <: FiberBundle{LocalTensor{B,F},N}` implementation for both a local `ProductSpace` and general `ImmersedTopology` specifications on any `FrameBundle` expressed with [Grassmann.jl](https://github.com/chakravala/Grassmann.jl) algebra.
 Many of these modular methods can work on input meshes or product topologies of any dimension, although there are some methods which are specialized.
-Building on this, `Cartan` provides an algebra for `FiberBundle` sections and associated bundles on a manifold, such as general `PrincipalFiber`, `Connection`, `LieDerivative`, and `CovariantDerivative` operators in terms of `Grassmann` elements.
+Building on this, `Cartan` provides an algebra for `FiberBundle` sections and associated bundles on a manifold, `PrincipalFiber`, `Connection`, `LieDerivative`, and `CovariantDerivative` operators in terms of `Grassmann` elements.
 Calculus of `Variation` fields can also be generated with the combined topology of a `FiberProductBundle`.
 Furthermore, the `FiberProduct` structure enables construction of `HomotopyBundle` types.
 Utility package for differential geometry and tensor calculus intended for [Adapode.jl](https://github.com/chakravala/Adapode.jl).
