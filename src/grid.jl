@@ -735,7 +735,8 @@ function arcsample(f::IntervalMap,i::Int=length(f))
     TensorField(ral, f.(ts))
 end
 
-arctime(f) = (al = arclength(f); TensorField(fiber(al), points(al)))
+arcparametrize(f::IntervalMap) = TensorField(fiber(arclength(f)),fiber(f))
+arctime(f) = TensorField(fiber(arclength(f)), points(f))
 arcsteps(f::IntervalMap) = Real.(abs.(diff(fiber(f)),refdiff(metricextensor(f))))
 totalarclength(f::IntervalMap) = sum(arcsteps(f))
 function arclength(f::IntervalMap)

@@ -1,7 +1,7 @@
 name = "Cartan"
 uuid = "e24af43f-9fd5-4672-9264-a75f3ae40eb2"
 authors = ["Michael Reed"]
-version = "0.4.7"
+version = "0.4.8"
 
 [deps]
 Requires = "ae029012-a4dd-5104-9daa-d747884805df"
@@ -9,6 +9,30 @@ Grassmann = "4df31cd9-4c27-5bea-88d0-e6a7146666d8"
 SparseArrays = "2f01184e-e22b-5df5-ae63-d93ebab69eaf"
 ElasticArrays = "fdbdab4c-e67f-52f5-8c3f-e7b388dad3d4"
 LinearAlgebra = "37e2e46d-f89d-539d-b4ee-838fcccc9c8e"
+
+[weakdeps]
+Makie = "ee78f7c6-11fb-53f2-987a-cfe4a2b5a57a"
+UnicodePlots = "b8865327-cd53-5732-bb35-84acbb429228"
+Meshes = "eacbb407-ea5a-433e-ab97-5258b1ca43fa"
+GeometryBasics = "5c1252a2-5f33-56bf-86c9-59e7332b4326"
+Delaunay = "07eb4e4e-0c6d-46ef-bc4e-83d5e5d860a9"
+QHull = "a8468747-bd6f-53ef-9e5c-744dbc5c59e7"
+MiniQhull = "978d7f02-9e05-4691-894f-ae31a51d76ca"
+Triangulate = "f7e6ffb2-c36d-4f8f-a77e-16e897189344"
+TetGen = "c5d3f3f7-f850-59f6-8a2e-ffc6dc1317ea"
+MATLAB = "10e44e05-a98a-55b3-a45b-ba969058deb6"
+
+[extensions]
+MakieExt = "Makie"
+UnicodePlotsExt = "UnicodePlots"
+MeshesExt = "Meshes"
+GeometryBasicsExt = "GeometryBasics"
+DelaunayExt = "Delaunay"
+QHullExt = "QHull"
+MiniQhullExt = "MiniQhull"
+TriangulateExt = "Triangulate"
+TetGenExt = "TetGen"
+MATLABExt = "MATLAB"
 
 [compat]
 julia = "1"
