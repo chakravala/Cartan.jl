@@ -167,21 +167,25 @@ CovariantDerivative(∇::Connection,X) = ∇(X)
 
 export arclength, arctime, totalarclength, trapz, cumtrapz, linecumtrapz, psum, pcumsum
 export centraldiff, tangent, tangent_fast, unittangent, speed, normal, unitnormal
-export arcresample, arcsample, ribbon, tangentsurface, planecurve, link, linkmap
+export arcparametrize, arcresample, arcsample, ribbon, tangentsurface, planecurve
+export spherearea, ballvolume, degreeintegrate, degreeintegrate_slow, link, linkmap
 export normalnorm, area, surfacearea, weingarten, gausssign, jacobian, evolute, involute
 export normalnorm_slow, area_slow, surfacearea_slow, weingarten_slow, gausssign_slow
 export gaussintrinsic, gaussextrinsic, gaussintrinsicnorm, gaussextrinsicnorm
 export gaussintrinsic_slow, gausseintrinsicnorm_slow, curvatures, meancurvature
-export gaussextrinsic_slow, gaussextrinsicnorm_slow, principals, principalaxes, unithelix
+export gaussextrinsic_slow, gaussextrinsicnorm_slow, principals, principalaxes
 export tangent_slow, normal_slow, unittangent_slow, unitnormal_slow, jacobian_slow
 export ruledsurface, linedsurface, scrollsurface, revolve, revolvesphere, revolvepolar
 export sector, sectordet, sectorintegral, sectorintegrate, linkintegral, linknumber
-export sector_slow, sectordet_slow, sectorintegral_slow, sectorintegrate_slow, unitcircle
+export sector_slow, sectordet_slow, sectorintegral_slow, sectorintegrate_slow
+export indexintegral, indexintegrate, indexintegral_slow, indexintegrate_slow
 export unitjacobian, unitjacobian_slow, principal, principalbasetype, principalfibertype
 export PrincipalFiber, LocalPrincipal, principalbase, principalfiber, principalnorm
-export TangentBundle, Pullback, NormalBundle, principalbundle, conoid, rightconoid
-export UnitTangentBundle, UnitNormalBundle, UnitPullback, SubNormalBundle, principalaction
+export TangentBundle, Pullback, NormalBundle, principalbundle, principalaction
+export UnitTangentBundle, UnitNormalBundle, UnitPullback, SubNormalBundle
+export unithelix, unitcircle, conoid, rightconoid, sphereradius, ballradius
 
+principal(x::LocalPrincipal) = principalfiber(x)
 principalnorm(x::LocalPrincipal) = Real(abs(det(principalfiber(x))))
 principalbase(x::LocalPrincipal) = base(x)
 principalfiber(x::LocalPrincipal) = fiber(x)
@@ -197,33 +201,45 @@ Base.inv(T::LocalPrincipal) = LocalPrincipal(principalbase(T),inv(principalfiber
 
 principalaction(P::LocalPrincipal,f::TensorField) = select_action(P,f(principalbase(P)))
 principalaction(P::LocalPrincipal,f::Function) = select_action(P,f(principalbase(P)))
-principalaction(P::LocalPrincipal,f::Real) = principalfiber(P)*f
-principalaction(P::LocalPrincipal,f::Complex) = principalfiber(P)*f
-principalaction(P::LocalPrincipal,f::TensorAlgebra) = principalfiber(P)⋅f
-principalaciton(P::LocalPrincipal) = principalfiber(P)
+principalaction(P::LocalPrincipal,f::Real) = select_action(P,f)
+principalaction(P::LocalPrincipal,f::Complex) = select_action(P,f)
+principalaction(P::LocalPrincipal,f::TensorAlgebra) = select_action(P,f)
+principalaciton(P::LocalPrincipal) = principal(P)
 
-principalaction(P::PrincipalFiber{M,G,N,<:IntervalMap,<:AbstractCurve} where {M,G,N},f::AbstractCurve) = principalnorm(P)*pre_action(P,f)
+principalaction(P::PrincipalFiber{M,G,N,<:IntervalMap,<:AbstractCurve} where {M,G,N},f::TensorField{B,<:Chain,1,<:Interval} where B) = principalnorm(P)*pre_action(P,f)
 #principalaction(P::PrincipalFiber{M,G,N,<:IntervalMap,<:AbstractCurve} where {M,G,N},f::Function) = principalnorm(P)*f.(base(P))
-principalaction(P::PrincipalFiber{M,G,N,<:IntervalMap,<:AbstractCurve} where {M,G,N},f::Number) = principalnorm(P)*f
+principalaction(P::PrincipalFiber{M,G,N,<:IntervalMap,<:AbstractCurve} where {M,G,N},f::Real) = principalnorm(P)*f
+principalaction(P::PrincipalFiber{M,G,N,<:IntervalMap,<:AbstractCurve} where {M,G,N},f::Complex) = principalnorm(P)*f
+principalaction(P::PrincipalFiber{M,G,N,<:IntervalMap,<:AbstractCurve} where {M,G,N},f::TensorGraded{0}) = principalnorm(P)*f
+principalaction(P::PrincipalFiber{M,G,N,<:IntervalMap} where {M,G,N},f::TensorField{B,<:AbstractReal} where B) = principalnorm(P)*pre_action(P,f)
 principalaction(P::PrincipalFiber{M,G,N,<:IntervalMap} where {M,G,N},f::TensorField) = principal(P)⋅pre_action(P,f)
 principalaction(P::PrincipalFiber{M,G,N,<:IntervalMap} where {M,G,N},f::Function) = principal(P)⋅f.(base(P))
 principalaction(P::PrincipalFiber{M,G,N,<:IntervalMap} where {M,G,N},f::Real) = principal(P)*f
 principalaction(P::PrincipalFiber{M,G,N,<:IntervalMap} where {M,G,N},f::Complex) = principal(P)*f
+principalaction(P::PrincipalFiber{M,G,N,<:IntervalMap} where {M,G,N},f::TensorGraded{0}) = principal(P)*f
 principalaction(P::PrincipalFiber{M,G,N,<:IntervalMap} where {M,G,N},f::TensorAlgebra) = principal(P)⋅f
 principalaction(P::PrincipalFiber,f::TensorField) = select_action(P,pre_action(P,f))
 principalaction(P::PrincipalFiber,f::Function) = select_action(P,f.(base(P)))
-principalaction(P::PrincipalFiber,f::Real) = principal(P)*f
-principalaction(P::PrincipalFiber,f::Complex) = principal(P)*f
-principalaction(P::PrincipalFiber,f::TensorAlgebra) = principal(P)⋅f
+principalaction(P::PrincipalFiber,f::Real) = select_action(P,f)
+principalaction(P::PrincipalFiber,f::Complex) = select_action(P,f)
+principalaction(P::PrincipalFiber,f::TensorAlgebra) = select_action(P,f)
 principalaction(P::PrincipalFiber) = principal(P)
 
 principalaction(t,d,f) = principalaction(PrincipalFiber(t,_outermorphism(d)),f)
+principalaction(t,d,f::Real) = principalaction(PrincipalFiber(t,d),f)
+principalaction(t,d,f::Complex) = principalaction(PrincipalFiber(t,d),f)
+principalaction(t,d,f::TensorGraded{0}) = principalaction(PrincipalFiber(t,d),f)
+principalaction(t,d,f::TensorGraded{1}) = principalaction(PrincipalFiber(t,d),f)
+principalaction(t,d,f::TensorGraded{G}) where G = principalaction(PrincipalFiber(t,compound(d,Val(G))),f)
 principalaction(t,d,f::ScalarField) = principalaction(PrincipalFiber(t,d),f)
 principalaction(t,d,f::GradedField{0}) = principalaction(PrincipalFiber(t,d),f)
 principalaction(t,d,f::GradedField{1}) = principalaction(PrincipalFiber(t,d),f)
 principalaction(t,d,f::GradedField{G}) where G = principalaction(PrincipalFiber(t,compound(d,Val(G))),f)
 
 select_action(P,f) = principal(P)⋅f
+select_action(P,f::Real) = principalnorm(P)*f
+select_action(P,f::Complex) = principalnorm(P)*f
+select_action(P,f::TensorGraded{0}) = principalnorm(P)*f
 select_action(P,f::ScalarField) = principalnorm(P)*f
 pre_action(P,f) = coordinates(f) == coordinates(P) ? f : f.(base(P))
 
@@ -352,6 +368,12 @@ sectorintegral(f::RealFunction) = integral(f)
 sectorintegral(f::TensorField) = integral(sectordet(f))/mdims(fibertype(f))
 sectorintegrate(f::RealFunction) = integrate(f)
 sectorintegrate(f::TensorField) = integrate(sectordet(f))/mdims(fibertype(f))
+indexintegral(f::RealFunction) = integral(f)
+indexintegral(f::TensorField) = integral(sectordet(f))/spherearea(mdims(fibertype(f)))
+indexintegrate(f::RealFunction) = integrate(f)
+indexintegrate(f::TensorField) = integrate(sectordet(f))/spherearea(mdims(fibertype(f)))
+degreeintegrate(f,ω::TensorField) = integrate(f,ω)/integrate(ω)
+degreeintegrate(f,ω::Real=1) = integrate(f,float(ω))/integrate(TensorField(f,ω))
 sector_slow(f::RealFunction) = f
 sector_slow(f::TensorField) = TensorOperator(sector(f,gradient_slow(f)))
 sectordet_slow(f::RealFunction) = f
@@ -361,6 +383,12 @@ sectorintegral_slow(f::RealFunction) = integral(f)
 sectorintegral_slow(f::TensorField) = integral(sectordet_slow(f))/mdims(fibertype(f))
 sectorintegrate_slow(f::RealFunction) = integrate(f)
 sectorintegrate_slow(f::TensorField) = integrate(sectordet_slow(f))/mdims(fibertype(f))
+indexintegral_slow(f::RealFunction) = integral_slow(f)
+indexintegral_slow(f::TensorField) = integral_slow(sectordet_slow(f))/spherearea(mdims(fibertype(f)))
+indexintegrate_slow(f::RealFunction) = integrate_slow(f)
+indexintegrate_slow(f::TensorField) = integrate_slow(sectordet_slow(f))/spherearea(mdims(fibertype(f)))
+degreeintegrate_slow(f,ω::TensorField) = integrate_slow(f,ω)/integrate_slow(ω)
+degreeintegrate_slow(f,ω::Real=1) = integrate_slow(f,float(ω))/integrate_slow(TensorField(f,ω))
 
 area(f::VectorField) = integral(normalnorm(f))
 surfacearea(f::VectorField) = integrate(normalnorm(f))
@@ -398,6 +426,21 @@ area(f::PlaneCurve) = sectorintegral(f)
 #volume(f::VectorField) = sectorintegral(f)
 sectorarea(f::PlaneCurve) = sectorintegrate(f)
 sectorvolume(f::VectorField) = sectorintegrate(f)
+
+sphereradius(n,a=1) = (a/spherearea(n))^inv(n-1)
+ballradius(n,v=1) = (v/ballvolume(n))^inv(n)
+
+spherearea(n,r) = spherearea(n)*r^(n-1)
+spherearea(n::Int) = ballvolume(n)*n
+ballvolume(n,r) = ballvolume(n)*r^n
+function ballvolume(n::Int)
+    k = n ÷ 2
+    if iseven(n)
+        π^k/factorial(k)
+    else
+        2factorial(k)*(4π)^k/factorial(n)
+    end
+end
 
 function speed(f::IntervalMap,d=centraldiffpoints(f),t=centraldifffiber(f,d))
     TensorField(base(f), Real.(abs.(t,refmetric(f))))
