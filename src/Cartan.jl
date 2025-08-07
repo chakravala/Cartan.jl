@@ -51,7 +51,7 @@ include("topology.jl")
 include("quotient.jl")
 include("fiber.jl")
 
-export ElementMap, SimplexMap, FaceMap
+export ElementMap, SimplexMap, FaceMap, Components
 export IntervalMap, RectangleMap, HyperrectangleMap, PlaneCurve, SpaceCurve
 export TensorField, ScalarField, VectorField, BivectorField, TrivectorField
 export ElementFunction, SurfaceGrid, VolumeGrid, ScalarGrid, Variation
@@ -418,6 +418,61 @@ discontinuous(t::SimplexMap) = discontinuous(t,discontinuous(base(t)))
 discontinuous(t::SimplexMap,m) = isdiscontinuous(t) ? t : TensorField(m,view(fiber(t),vertices(m)))
 graphbundle(t::TensorField{B,F,N,<:SimplexBundle} where {B,F,N}) = SimplexBundle(PointCloud(0,fiber(graph.(t))),isdiscontinuous(t) ? disconnect(immersion(t)) : immersion(t))
 
+const Components{T<:TensorField} = AbstractVector{T}
+export boundarycomponents
+function boundarycomponents(f::TensorField,n::Int=1)
+    x = TensorField(base(f))
+    N = ndims(f)
+    siz = size(f)
+    if N == 1
+        Grassmann.FixedVector{2}(f[n],f[end-n+1])
+    elseif N == 2
+        F1 = Cartan.leaf(f,n,1)
+        F2 = Cartan.leaf(f,siz[1]-n+1,1)
+        F3 = Cartan.leaf(f,n,2)
+        F4 = Cartan.leaf(f,siz[2]-n+1,2)
+        Grassmann.FixedVector{4}(F1,F2,F3,F4)
+    elseif N == 3
+        F1 = Cartan.leaf(f,n,1)
+        F2 = Cartan.leaf(f,siz[1]-n+1,1)
+        F3 = Cartan.leaf(f,n,2)
+        F4 = Cartan.leaf(f,siz[2]-n+1,2)
+        F5 = Cartan.leaf(f,n,3)
+        F6 = Cartan.leaf(f,siz[3]-n+1,3)
+        Grassmann.FixedVector{6}(F1,F2,F3,F4,F5,F6)
+    elseif N == 4
+        F1 = Cartan.leaf(f,n,1)
+        F2 = Cartan.leaf(f,siz[1]-n+1,1)
+        F3 = Cartan.leaf(f,n,2)
+        F4 = Cartan.leaf(f,siz[2]-n+1,2)
+        F5 = Cartan.leaf(f,n,3)
+        F6 = Cartan.leaf(f,siz[3]-n+1,3)
+        F7 = Cartan.leaf(f,n,4)
+        F8 = Cartan.leaf(f,siz[4]-n+1,4)
+        Grassmann.FixedVector{8}(F1,F2,F3,F4,F5,F6,F7,F8)
+    else
+        F1 = Cartan.leaf(f,n,1)
+        F2 = Cartan.leaf(f,siz[1]-n+1,1)
+        F3 = Cartan.leaf(f,n,2)
+        F4 = Cartan.leaf(f,siz[2]-n+1,2)
+        F5 = Cartan.leaf(f,n,3)
+        F6 = Cartan.leaf(f,siz[3]-n+1,3)
+        F7 = Cartan.leaf(f,n,4)
+        F8 = Cartan.leaf(f,siz[4]-n+1,4)
+        F9 = Cartan.leaf(f,n,5)
+        F10 = Cartan.leaf(f,siz[5]-n+1,5)
+        Grassmann.FixedVector{8}(F1,F2,F3,F4,F5,F6,F7,F8,F9,F10)
+    end
+end
+function boundarycomponents(f::TensorField,n::AbstractVector{Int})
+    vcat(Vector.(boundarycomponents.(Ref(f),n))...)
+end
+function boundarycomponents(f::TensorField,n::AbstractVector{Int},m::AbstractVector{Int})
+    vcat(boundarycomponents.(boundarycomponents(f,n),Ref(m))...)
+end
+boundarycomponents(f::TensorField,::Colon) = boundarycomponents(f,1:minimum(size(f))÷2)
+boundarycomponents(f::TensorField,::Colon,::Colon) = boundarycomponents(f,1:minimum(size(f))÷2,1:minimum(size(f))÷2)
+
 Variation(dom,cod::TensorField) = TensorField(dom,cod.(dom))
 function Variation(cod::TensorField); p = points(cod).v[end]
     TensorField(p,leaf.(Ref(cod),1:length(p)))
@@ -585,6 +640,20 @@ orientedplane(p,v1,v2) = TensorField(base(OpenParameter(2,2)),_orientedplane(p,v
 include("grid.jl")
 include("element.jl")
 include("diffgeo.jl")
+
+for fun ∈ (:polytransform,:unorientedpoly,:orientedpoly,:argarrows,:argarrows2,:argarrows3,:gridargs,:gridargs1)
+    @eval function $fun end
+end
+for fun ∈ (:linegraph,:tangentbundle,:planesbundle,:arrowsbundle,:spacesbundle,:scaledbundle,:scaledfield,:scaledarrows,:scaledplanes,:scaledspaces,:planes,:spaces)
+    @eval begin
+        function $fun end
+        function $(Symbol(fun,:!)) end
+        export $fun, $(Symbol(fun,:!))
+    end
+end
+
+point2chain(x,V=Submanifold(2)) = Chain(x[1],x[2])
+chain3vec(x) = Makie.Vec3(x[1],x[2],x[3])
 
 if !isdefined(Base, :get_extension)
 using Requires

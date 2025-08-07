@@ -183,7 +183,8 @@ export unitjacobian, unitjacobian_slow, principal, principalbasetype, principalf
 export PrincipalFiber, LocalPrincipal, principalbase, principalfiber, principalnorm
 export TangentBundle, Pullback, NormalBundle, principalbundle, principalaction
 export UnitTangentBundle, UnitNormalBundle, UnitPullback, SubNormalBundle
-export unithelix, unitcircle, conoid, rightconoid, sphereradius, ballradius
+export conoid, rightconoid, unitcircle, unithelix, unitsphere, unitdisk, unitball
+export sectorize, cylinderize, sphereradius, ballradius
 
 principal(x::LocalPrincipal) = principalfiber(x)
 principalnorm(x::LocalPrincipal) = Real(abs(det(principalfiber(x))))
@@ -691,16 +692,24 @@ function ruledsurface(f::AbstractCurve,g::AbstractCurve,t)
     TensorField(base(f)×base(t),[fiber(f)[i]+fiber(t)[j]*fiber(g)[i] for i ∈ OneTo(length(f)), j ∈ OneTo(length(t))])
 end
 
-function _product(f::AbstractCurve,g::AbstractCurve,fun::Function)
+function _product(f::IntervalMap,g::IntervalMap,fun::Function)
     [fun(fiber(f)[i],fiber(g)[j]) for i ∈ OneTo(length(f)), j ∈ OneTo(length(g))]
 end
-function product(f::AbstractCurve,g::AbstractCurve,fun::Function)
+function _product(f::IntervalMap,g::RectangleMap,fun::Function)
+    siz = size(g)
+    [fun(fiber(f)[i],fiber(g)[j,k]) for i ∈ OneTo(length(f)), j ∈ OneTo(siz[1]), k ∈ OneTo(siz[2])]
+end
+function _product(f::IntervalMap,g::HyperrectangleMap,fun::Function)
+    siz = size(g)
+    [fun(fiber(f)[i],fiber(g)[j,k]) for i ∈ OneTo(length(f)), j ∈ OneTo(siz[1]), k ∈ OneTo(siz[2]), l ∈ OneTo(siz[3])]
+end
+function product(f::IntervalMap,g::TensorField,fun::Function)
     TensorField(base(f)×base(g),_product(f,g,fun))
 end
-function productsphere(f::AbstractCurve,g::AbstractCurve,fun::Function)
+function productsphere(f::IntervalMap,g::TensorField,fun::Function)
     TensorField(cross_sphere(base(f),base(g)),_product(f,g,fun))
 end
-function productpolar(f::AbstractCurve,g::AbstractCurve,fun::Function)
+function productpolar(f::IntervalMap,g::TensorField,fun::Function)
     TensorField(cross_polar(base(f),base(g)),_product(f,g,fun))
 end
 
@@ -710,6 +719,18 @@ unitcircle(t::RealFunction) = Chain.(cos.(t),sin.(t))
 _helix(f,g) = Chain(g[1],g[2],f[1])
 unithelix(n::Int=60) = unithelix(TensorField(LinRange(0,2π,n)))
 unithelix(f::RealFunction,g::PlaneCurve=unitcircle(TensorField(base(f)))) = TensorField(base(f),_helix.(f,g))
+
+unitsphere(x) = Chain(cos(x[1])*cos(x[2]), cos(x[1])*sin(x[2]), sin(x[1]))
+unitsphere(n::Int=30,m::Int=60) = unitsphere(LinRange(-π/2,π/2,n),LinRange(0,2π,m))
+unitsphere(n,m) = unitsphere.(TensorField(ProductSpace(n,m)))
+
+unitdisk(x) = x[1]*Chain(cos(x[2]),sin(x[2]))
+unitdisk(n::Int=60,r::Int=20) = unitdisk(LinRange(0,2π,n),LinRange(0,1,r))
+unitdisk(n,r) = unitdisk.(TensorField(ProductSpace(r,n)))
+
+unitball(x) = x[1]*Chain(cos(x[2])*cos(x[3]),cos(x[2])*sin(x[3]),sin(x[2]))
+unitball(n::Int=30,m::Int=60,r::Int=10) = unitball(LinRange(-π/2,π/2,n),LinRange(0,2π,m),LinRange(0,1,r))
+unitball(n,m,r) = unitball.(TensorField(ProductSpace(r,n,m)))
 
 revolve22(f::Chain,g::Chain) = Chain(f[1]*g[1],f[1]*g[2],f[2])
 revolve32(f::Chain,g::Chain) = Chain(f[1]*g[1],f[2]*g[2],f[3])
@@ -746,6 +767,15 @@ function link(f::SpaceCurve,g::SpaceCurve)
 end
 linkintegral(f::SpaceCurve,g::SpaceCurve) = integral(link(f,g))/4π
 linknumber(f::SpaceCurve,g::SpaceCurve) = integrate(link(f,g))/4π
+
+sectorize23(f::Chain,g::Chain) = Chain(f[1]*g[1],f[1]*g[2],f[2]*g[3])
+sectorize33(f::Chain,g::Chain) = Chain(f[1]*g[1],f[2]*g[2],f[3]*g[3])
+sectorize(f::RealFunction,g::TensorField) = product(f,g,*)
+sectorize(f::PlaneCurve,g::TensorField) = product(f,g,sectorize23)
+sectorize(f::SpaceCurve,g::TensorField) = product(f,g,sectorize33)
+cylinderize(f::TensorField,n::Int=30) = cylinderize(f,LinRange(0,1,n))
+cylinderize(f::TensorField,t::AbstractRange) = cylinderize(f,TensorField(t))
+cylinderize(f::TensorField,t::RealFunction) = sectorize(f,Chain.(t,0t+0))
 
 #???
 function compare(f::TensorField)#???
