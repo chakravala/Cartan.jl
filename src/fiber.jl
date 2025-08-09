@@ -718,12 +718,12 @@ GridBundle(dom::GridBundle,fun::Array) = GridBundle(coordinates(dom), fun)
 GridBundle(dom::GridBundle,fun::Function) = GridBundle(coordinates(dom), fun)
 GridBundle(dom::AbstractArray,fun::Function) = GridBundle(dom, fun.(dom))
 
-⊕(a::GridBundle{1},b::GridBundle{1}) = GridBundle(coordinates(a)⊕coordinates(b),immersion(a)×immersion(b))
+⊕(a::GridBundle,b::GridBundle) = GridBundle(coordinates(a)⊕coordinates(b),immersion(a)×immersion(b))
 ⊕(a::GridBundle,b::AbstractVector{<:Real}) = GridBundle(coordinates(a)⊕b,immersion(a)×length(b))
 cross(a::GridBundle,b::GridBundle) = a⊕b
 cross(a::GridBundle,b::AbstractVector{<:Real}) = a⊕b
-cross_sphere(a::GridBundle{1},b::GridBundle{1}) = GridBundle(coordinates(a)⊕coordinates(b),cross_sphere(immersion(a),immersion(b)))
-cross_polar(a::GridBundle{1},b::GridBundle{1}) = GridBundle(coordinates(a)⊕coordinates(b),cross_polar(immersion(a),immersion(b)))
+cross_sphere(a::GridBundle,b::GridBundle) = GridBundle(coordinates(a)⊕coordinates(b),cross_sphere(immersion(a),immersion(b)))
+cross_sector(a::GridBundle,b::GridBundle) = GridBundle(coordinates(a)⊕coordinates(b),cross_sector(immersion(a),immersion(b)))
 
 fullcoordinates(m::GridBundle) = m.p
 coordinates(m::GridBundle) = m.p

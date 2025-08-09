@@ -14,7 +14,59 @@
 
 export centraldiff, centraldiff_slow, centraldiff_fast
 export gradient, gradient_slow, gradient_fast, unitgradient
+export fiberproduct, fibersphere, fibersector
 export integral, integrate, ∫
+
+function _product(f::AbstractVector,g::AbstractVector,fun::Function)
+    [fun(fiber(f)[i],fiber(g)[j]) for i ∈ OneTo(length(f)), j ∈ OneTo(length(g))]
+end
+function _product(f::AbstractVector,g::AbstractMatrix,fun::Function)
+    siz = size(g)
+    [fun(fiber(f)[i],fiber(g)[j,k]) for i ∈ OneTo(length(f)), j ∈ OneTo(siz[1]), k ∈ OneTo(siz[2])]
+end
+function _product(f::AbstractMatrix,g::AbstractVector,fun::Function)
+    siz = size(f)
+    [fun(fiber(f)[i,j],fiber(g)[k]) for i ∈ OneTo(siz[1]), j ∈ OneTo(siz[2]), k ∈ OneTo(length(g))]
+end
+function _product(f::AbstractVector,g::AbstractArray{T,3} where T,fun::Function)
+    siz = size(g)
+    [fun(fiber(f)[i],fiber(g)[j,k,l]) for i ∈ OneTo(length(f)), j ∈ OneTo(siz[1]), k ∈ OneTo(siz[2]), l ∈ OneTo(siz[3])]
+end
+function _product(f::AbstractArray{T,3} where T,g::AbstractVector,fun::Function)
+    siz = size(f)
+    [fun(fiber(f)[i,j,k],fiber(g)[l]) for i ∈ OneTo(siz[1]), j ∈ OneTo(siz[2]), k ∈ OneTo(siz[3]), l ∈ OneTo(length(g))]
+end
+function _product(f::AbstractVector,g::AbstractArray{T,4} where T,fun::Function)
+    siz = size(g)
+    [fun(fiber(f)[i],fiber(g)[j,k,l,m]) for i ∈ OneTo(length(f)), j ∈ OneTo(siz[1]), k ∈ OneTo(siz[2]), l ∈ OneTo(siz[3]), m ∈ OneTo(siz[4])]
+end
+function _product(f::AbstractArray{T,4} where T,g::AbstractVector,fun::Function)
+    siz = size(f)
+    [fun(fiber(f)[i,j,k,l],fiber(g)[m]) for i ∈ OneTo(siz[1]), j ∈ OneTo(siz[2]), k ∈ OneTo(siz[3]), l ∈ OneTo(siz[4]), m ∈ OneTo(length(g))]
+end
+
+function _product(f::AbstractMatrix,g::AbstractMatrix,fun::Function)
+    siz1,siz2 = size(f),size(g)
+    [fun(fiber(f)[i,j],fiber(g)[k,l]) for i ∈ OneTo(siz1[1]), j ∈ OneTo(siz1[2]), k ∈ OneTo(siz2[1]), l ∈ OneTo(siz2[2])]
+end
+function _product(f::AbstractMatrix,g::AbstractArray{T,3} where T,fun::Function)
+    siz1,siz2 = size(f),size(g)
+    [fun(fiber(f)[i,j],fiber(g)[k,l,m]) for i ∈ OneTo(siz1[1]), j ∈ OneTo(siz1[2]), k ∈ OneTo(siz2[1]), l ∈ OneTo(siz2[2]), m ∈ OneTo(siz2[3])]
+end
+function _product(f::AbstractArray{T,3} where T,g::AbstractMatrix,fun::Function)
+    siz1,siz2 = size(f),size(g)
+    [fun(fiber(f)[i,j,k],fiber(g)[l,m]) for i ∈ OneTo(siz1[1]), j ∈ OneTo(siz1[2]), k ∈ OneTo(siz1[3]), l ∈ OneTo(siz2[1]), m ∈ OneTo(siz2[2])]
+end
+
+function fiberproduct(f::TensorField,g::TensorField,fun::Function)
+    TensorField(base(f)×base(g),_product(f,g,fun))
+end
+function fibersphere(f::TensorField,g::TensorField,fun::Function)
+    TensorField(cross_sphere(base(f),base(g)),_product(f,g,fun))
+end
+function fibersector(f::TensorField,g::TensorField,fun::Function)
+    TensorField(cross_sector(base(f),base(g)),_product(f,g,fun))
+end
 
 linterp(x,x1,x2,f1,f2) = f1 + (f2-f1)*(x-x1)/(x2-x1)
 function bilinterp(x,y,x1,x2,y1,y2,f11,f21,f12,f22)

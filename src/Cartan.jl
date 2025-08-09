@@ -60,7 +60,7 @@ export ScalarMap, GradedField, QuaternionField, PhasorField
 export GlobalFrame, DiagonalField, EndomorphismField, OutermorphismField
 export ParametricMap, RectangleMap, HyperrectangleMap, AbstractCurve
 export metrictensorfield, metricextensorfield
-export alteration, variation, modification, alteration!, variation!, modification!
+export leaf, alteration, variation, modification, alteration!, variation!, modification!
 
 # TensorField
 
@@ -296,7 +296,7 @@ end=#
 
 (m::TensorField{B,F,N,<:SimplexBundle} where {B,F,N})(i::ImmersedTopology) = TensorField(coordinates(m)(i),fiber(m)[vertices(i)])
 (m::TensorField{B,F,N,<:GridBundle} where {B,F,N})(i::ImmersedTopology) = TensorField(base(m)(i),fiber(m))
-for fun ∈ (:Open,:Mirror,:Clamped,:Torus,:Revolved,:Cylinder,:Wing,:Mobius,:Klein,:Cone,:Polar,:Sphere,:Geographic,:Hopf)
+for fun ∈ (:Open,:Mirror,:Clamped,:Torus,:Cylinder,:Wing,:Mobius,:Klein,:Cone,:Tube,:Ball,:Sphere,:Geographic,:Hopf)
     for top ∈ (Symbol(fun,:Topology),)
         @eval begin
             $top(m::TensorField{B,F,N,<:GridBundle} where {B,F,N}) = TensorField($top(base(m)),fiber(m))
@@ -425,43 +425,43 @@ function boundarycomponents(f::TensorField,n::Int=1)
     N = ndims(f)
     siz = size(f)
     if N == 1
-        Grassmann.FixedVector{2}(f[n],f[end-n+1])
+        Grassmann.FixedVector{2}([f[n],f[end-n+1]])
     elseif N == 2
-        F1 = Cartan.leaf(f,n,1)
-        F2 = Cartan.leaf(f,siz[1]-n+1,1)
-        F3 = Cartan.leaf(f,n,2)
-        F4 = Cartan.leaf(f,siz[2]-n+1,2)
-        Grassmann.FixedVector{4}(F1,F2,F3,F4)
+        F1 = leaf(f,n,1)
+        F2 = leaf(f,siz[1]-n+1,1)
+        F3 = leaf(f,n,2)
+        F4 = leaf(f,siz[2]-n+1,2)
+        Grassmann.FixedVector{4}([F1,F2,F3,F4])
     elseif N == 3
-        F1 = Cartan.leaf(f,n,1)
-        F2 = Cartan.leaf(f,siz[1]-n+1,1)
-        F3 = Cartan.leaf(f,n,2)
-        F4 = Cartan.leaf(f,siz[2]-n+1,2)
-        F5 = Cartan.leaf(f,n,3)
-        F6 = Cartan.leaf(f,siz[3]-n+1,3)
-        Grassmann.FixedVector{6}(F1,F2,F3,F4,F5,F6)
+        F1 = leaf(f,n,1)
+        F2 = leaf(f,siz[1]-n+1,1)
+        F3 = leaf(f,n,2)
+        F4 = leaf(f,siz[2]-n+1,2)
+        F5 = leaf(f,n,3)
+        F6 = leaf(f,siz[3]-n+1,3)
+        Grassmann.FixedVector{6}([F1,F2,F3,F4,F5,F6])
     elseif N == 4
-        F1 = Cartan.leaf(f,n,1)
-        F2 = Cartan.leaf(f,siz[1]-n+1,1)
-        F3 = Cartan.leaf(f,n,2)
-        F4 = Cartan.leaf(f,siz[2]-n+1,2)
-        F5 = Cartan.leaf(f,n,3)
-        F6 = Cartan.leaf(f,siz[3]-n+1,3)
-        F7 = Cartan.leaf(f,n,4)
-        F8 = Cartan.leaf(f,siz[4]-n+1,4)
-        Grassmann.FixedVector{8}(F1,F2,F3,F4,F5,F6,F7,F8)
+        F1 = leaf(f,n,1)
+        F2 = leaf(f,siz[1]-n+1,1)
+        F3 = leaf(f,n,2)
+        F4 = leaf(f,siz[2]-n+1,2)
+        F5 = leaf(f,n,3)
+        F6 = leaf(f,siz[3]-n+1,3)
+        F7 = leaf(f,n,4)
+        F8 = leaf(f,siz[4]-n+1,4)
+        Grassmann.FixedVector{8}([F1,F2,F3,F4,F5,F6,F7,F8])
     else
-        F1 = Cartan.leaf(f,n,1)
-        F2 = Cartan.leaf(f,siz[1]-n+1,1)
-        F3 = Cartan.leaf(f,n,2)
-        F4 = Cartan.leaf(f,siz[2]-n+1,2)
-        F5 = Cartan.leaf(f,n,3)
-        F6 = Cartan.leaf(f,siz[3]-n+1,3)
-        F7 = Cartan.leaf(f,n,4)
-        F8 = Cartan.leaf(f,siz[4]-n+1,4)
-        F9 = Cartan.leaf(f,n,5)
-        F10 = Cartan.leaf(f,siz[5]-n+1,5)
-        Grassmann.FixedVector{8}(F1,F2,F3,F4,F5,F6,F7,F8,F9,F10)
+        F1 = leaf(f,n,1)
+        F2 = leaf(f,siz[1]-n+1,1)
+        F3 = leaf(f,n,2)
+        F4 = leaf(f,siz[2]-n+1,2)
+        F5 = leaf(f,n,3)
+        F6 = leaf(f,siz[3]-n+1,3)
+        F7 = leaf(f,n,4)
+        F8 = leaf(f,siz[4]-n+1,4)
+        F9 = leaf(f,n,5)
+        F10 = leaf(f,siz[5]-n+1,5)
+        Grassmann.FixedVector{8}([F1,F2,F3,F4,F5,F6,F7,F8,F9,F10])
     end
 end
 function boundarycomponents(f::TensorField,n::AbstractVector{Int})
