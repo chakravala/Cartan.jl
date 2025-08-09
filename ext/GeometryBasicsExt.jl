@@ -18,6 +18,7 @@ isdefined(Cartan, :Requires) ? (import Cartan: GeometryBasics) : (using Geometry
 
 Base.convert(::Type{GeometryBasics.Point},t::T) where T<:LocalFiber = GeometryBasics.Point(base(t))
 GeometryBasics.Point(t::T) where T<:LocalFiber = convert(GeometryBasics.Point,t)
+GeometryBasics.Mesh(m::TensorField{B,<:Couple,2,<:GridBundle} where B) = GeometryBasics.Mesh(vectorize(m))
 function GeometryBasics.Mesh(m::TensorField{B,<:Chain,2,<:GridBundle} where B)
     if mdims(fibertype(m))≠2
         GeometryBasics.Mesh(GridBundle(fiber(m)),normal(m))

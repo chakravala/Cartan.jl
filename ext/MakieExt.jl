@@ -396,7 +396,12 @@ for fun ∈ (:wireframe,:wireframe!)
     end
 end
 
-import Cartan: point2chain, chain3vec
+import Cartan: point2chain
+chain3vec(x) = Makie.Vec3(x[1],x[2],x[3])
+function chain3quatf(x)
+    s = sqrt(x[1]^2+x[2]^2+x[3]^2)
+    Makie.Quaternionf(x[3]/s,x[2]/s,1,x[1]/s,1)/sqrt(2)
+end
 
 for fun ∈ (:streamplot,:streamplot!)
     @eval begin
@@ -408,22 +413,52 @@ for fun ∈ (:streamplot,:streamplot!)
         Makie.$fun(m::VectorField{<:Coordinate{<:Chain},F,N,<:RealSpace} where {F,N};args...) = Makie.$fun(p->Makie.Point(m(Chain(p.data...))),points(m).v...;args...)
         Makie.$fun(t::TensorField{B,<:AbstractReal,2,<:FiberProductBundle} where B;args...) = Makie.$fun(TensorField(GridBundle(base(t)),fiber(t)))
         function Makie.$fun(M::VectorField,m::VectorField{<:Coordinate{<:Chain{V}},<:Chain,2,<:RealSpace{2}};args...) where V
+            dim = mdims(fibertype(M)) ≠ 2
             kwargs = if haskey(args,:gridsize)
                 wargs = Dict(args)
                 delete!(wargs,:gridsize)
-                (;:gridsize => (args[:gridsize]...,1),wargs...)
+                (;:gridsize => dim ? (args[:gridsize]...,1) : args[:gridsize],wargs...)
             else
-                pairs((;:gridsize => (32,32,1),args...))
+                pairs((;:gridsize => dim ? (32,32,1) : (32,32),args...))
             end
-            w,gs = Cartan.widths(points(m)),kwargs[:gridsize]
-            scale = 0.2sqrt(surfacearea(M)/prod(w))
-            st = Makie.$fun(p->(z=m(Chain{V}(p[1],p[2]));Makie.Point(z[1],z[2],0)),points(m).v...,Makie.ClosedInterval(-1e-15,1e-15);arrow_size=scale*minimum(w)/minimum((gs[1],gs[2])),kwargs...)
+            st = if dim
+                w,gs = Cartan.widths(points(m)),kwargs[:gridsize]
+                scale = 0.2sqrt(surfacearea(M)/prod(w))
+                Makie.$fun(p->(z=m(Chain{V}(p[1],p[2]));Makie.Point(z[1],z[2],0)),points(m).v...,Makie.ClosedInterval(-1e-15,1e-15);arrow_size=scale*minimum(w)/minimum((gs[1],gs[2])),kwargs...)
+            else
+                Makie.$fun(p->(z=m(Chain{V}(p[1],p[2]));Makie.Point(z[1],z[2])),points(m).v...;kwargs...)
+            end
             $(fun≠:streamplot ? :pl : :((fig,ax,pl))) = st
-            pl.transformation.transform_func[] = Makie.PointTrans{3}() do p
-                return Makie.Point(M(Chain{V}(p[1],p[2])))
+            if dim
+                pl.transformation.transform_func[] = Makie.PointTrans{3}() do p
+                    return Makie.Point(M(Chain{V}(p[1],p[2])))
+                end
+                jac,arr = jacobian(M),pl.plots[2]
+                arr.rotation[] = chain3quatf.(jac.(point2chain.(arr.args.value[][1],V)).⋅point2chain.(arr.rotation[],V))
+            else
+                xs = getindex.(fiber(M),1); ys = getindex.(fiber(M),2)
+                ax.limits = ((minimum(xs),maximum(xs)),(minimum(ys),maximum(ys)))
+                pl.transformation.transform_func[] = Makie.PointTrans{2}() do p
+                    return Makie.Point(M(p[1],p[2]))
+                end
             end
-            jac,arr = jacobian(M),pl.plots[2]
-            arr.rotation[] = chain3vec.(jac.(point2chain.(arr.args[1][],V)).⋅point2chain.(arr.rotation[],V))
+            return st
+        end
+        function Makie.$fun(M::VectorField,m::VectorField{<:Coordinate{<:Chain{V}},<:Chain,3,<:RealSpace{3}};args...) where V
+            kwargs = if haskey(args,:gridsize)
+                wargs = Dict(args)
+                delete!(wargs,:gridsize)
+                (;:gridsize => args[:gridsize],wargs...)
+            else
+                pairs((;:gridsize => (11,11,11),args...))
+            end
+            st = Makie.$fun(p->(z=m(Chain{V}(p[1],p[2],p[3]));Makie.Point(z[1],z[2],z[3])),points(m).v...;kwargs...)
+            $(fun≠:streamplot ? :pl : :((fig,ax,pl))) = st
+            #xs = getindex.(fiber(M),1); ys = getindex.(fiber(M),2); zs = getindex.(fiber(M),3)
+            #ax.limits = ((minimum(xs),maximum(xs)),(minimum(ys),maximum(ys)),(minimum(zs),maximum(zs)))
+            pl.transformation.transform_func[] = Makie.PointTrans{3}() do p
+                return Makie.Point(M(p[1],p[2],p[3]))
+            end
             return st
         end
     end

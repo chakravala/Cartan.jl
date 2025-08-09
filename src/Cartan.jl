@@ -59,7 +59,7 @@ export RealFunction, ComplexMap, SpinorField, CliffordField
 export ScalarMap, GradedField, QuaternionField, PhasorField
 export GlobalFrame, DiagonalField, EndomorphismField, OutermorphismField
 export ParametricMap, RectangleMap, HyperrectangleMap, AbstractCurve
-export metrictensorfield, metricextensorfield
+export metrictensorfield, metricextensorfield, complexify, vectorize
 export leaf, alteration, variation, modification, alteration!, variation!, modification!
 
 # TensorField
@@ -395,6 +395,7 @@ for fun ∈ (:cumsum,:cumprod)
     end
 end
 
+Base.:/(a::TensorField,b::TensorAlgebra) = TensorField(base(a),./(fiber(a),b,refmetric(base(a))))
 Grassmann.signbit(::TensorField) = false
 #Base.inv(t::TensorField) = TensorField(fiber(t), base(t))
 Base.diff(t::TensorField) = TensorField(diff(base(t)), diff(fiber(t)))
@@ -410,6 +411,22 @@ Grassmann.Phasor(s::TensorField) = TensorField(base(s), Phasor(fiber(s)))
 Grassmann.Couple(s::TensorField) = TensorField(base(s), Couple(fiber(s)))
 
 checkdomain(a::FiberBundle,b::FiberBundle) = base(a)≠base(b) ? error("GlobalFiber base not equal") : true
+
+complexify(t::LocalFiber) = complexify(fiber(t))
+complexify(t::Chain{V,1,T,2} where T) where V = Couple{V,Submanifold(V)}(value(t)...)
+complexify(t::Couple) = t
+complexify(t::PseudoCouple) = !t
+complexify(t::Complex) = t
+complexify(t::TensorField) = TensorField(base(t),complexify.(fiber(t)))
+
+vectorize(t::LocalFiber) = vectorize(fiber(t))
+vectorize(t::Couple{V,B}) where {V,B} = Chain{_subspace(V,B),1}(realvalue(t),imagvalue(t))
+vectorize(t::PseudoCouple) = vectorize(!t)
+vectorize(t::Complex) = Chain(real(t),imag(t))
+vectorize(t::Chain) = t
+vectorize(t::TensorField) = TensorField(base(t),vectorize.(fiber(t)))
+
+Base.@pure _subspace(::Submanifold{V,G},::Submanifold{W,L,B} where {W,L}) where {V,G,B} = Submanifold{V,G,B}()
 
 disconnect(t::FaceMap) = TensorField(disconnect(base(t)),fiber(t))
 discontinuous(t::FaceMap) = discontinuous(t,discontinuous(base(t)))
@@ -653,7 +670,7 @@ for fun ∈ (:linegraph,:tangentbundle,:planesbundle,:arrowsbundle,:spacesbundle
 end
 
 point2chain(x,V=Submanifold(2)) = Chain(x[1],x[2])
-chain3vec(x) = Makie.Vec3(x[1],x[2],x[3])
+point3chain(x,V=Submanifold(3)) = Chain(x[1],x[2],x[3])
 
 if !isdefined(Base, :get_extension)
 using Requires
