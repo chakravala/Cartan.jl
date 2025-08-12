@@ -16,6 +16,20 @@ module GeometryBasicsExt
 using Grassmann, Cartan
 isdefined(Cartan, :Requires) ? (import Cartan: GeometryBasics) : (using GeometryBasics)
 
+(m::GridBundle{1})(t::GeometryBasics.Point) = m(t[1])
+(m::GridBundle{2})(t::GeometryBasics.Point) = m(t[1],t[2])
+(m::GridBundle{3})(t::GeometryBasics.Point) = m(t[1],t[2],t[3])
+(m::GridBundle{4})(t::GeometryBasics.Point) = m(t[1],t[2],t[3],t[4])
+(m::GridBundle{5})(t::GeometryBasics.Point) = m(t[1],t[2],t[3],t[4],t[5])
+(m::TensorField{B,F,1} where {B,F})(t::GeometryBasics.Point) = m(t[1])
+(m::TensorField{B,F,2} where {B,F})(t::GeometryBasics.Point) = m(t[1],t[2])
+(m::TensorField{B,F,3} where {B,F})(t::GeometryBasics.Point) = m(t[1],t[2],t[3])
+(m::TensorField{B,F,4} where {B,F})(t::GeometryBasics.Point) = m(t[1],t[2],t[3],t[4])
+(m::TensorField{B,F,5} where {B,F})(t::GeometryBasics.Point) = m(t[1],t[2],t[3],t[4],t[5])
+
+Cartan.unorientedpoly(p,v1,v2) = GeometryBasics.Point.(Cartan.polytransform(Cartan._unorientedplane(p,v1,v2)))
+Cartan.orientedpoly(p,v1,v2) = GeometryBasics.Point.(Cartan.polytransform(Cartan._orientedplane(p,v1,v2)))
+
 Base.convert(::Type{GeometryBasics.Point},t::T) where T<:LocalFiber = GeometryBasics.Point(base(t))
 GeometryBasics.Point(t::T) where T<:LocalFiber = convert(GeometryBasics.Point,t)
 GeometryBasics.Mesh(m::TensorField{B,<:Couple,2,<:GridBundle} where B) = GeometryBasics.Mesh(vectorize(m))

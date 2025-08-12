@@ -480,6 +480,7 @@ const PointVector{P,G,PA,GA} = PointArray{P,G,1,PA,GA}
 const PointMatrix{P,G,PA,GA} = PointArray{P,G,2,PA,GA}
 const PointCloud = PointVector
 
+PointArray(id::Int,p::ProductSpace{V,T,N,1} where {V,T,N},g::AbstractArray) = PointArray(id,p.v[1],g)
 PointArray(id::Int,dom::AbstractArray{T,N} where T) where N = PointArray(id,dom,Global{N}(InducedMetric()))
 PointArray(dom::AbstractArray{T,N} where T) where N = PointArray(0,dom,Global{N}(InducedMetric()))
 PointArray(dom::AbstractVector) = PointCloud(dom)

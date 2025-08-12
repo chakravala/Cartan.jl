@@ -148,11 +148,103 @@ function leaf(m::RectangleMap,t::AbstractFloat,j::Int=2)
 end
 
 (m::HyperrectangleMap)(t::Real,j::Int=3) = leaf(m,t,j)
+function leaf(m::HyperrectangleMap,i::Int,j::Int=3)
+    isone(j) ? m[i,:,:] : j==2 ? m[:,i,:] : m[:,:,i]
+end
+function leaf(m::HyperrectangleMap,t::AbstractFloat,j::Int=3)
+    Q,R,p = isone(j),j==2,points(m).v[j]
+    x,y = points(m).v[j>1 ? 1 : 2],points(m).v[j>2 ? 2 : 3]
+    i,i0 = searchpoints(p,t)
+    f1 = Q ? m.cod[i,:,:] : R ? m.cod[:,i,:] : m.cod[:,:,i]
+    f2 = Q ? m.cod[i+1,:,:] : R ? m.cod[:,i+1,:] : m.cod[:,:,i+1]
+    TensorField(ProductSpace(x,y),linterp(t,p[i],p[i+1],f1,f2))
+end
 function leaf2(m::HyperrectangleMap,i::Int,j::Int,k::Int=3)
     isone(k) ? m[:,i,j] : k==2 ? m[i,:,j] : m[i,j,:]
 end
-function leaf(m::HyperrectangleMap,i::Int,j::Int=3)
-    isone(j) ? m[i,:,:] : j==2 ? m[:,i,:] : m[:,:,i]
+function leaf2(m::HyperrectangleMap,t::AbstractFloat,s::AbstractFloat,k::Int=3)
+    Q,R,p = isone(k),k==2,points(m).v[k]
+    x,y = points(m).v[k>1 ? 1 : 2],points(m).v[k>2 ? 2 : 3]
+    i,i0 = searchpoints(x,t)
+    j,j0 = searchpoints(y,s)
+    f11 = Q ? m.cod[:,i,j] : R ? m.cod[i,:,j] : m.cod[i,j,:]
+    f21 = Q ? m.cod[:,i+1,j] : R ? m.cod[i+1,:,j] : m.cod[i+1,j,:]
+    f12 = Q ? m.cod[:,i,j+1] : R ? m.cod[i,:,j+1] : m.cod[i,j+1,:]
+    f22 = Q ? m.cod[:,i+1,j+1] : R ? m.cod[i+1,:,j+1] : m.cod[i+1,j+1,:]
+    TensorField(p,bilinterp(t,s,x[i],x[i+1],y[j],y[j+1],f11,f21,f12,f22))
+end
+
+(m::TensorField{B,F,4,<:AbstractArray{<:Coordinate{<:Chain{V,1,<:Real} where V}}} where {B,F})(j::Int=4) = leaf(m,t,j)
+function leaf(m::TensorField{B,F,4,<:AbstractArray{<:Coordinate{<:Chain{V,1,<:Real} where V}}} where {B,F},i::Int,j::Int=4)
+    isone(j) ? m[i,:,:,:] : j==2 ? m[:,i,:,:] : j==3 ? m[:,:,i,:] : m[:,:,:,i]
+end
+function leaf(m::TensorField{B,F,4,<:AbstractArray{<:Coordinate{<:Chain{V,1,<:Real} where V}}} where {B,F},t::AbstractFloat,j::Int=4)
+    Q,R,S,p = isone(j),j==2,j==3,points(m).v[j]
+    x,y,z = points(m).v[j>1 ? 2 : 1],points(m).v[j>2 ? 2 : 3],points(m).v[j>3 ? 3 : 4]
+    i,i0 = searchpoints(p,t)
+    f1 = Q ? m.cod[i,:,:,:] : R ? m.cod[:,i,:,:] : S ? m.cod[:,:,i,:] : m.cod[:,:,:,i]
+    f2 = Q ? m.cod[i+1,:,:,:] : R ? m.cod[:,i+1,:,:] : S ? m.cod[:,:,i+1,:] : m.cod[:,:,:,i+1]
+    TensorField(ProductSpace(x,y,z),linterp(t,p[i],p[i+1],f1,f2))
+end
+function leaf3(m::TensorField{B,F,4,<:AbstractArray{<:Coordinate{<:Chain{V,1,<:Real} where V}}} where {B,F},i::Int,j::Int,k::Int,l::Int=4)
+    isone(l) ? m[:,i,j,k] : l==2 ? m[i,:,j,k] : l==3 ? m[i,j,:,k] : m[i,j,k,:]
+end
+function leaf3(m::TensorField{B,F,4,<:AbstractArray{<:Coordinate{<:Chain{V,1,<:Real} where V}}} where {B,F},t::AbstractFloat,s::AbstractFloat,u::AbstractFloat,l::Int=4)
+    Q,R,S,p = isone(l),l==2,l==3,points(m).v[l]
+    x,y,z = points(m).v[l>1 ? 2 : 1],points(m).v[l>2 ? 2 : 3],points(m).v[l>3 ? 3 : 4]
+    i,i0 = searchpoints(x,t)
+    j,j0 = searchpoints(y,s)
+    k,j0 = searchpoints(z,u)
+    f111 = Q ? m.cod[:,i,j,k] : R ? m.cod[i,:,j,k] : S ? m.cod[i,j,:,k] : m.cod[i,j,k,:]
+    f211 = Q ? m.cod[:,i+1,j,k] : R ? m.cod[i+1,:,j,k] : S ? m.cod[i+1,j,:,k] : m.cod[i+1,j,k,:]
+    f121 = Q ? m.cod[:,i,j+1,k] : R ? m.cod[i,:,j+1,k] : S ? m.cod[i,j+1,:,k] : m.cod[i,j+1,k,:]
+    f221 = Q ? m.cod[:,i+1,j+1,k] : R ? m.cod[i+1,:,j+1,k] : S ? m.cod[i+1,j+1,:,k] : m.cod[i+1,j+1,k,:]
+    f112 = Q ? m.cod[:,i,j,k+1] : R ? m.cod[i,:,j,k+1] : S ? m.cod[i,j,:,k+1] : m.cod[i,j,k+1,:]
+    f212 = Q ? m.cod[:,i+1,j,k+1] : R ? m.cod[i+1,:,j,k+1] : S ? m.cod[i+1,j,:,k+1] : m.cod[i+1,j,k+1,:]
+    f122 = Q ? m.cod[:,i,j+1,k+1] : R ? m.cod[i,:,j+1,k+1] : S ? m.cod[i,j+1,:,k+1] : m.cod[i,j+1,k+1,:]
+    f222 = Q ? m.cod[:,i+1,j+1,k+1] : R ? m.cod[i+1,:,j+1,k+1] : S ? m.cod[i+1,j+1,:,k+1] : m.cod[i+1,j+1,k+1,:]
+    TensorField(p,bilinterp(t,s,u,x[i],x[i+1],y[j],y[j+1],z[k],z[k+1],f111,f211,f121,f221,f112,f212,f122,f222))
+end
+
+(m::TensorField{B,F,5,<:AbstractArray{<:Coordinate{<:Chain{V,1,<:Real} where V}}} where {B,F})(j::Int=5) = leaf(m,t,j)
+function leaf(m::TensorField{B,F,5,<:AbstractArray{<:Coordinate{<:Chain{V,1,<:Real} where V}}} where {B,F},i::Int,j::Int=5)
+    isone(j) ? m[i,:,:,:,:] : j==2 ? m[:,i,:,:,:] : j==3 ? m[:,:,i,:,:] : j==4 ? m[:,:,:,i,:] : m[:,:,:,:,i]
+end
+function leaf(m::TensorField{B,F,5,<:AbstractArray{<:Coordinate{<:Chain{V,1,<:Real} where V}}} where {B,F},t::AbstractFloat,j::Int=5)
+    Q,R,S,T,p = isone(j),j==2,j==3,j==4,points(m).v[j]
+    w,x,y,z = points(m).v[j>1 ? 2 : 1],points(m).v[j>2 ? 2 : 3],points(m).v[j>3 ? 3 : 4],points(m).v[j>4 ? 4 : 5]
+    i,i0 = searchpoints(p,t)
+    f1 = Q ? m.cod[i,:,:,:,:] : R ? m.cod[:,i,:,:,:] : S ? m.cod[:,:,i,:,:] : T ? m.cod[:,:,:,i,:] : m.cod[:,:,:,:,i]
+    f2 = Q ? m.cod[i+1,:,:,:,:] : R ? m.cod[:,i+1,:,:,:] : S ? m.cod[:,:,i+1,:,:] : T ? m.cod[:,:,:,i+1,:] : m.cod[:,:,:,:,i+1]
+    TensorField(ProductSpace(w,x,y,z),linterp(t,p[i],p[i+1],f1,f2))
+end
+function leaf4(m::TensorField{B,F,5,<:AbstractArray{<:Coordinate{<:Chain{V,1,<:Real} where V}}} where {B,F},i::Int,j::Int,k::Int,l::Int,n::Int=5)
+    isone(n) ? m[:,i,j,k,l] : n==2 ? m[i,:,j,k,l] : n==3 ? m[i,j,:,k,l] : n==4 ? m[i,j,k,:,l] : m[i,j,k,l,:]
+end
+function leaf4(m::TensorField{B,F,5,<:AbstractArray{<:Coordinate{<:Chain{V,1,<:Real} where V}}} where {B,F},t::AbstractFloat,s::AbstractFloat,u::AbstractFloat,v::AbstractFloat,n::Int=5)
+    Q,R,S,T,p = isone(n),n==2,n==3,n==4,points(m).v[n]
+    w,x,y,z = points(m).v[n>1 ? 2 : 1],points(m).v[n>2 ? 2 : 3],points(m).v[n>3 ? 3 : 4],points(m).v[n>4 ? 4 : 5]
+    i,i0 = searchpoints(w,t)
+    j,j0 = searchpoints(x,s)
+    k,j0 = searchpoints(y,u)
+    l,j0 = searchpoints(z,v)
+    f1111 = Q ? m.cod[:,i,j,k,l] : R ? m.cod[i,:,j,k,l] : S ? m.cod[i,j,:,k,l] : T ? m.cod[i,j,k,:,l] : m.cod[i,j,k,l,:]
+    f2111 = Q ? m.cod[:,i+1,j,k,l] : R ? m.cod[i+1,:,j,k,l] : S ? m.cod[i+1,j,:,k,l] : T ? m.cod[i+1,j,k,:,l] : m.cod[i+1,j,k,l,:]
+    f1211 = Q ? m.cod[:,i,j+1,k,l] : R ? m.cod[i,:,j+1,k,l] : S ? m.cod[i,j+1,:,k,l] : T ? m.cod[i,j+1,k,:,l] : m.cod[i,j+1,k,l,:]
+    f2211 = Q ? m.cod[:,i+1,j+1,k,l] : R ? m.cod[i+1,:,j+1,k,l] : S ? m.cod[i+1,j+1,:,k,l] : T ? m.cod[i+1,j+1,k,:,l] : m.cod[i+1,j+1,k,l,:]
+    f1121 = Q ? m.cod[:,i,j,k+1,l] : R ? m.cod[i,:,j,k+1,l] : S ? m.cod[i,j,:,k+1,l] : T ? m.cod[i,j,k+1,:,l] : m.cod[i,j,k+1,l,:]
+    f2121 = Q ? m.cod[:,i+1,j,k+1,l] : R ? m.cod[i+1,:,j,k+1,l] : S ? m.cod[i+1,j,:,k+1,l] : T ? m.cod[i+1,j,k+1,:,l] : m.cod[i+1,j,k+1,l,:]
+    f1221 = Q ? m.cod[:,i,j+1,k+1,l] : R ? m.cod[i,:,j+1,k+1,l] : S ? m.cod[i,j+1,:,k+1,l] : T ? m.cod[i,j+1,k+1,:,l] : m.cod[i,j+1,k+1,l,:]
+    f2221 = Q ? m.cod[:,i+1,j+1,k+1,l] : R ? m.cod[i+1,:,j+1,k+1,l] : S ? m.cod[i+1,j+1,:,k+1,l] : T ? m.cod[i+1,j+1,k+1,:,l] : m.cod[i+1,j+1,k+1,l,:]
+    f1112 = Q ? m.cod[:,i,j,k,l+1] : R ? m.cod[i,:,j,k,l+1] : S ? m.cod[i,j,:,k,l+1] : T ? m.cod[i,j,k,:,l+1] : m.cod[i,j,k,l+1,:]
+    f2112 = Q ? m.cod[:,i+1,j,k,l+1] : R ? m.cod[i+1,:,j,k,l+1] : S ? m.cod[i+1,j,:,k,l+1] : T ? m.cod[i+1,j,k,:,l+1] : m.cod[i+1,j,k,l+1,:]
+    f1212 = Q ? m.cod[:,i,j+1,k,l+1] : R ? m.cod[i,:,j+1,k,l+1] : S ? m.cod[i,j+1,:,k,l+1] : T ? m.cod[i,j+1,k,:,l+1] : m.cod[i,j+1,k,l+1,:]
+    f2212 = Q ? m.cod[:,i+1,j+1,k,l+1] : R ? m.cod[i+1,:,j+1,k,l+1] : S ? m.cod[i+1,j+1,:,k,l+1] : T ? m.cod[i+1,j+1,k,:,l+1] : m.cod[i+1,j+1,k,l+1,:]
+    f1122 = Q ? m.cod[:,i,j,k+1,l+1] : R ? m.cod[i,:,j,k+1,l+1] : S ? m.cod[i,j,:,k+1,l+1] : T ? m.cod[i,j,k+1,:,l+1] : m.cod[i,j,k+1,l+1,:]
+    f2122 = Q ? m.cod[:,i+1,j,k+1,l+1] : R ? m.cod[i+1,:,j,k+1,l+1] : S ? m.cod[i+1,j,:,k+1,l+1] : T ? m.cod[i+1,j,k+1,:,l+1] : m.cod[i+1,j,k+1,l+1,:]
+    f1222 = Q ? m.cod[:,i,j+1,k+1,l+1] : R ? m.cod[i,:,j+1,k+1,l+1] : S ? m.cod[i,j+1,:,k+1,l+1] : T ? m.cod[i,j+1,k+1,:,l+1] : m.cod[i,j+1,k+1,l+1,:]
+    f2222 = Q ? m.cod[:,i+1,j+1,k+1,l+1] : R ? m.cod[i+1,:,j+1,k+1,l+1] : S ? m.cod[i+1,j+1,:,k+1,l+1] : T ? m.cod[i+1,j+1,k+1,:,l+1] : m.cod[i+1,j+1,k+1,l+1,:]
+    TensorField(p,bilinterp(t,s,u,v,w[i],w[i+1],x[j],x[j+1],y[k],y[k+1],z[l],z[l+1],f1111,f2111,f1211,f2211,f1121,f2121,f1221,f2221,f1112,f2112,f1212,f2212,f1122,f2122,f1222,f2222))
 end
 
 leaf(m::TensorField{B,F,2,<:FiberProductBundle} where {B,F},i::Int) = TensorField(base(m).s,fiber(m)[:,i])

@@ -26,3 +26,4 @@ function Cartan.SimplexBundle(t::Chull)
     p(SimplexTopology(Values.(t.simplices),length(p)))
 end
 
+end # module

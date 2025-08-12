@@ -412,6 +412,23 @@ Grassmann.Couple(s::TensorField) = TensorField(base(s), Couple(fiber(s)))
 
 checkdomain(a::FiberBundle,b::FiberBundle) = base(a)≠base(b) ? error("GlobalFiber base not equal") : true
 
+_aff(x::Chain{V,1,T,2}) where {V,T} = Chain{varmanifold(3)}(one(T),x[1],x[2])
+_aff(x::Chain{V,1,T,3}) where {V,T} = Chain{varmanifold(4)}(one(T),x[1],x[2],x[3])
+
+function SimplexTopology(t::EndomorphismField)
+    n = length(t)
+    SimplexTopology(0,[Values(i,i+n,i+2n) for i ∈ 1:n])
+end
+function SimplexBundle(M::TensorField,t::EndomorphismField)
+    cols = columns(fiber(value(t)))
+    SimplexBundle(0,_aff.(vcat((Ref(fiber(M)).+cols)...)),SimplexTopology(t))
+end
+function SimplexBundle(t::EndomorphismField)
+    SimplexBundle(0,_aff.(vcat(columns(fiber(value(t)))...)),SimplexTopology(t))
+end
+SimplexBundle(M::TensorField,t::EndomorphismField,n::Int...) = SimplexBundle(resample(M,n...),resample(t,n...))
+SimplexBundle(t::EndomorphismField,n::Int...) = SimplexBundle(resample(t,n...))
+
 complexify(t::LocalFiber) = complexify(fiber(t))
 complexify(t::Chain{V,1,T,2} where T) where V = Couple{V,Submanifold(V)}(value(t)...)
 complexify(t::Couple) = t
@@ -548,6 +565,19 @@ function variation(v::TensorField,t,fun::Function,fun!::Function,::Val{T},args..
     end
     return out
 end
+function variation(v::TensorField,t,fun::Function,fun!::Function,n::Int,::Val{T},args...) where T
+    x = resample(points(v).v[end],n)
+    out = fun(leaf(v,float(x[1])),args...)
+    fig,ax,plt = out
+    display(out)
+    sleep(t)
+    for i ∈ 2:length(x)
+        T && empty!(ax)
+        fun!(leaf(v,float(x[i])),args...)
+        sleep(t)
+    end
+    return out
+end
 function variation(v::TensorField{B,F,2,<:FiberProductBundle} where {B,F},t,fun::Function,args...)
     for i ∈ 1:length(base(v).g.v[1])
         display(fun(leaf(v,i),args...))
@@ -571,11 +601,15 @@ for fun ∈ (:variation,:alteration,:modification)
     let fun! = Symbol(fun,:!)
     @eval begin
         $fun(v::TensorField,t,fun::Function,fun!::Function,args...) = $fun(v,t,fun,fun!,Val(true),args...)
+        $fun(v::TensorField,t,fun::Function,fun!::Function,n::Int,args...) = $fun(v,t,fun,fun!,n,Val(true),args...)
         $fun!(v::TensorField,fun::Function,args...) = $fun(v,0.0,fun,args...)
         $fun!(v::TensorField,fun::Function,fun!::Function,args...) = $fun!(v,0.0,fun,fun!,args...)
         $fun!(v::TensorField,fun::Function,fun!::Function,f::Function,args...) = $fun!(v,0.0,fun,fun!,f,args...)
+        $fun!(v::TensorField,fun::Function,fun!::Function,n::Int,args...) = $fun!(v,0.0,fun,fun!,n,args...)
         $fun!(v::TensorField,t,fun::Function,args...) = $fun(v,t,fun,args...)
         $fun!(v::TensorField,t,fun::Function,fun!::Function,args...) = $fun(v,t,fun,fun!,Val(false),args...)
+        $fun!(v::TensorField,t,fun::Function,fun!::Function,n::Int,args...) = $fun(v,t,fun,fun!,n,Val(false),args...)
+        #$fun!(v::TensorField,t,fun::Function,fun!::Function,n::Int,f::Function,args...) = $fun(v,t,fun,fun!,n,Val(false),f,args...)
     end end
 end
 
@@ -600,11 +634,34 @@ function alteration(v::TensorField,t,fun::Function,fun!::Function,::Val{T},args.
     end
     return out
 end
+function alteration(v::TensorField,t,fun::Function,fun!::Function,n::Int,::Val{T},args...) where T
+    x = resample(points(v).v[1],n)
+    out = fun(leaf(v,float(x[1]),1),args...)
+    fig,ax,plt = out
+    display(out)
+    sleep(t)
+    for i ∈ 2:length(x)
+        T && empty!(ax)
+        fun!(leaf(v,float(x[i]),1),args...)
+        sleep(t)
+    end
+    return out
+end
 function _alteration(out,v::TensorField,t,fun::Function,fun!::Function,::Val{T},args...) where T
     fig,ax,plt = out
     for i ∈ 1:length(points(v).v[1])
         T && empty!(ax)
         fun!(leaf(v,i,1),args...)
+        sleep(t)
+    end
+    return out
+end
+function _alteration(out,v::TensorField,t,fun::Function,fun!::Function,n::Int,::Val{T},args...) where T
+    x = resample(points(v).v[1],n)
+    fig,ax,plt = out
+    for i ∈ 1:length(x)
+        T && empty!(ax)
+        fun!(leaf(v,float(x[i]),1),args...)
         sleep(t)
     end
     return out
@@ -627,6 +684,19 @@ function modification(v::TensorField,t,fun::Function,fun!::Function,::Val{T},arg
     for i ∈ 2:length(points(v).v[2])
         T && empty!(ax)
         fun!(leaf(v,i,2),args...)
+        sleep(t)
+    end
+    return out
+end
+function modification(v::TensorField,t,fun::Function,fun!::Function,n::Int,::Val{T},args...) where T
+    x = resample(points(v).v[2],n)
+    out = fun(leaf(v,float(x[1]),2),args...)
+    fig,ax,plt = out
+    display(out)
+    sleep(t)
+    for i ∈ 2:length(x)
+        T && empty!(ax)
+        fun!(leaf(v,float(x[i]),2),args...)
         sleep(t)
     end
     return out
@@ -658,10 +728,10 @@ include("grid.jl")
 include("element.jl")
 include("diffgeo.jl")
 
-for fun ∈ (:polytransform,:unorientedpoly,:orientedpoly,:argarrows,:argarrows2,:argarrows3,:gridargs,:gridargs1)
+for fun ∈ (:unorientedpoly,:orientedpoly,:makietransform)
     @eval function $fun end
 end
-for fun ∈ (:linegraph,:tangentbundle,:planesbundle,:arrowsbundle,:spacesbundle,:scaledbundle,:scaledfield,:scaledarrows,:scaledplanes,:scaledspaces,:planes,:spaces)
+for fun ∈ (:linegraph,:tangentbundle,:normalbundle,:planesbundle,:arrowsbundle,:spacesbundle,:scaledbundle,:scaledfield,:scaledarrows,:scaledplanes,:scaledspaces,:planes,:spaces)
     @eval begin
         function $fun end
         function $(Symbol(fun,:!)) end
@@ -671,6 +741,65 @@ end
 
 point2chain(x,V=Submanifold(2)) = Chain(x[1],x[2])
 point3chain(x,V=Submanifold(3)) = Chain(x[1],x[2],x[3])
+
+polytransform(x) = vec(x)#[x[1],x[3],x[2],x[4]]
+argarrows2(s,siz=s) = (;lengthscale=s)
+argarrows3(s,siz=2s/33) = (;lengthscale=s)#,tipradius=siz/3,tiplength=siz,shaftradius=siz/7)
+function argarrows(t::TensorField{B,<:TensorOperator{V,W}},s,siz=2s/33) where {B,V,W}
+    mdims(W) ≠ 3 ? argarrows2(s) : argarrows3(s,siz)
+end
+function argarrows(t::TensorField{B,<:Chain{V}},s,siz=2s/33) where {B,V}
+    mdims(V) ≠ 3 ? argarrows2(s,siz) : argarrows3(s,siz)
+end
+
+streamargs(t,args) = args
+streamargs(t::TensorField{B,F,3} where {B,F},args) = streamargs(args)
+function streamargs(args)
+    if haskey(args,:gridsize)
+        wargs = Dict(args)
+        delete!(wargs,:gridsize)
+        (;:gridsize => args[:gridsize],wargs...)
+    else
+        pairs((;:gridsize => (11,11,11),args...))
+    end
+end
+function streamargs(dim::Bool,args)
+    if haskey(args,:gridsize)
+        wargs = Dict(args)
+        delete!(wargs,:gridsize)
+        (;:gridsize => dim ? (args[:gridsize]...,1) : args[:gridsize],wargs...)
+    else
+        pairs((;:gridsize => dim ? (32,32,1) : (32,32),args...))
+    end
+end
+
+function gridargs(M,t,fun,args)
+    if haskey(args,:gridsize)
+        wargs = Dict(args)
+        delete!(wargs,:gridsize)
+        return fun(resample(M,args[:gridsize]),resample(t,args[:gridsize]);(;wargs...)...)
+    elseif haskey(args,:arcgridsize)
+        wargs = Dict(args)
+        delete!(wargs,:arcgridsize)
+        aM = arcresample(M,args[:arcgridsize])
+        return fun(aM,TensorField(base(aM),t.(points(aM)));(;wargs...)...)
+    else
+        args
+    end
+end
+function gridargs(t,fun,args)
+    if haskey(args,:gridsize)
+        wargs = Dict(args)
+        delete!(wargs,:gridsize)
+        return fun(resample(t,args[:gridsize]);(;wargs...)...)
+    elseif haskey(args,:arcgridsize)
+        wargs = Dict(args)
+        delete!(wargs,:arcgridsize)
+        return fun(arcresample(t,args[:arcgridsize]);(;wargs...)...)
+    else
+        args
+    end
+end
 
 if !isdefined(Base, :get_extension)
 using Requires
