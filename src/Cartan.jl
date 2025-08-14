@@ -429,6 +429,7 @@ end
 SimplexBundle(M::TensorField,t::EndomorphismField,n::Int...) = SimplexBundle(resample(M,n...),resample(t,n...))
 SimplexBundle(t::EndomorphismField,n::Int...) = SimplexBundle(resample(t,n...))
 
+#import Grassmann: complexify, polarize, vectorize
 complexify(t::LocalFiber) = complexify(fiber(t))
 complexify(t::Chain{V,1,T,2} where T) where V = Couple{V,Submanifold(V)}(value(t)...)
 complexify(t::Couple) = t
@@ -436,8 +437,16 @@ complexify(t::PseudoCouple) = !t
 complexify(t::Complex) = t
 complexify(t::TensorField) = TensorField(base(t),complexify.(fiber(t)))
 
+polarize(t::LocalFiber) = polarize(fiber(t))
+polarize(t::Chain{V,1,T,2} where T) where V = Phasor{V,Submanifold(V)}(value(t)...)
+polarize(t) = Phasor(complexify(t))
+polarize(t::Phasor) = t
+polarize(t::Complex) = Phasor(Couple(t))
+polarize(t::TensorField) = TensorField(base(t),polarize.(fiber(t)))
+
 vectorize(t::LocalFiber) = vectorize(fiber(t))
 vectorize(t::Couple{V,B}) where {V,B} = Chain{_subspace(V,B),1}(realvalue(t),imagvalue(t))
+vectorize(t::Phasor{V,B}) where {V,B} = Chain{_subspace(V,B),1}(realvalue(t),imagvalue(t))
 vectorize(t::PseudoCouple) = vectorize(!t)
 vectorize(t::Complex) = Chain(real(t),imag(t))
 vectorize(t::Chain) = t
@@ -773,31 +782,31 @@ function streamargs(dim::Bool,args)
     end
 end
 
-function gridargs(M,t,fun,args)
+function gridargs(M,t,args)
     if haskey(args,:gridsize)
         wargs = Dict(args)
         delete!(wargs,:gridsize)
-        return fun(resample(M,args[:gridsize]),resample(t,args[:gridsize]);(;wargs...)...)
+        resample(M,args[:gridsize]),resample(t,args[:gridsize]),(;wargs...)
     elseif haskey(args,:arcgridsize)
         wargs = Dict(args)
         delete!(wargs,:arcgridsize)
         aM = arcresample(M,args[:arcgridsize])
-        return fun(aM,TensorField(base(aM),t.(points(aM)));(;wargs...)...)
+        aM,TensorField(base(aM),t.(points(aM))),(;wargs...)
     else
-        args
+        M,t,args
     end
 end
-function gridargs(t,fun,args)
+function gridargs(t,args)
     if haskey(args,:gridsize)
         wargs = Dict(args)
         delete!(wargs,:gridsize)
-        return fun(resample(t,args[:gridsize]);(;wargs...)...)
+        resample(t,args[:gridsize]),(;wargs...)
     elseif haskey(args,:arcgridsize)
         wargs = Dict(args)
         delete!(wargs,:arcgridsize)
-        return fun(arcresample(t,args[:arcgridsize]);(;wargs...)...)
+        arcresample(t,args[:arcgridsize]),(;wargs...)
     else
-        args
+        t,args
     end
 end
 
