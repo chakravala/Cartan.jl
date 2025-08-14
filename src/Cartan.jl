@@ -59,7 +59,7 @@ export RealFunction, ComplexMap, SpinorField, CliffordField
 export ScalarMap, GradedField, QuaternionField, PhasorField
 export GlobalFrame, DiagonalField, EndomorphismField, OutermorphismField
 export ParametricMap, RectangleMap, HyperrectangleMap, AbstractCurve
-export metrictensorfield, metricextensorfield, complexify, vectorize
+export metrictensorfield, metricextensorfield, polarize, complexify, vectorize
 export leaf, alteration, variation, modification, alteration!, variation!, modification!
 
 # TensorField
@@ -429,30 +429,22 @@ end
 SimplexBundle(M::TensorField,t::EndomorphismField,n::Int...) = SimplexBundle(resample(M,n...),resample(t,n...))
 SimplexBundle(t::EndomorphismField,n::Int...) = SimplexBundle(resample(t,n...))
 
-#import Grassmann: complexify, polarize, vectorize
+import Grassmann: complexify, polarize, vectorize
 complexify(t::LocalFiber) = complexify(fiber(t))
-complexify(t::Chain{V,1,T,2} where T) where V = Couple{V,Submanifold(V)}(value(t)...)
-complexify(t::Couple) = t
-complexify(t::PseudoCouple) = !t
-complexify(t::Complex) = t
 complexify(t::TensorField) = TensorField(base(t),complexify.(fiber(t)))
-
 polarize(t::LocalFiber) = polarize(fiber(t))
-polarize(t::Chain{V,1,T,2} where T) where V = Phasor{V,Submanifold(V)}(value(t)...)
-polarize(t) = Phasor(complexify(t))
-polarize(t::Phasor) = t
-polarize(t::Complex) = Phasor(Couple(t))
 polarize(t::TensorField) = TensorField(base(t),polarize.(fiber(t)))
-
 vectorize(t::LocalFiber) = vectorize(fiber(t))
-vectorize(t::Couple{V,B}) where {V,B} = Chain{_subspace(V,B),1}(realvalue(t),imagvalue(t))
-vectorize(t::Phasor{V,B}) where {V,B} = Chain{_subspace(V,B),1}(realvalue(t),imagvalue(t))
-vectorize(t::PseudoCouple) = vectorize(!t)
-vectorize(t::Complex) = Chain(real(t),imag(t))
-vectorize(t::Chain) = t
 vectorize(t::TensorField) = TensorField(base(t),vectorize.(fiber(t)))
 
-Base.@pure _subspace(::Submanifold{V,G},::Submanifold{W,L,B} where {W,L}) where {V,G,B} = Submanifold{V,G,B}()
+(z::Phasor)(t::TensorField,θ...) = TensorField(t,z.(fiber(t),Ref.(θ)...))
+(z::Phasor)(t::TensorField,θ::TensorField) = TensorField(t,z.(fiber(t),fiber(θ)))
+(z::Phasor)(t::LocalTensor,θ...) = z(fiber(t),θ...)
+(z::Phasor)(t::Coordinate,θ...) = z(point(t),θ...)
+(z::Phasor)(t::LocalTensor,θ::LocalTensor) = z(fiber(t),fiber(θ))
+(z::Phasor)(t::LocalTensor,θ::Coordinate) = z(fiber(t),point(θ))
+(z::Phasor)(t::Coordinate,θ::LocalTensor) = z(point(t),fiber(θ))
+(z::Phasor)(t::Coordinate,θ::Coordinate) = z(point(t),point(θ))
 
 disconnect(t::FaceMap) = TensorField(disconnect(base(t)),fiber(t))
 discontinuous(t::FaceMap) = discontinuous(t,discontinuous(base(t)))
@@ -576,15 +568,17 @@ function variation(v::TensorField,t,fun::Function,fun!::Function,::Val{T},args..
 end
 function variation(v::TensorField,t,fun::Function,fun!::Function,n::Int,::Val{T},args...) where T
     x = resample(points(v).v[end],n)
-    out = fun(leaf(v,float(x[1])),args...)
+    out = fun(leaf(v,1),args...)
     fig,ax,plt = out
     display(out)
     sleep(t)
-    for i ∈ 2:length(x)
+    for i ∈ 2:length(x)-1
         T && empty!(ax)
         fun!(leaf(v,float(x[i])),args...)
         sleep(t)
     end
+    T && empty!(ax)
+    fun!(leaf(v,size(v)[end]),args...)
     return out
 end
 function variation(v::TensorField{B,F,2,<:FiberProductBundle} where {B,F},t,fun::Function,args...)

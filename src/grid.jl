@@ -143,8 +143,11 @@ end
 leaf(m::RectangleMap,i::Int,j::Int=2) = isone(j) ? m[i,:] : m[:,i]
 function leaf(m::RectangleMap,t::AbstractFloat,j::Int=2)
     Q,p = isone(j),points(m).v[j]
+    x = points(m).v[j>1 ? 1 : 2]
     i,i0 = searchpoints(p,t)
-    TensorField(points(m).v[Q ? 2 : 1],linterp(t,p[i],p[i+1],Q ? m.cod[i,:] : m.cod[:,i],Q ? m.cod[i+1,:] : m.cod[:,i+1]))
+    f1 = Q ? m.cod[i,:] : m.cod[:,i]
+    f2 = Q ? m.cod[i+1,:] : m.cod[:,i+1]
+    TensorField(x,linterp(t,p[i],p[i+1],f1,f2))
 end
 
 (m::HyperrectangleMap)(t::Real,j::Int=3) = leaf(m,t,j)

@@ -26,7 +26,7 @@ import Cartan: planesbundle, planesbundle!, spacesbundle, spacesbundle!
 import Cartan: arrowsbundle, arrowsbundle!, scaledarrows, scaledarrows!
 import Cartan: scaledfield, scaledfield!, scaledbundle, scaledbundle!
 import Cartan: scaledplanes, scaledplanes!, scaledspaces, scaledspaces!
-import Cartan: planes, planes!, spaces, spaces!
+import Cartan: planes, planes!, spaces, spaces!, linegraph
 
 for fun ∈ (:linegraph,:scaledarrows,:planes,:scaledplanes,:spaces,:scaledspaces,:scaledfield,:scaledbundle,:arrowsbundle,:planesbundle,:spacesbundle,:tangentbundle,:normalbundle)
     @eval begin
@@ -76,11 +76,8 @@ for fun ∈ (:mesh,:lines)
         end
     end
 end
-for fun ∈ (:scatter,:wireframe)
-    @eval begin
-        Makie.$fun(t::TensorField{B,<:AbstractComplex} where B;args...) = Makie.$fun(vectorize(t);args...)
-        Makie.$(Symbol(fun,:!))(t::TensorField{B,<:AbstractComplex} where B;args...) = Makie.$(Symbol(fun,:!))(vectorize(t),args...)
-    end
+for fun ∈ (:(Makie.scatter),:(Makie.scatter!),:(Makie.wireframe),:(Makie.wireframe!),:linegraph,:linegraph!)
+    @eval $fun(t::TensorField{B,<:AbstractComplex} where B;args...) = $fun(vectorize(t);args...)
 end
 for fun ∈ (:(Makie.arrows),:(Makie.arrows!),:scaledarrows,:scaledarrows!)
     @eval begin
