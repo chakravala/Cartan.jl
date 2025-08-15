@@ -89,12 +89,45 @@ for fun ∈ (:mesh,:streamplot)
     @eval begin
         Makie.$fun(t::TensorField{B,<:AbstractComplex,2} where B;args...) = Makie.$fun(vectorize(t);args...)
         Makie.$(Symbol(fun,:!))(t::TensorField{B,<:AbstractComplex,2} where B;args...) = Makie.$(Symbol(fun,:!))(vectorize(t);args...)
-        Makie.$fun(M::TensorField{B,<:AbstractComplex,2} where B,t::TensorField{B,<:AbstractComplex,2} where B;args...) = Makie.$fun(vectorize(M),Real(angle(t));args...)
-        Makie.$(Symbol(fun,:!))(M::TensorField{B,<:AbstractComplex,2} where B,t::TensorField{B,<:AbstractComplex,2} where B;args...) = Makie.$(Symbol(fun,:!))(vectorize(M),Real(angle(t)),args...)
     end
 end
-Makie.mesh(t::TensorField{B,<:AbstractComplex,2} where B,f::Function;args...) = Makie.mesh(vectorize(t),vectorize(f(t));args...)
-Makie.mesh!(t::TensorField{B,<:AbstractComplex,2} where B,f::Function;args...) = Makie.mesh!(vectorize(t),vectorize(f(t));args...)
+Makie.mesh(t::TensorField{B,<:AbstractComplex,2} where B,f::Function;args...) = Makie.mesh(vectorize(t),f(t);args...)
+Makie.mesh!(t::TensorField{B,<:AbstractComplex,2} where B,f::Function;args...) = Makie.mesh!(vectorize(t),f(t);args...)
+Makie.mesh(M::TensorField{B,<:AbstractComplex,2} where B,t::TensorField{B,<:AbstractComplex,2} where B;args...) = Makie.mesh(vectorize(M),Real(angle(t));args...)
+Makie.mesh!(M::TensorField{B,<:AbstractComplex,2} where B,t::TensorField{B,<:AbstractComplex,2} where B;args...) = Makie.mesh!(vectorize(M),Real(angle(t));args...)
+Makie.mesh(M::TensorField{B,<:AbstractComplex,2} where B,t::TensorField{B,<:AbstractReal,2} where B;args...) = Makie.mesh(vectorize(M),Real(t);args...)
+Makie.mesh!(M::TensorField{B,<:AbstractComplex,2} where B,t::TensorField{B,<:AbstractReal,2} where B;args...) = Makie.mesh!(vectorize(M),Real(t);args...)
+Makie.mesh(M::TensorField,t::TensorField{B,<:AbstractComplex,2} where B;args...) = Makie.mesh(vectorize(M),Real(angle(t));args...)
+Makie.mesh!(M::TensorField,t::TensorField{B,<:AbstractComplex,2} where B;args...) = Makie.mesh!(vectorize(M),Real(angle(t));args...)
+Makie.streamplot(M::TensorField{B,<:AbstractComplex,2} where B,t::TensorField{B,<:AbstractComplex,2} where B;args...) = Makie.streamplot(vectorize(M),vectorize(t);args...)
+Makie.streamplot!(M::TensorField{B,<:AbstractComplex,2} where B,t::TensorField{B,<:AbstractComplex,2} where B;args...) = Makie.streamplot!(vectorize(M),vectorize(t);args...)
+Makie.streamplot(M::TensorField,t::TensorField{B,<:AbstractComplex,2} where B;args...) = Makie.streamplot(M,vectorize(t);args...)
+Makie.streamplot!(M::TensorField,t::TensorField{B,<:AbstractComplex,2} where B;args...) = Makie.streamplot!(M,vectorize(t);args...)
+for fun ∈ (:streamplot,:streamplot!)
+    @eval function Makie.$fun(M::VectorField,m::VectorField{<:Coordinate{<:Chain{V}},<:Chain,3,<:RealSpace{3}};args...) where V
+        makietransform(M,Makie.$fun(m;streamargs(args)...),Val(3))
+    end
+end
+for fun ∈ (:volume,:volume!,:contour,:contour!)
+    @eval function Makie.$fun(M::VectorField,m::VectorField{<:Coordinate{<:Chain{V}},<:AbstractReal,3,<:RealSpace{3}};args...) where V
+        makietransform(M,Makie.$fun(m;args...),Val(3))
+    end
+end
+for fun ∈ (:contour,:contour!,:contourf,:contourf!)
+    @eval begin
+        function Makie.$fun(M::VectorField,m::TensorField{<:Coordinate{<:Chain{V}},<:AbstractReal,2,<:RealSpace{2}};args...) where V
+            makietransform(M,Makie.$fun(m;args...),Val(2))
+        end
+        function Makie.$fun(M::VectorField,m::TensorField{<:Coordinate{<:Chain{V}},<:AbstractReal,3,<:RealSpace{3}};args...) where V
+            makietransform(M,Makie.$fun(m;args...),Val(3))
+        end
+    end
+end
+for fun ∈ (:contour3d,:contour3d!)
+    @eval function Makie.$fun(M::VectorField,m::VectorField{<:Coordinate{<:Chain{V}},<:AbstractReal,2,<:RealSpace{2}};args...) where V
+        makietransform(M,Makie.$fun(m;args...),Val(3))
+    end
+end
 
 for lines ∈ (:lines,:lines!,:linesegments,:linesegments!)
     @eval begin
@@ -412,7 +445,7 @@ chain3quatf(x) = Makie.to_rotation(chain3vec(x))
 
 function makietransform(M,st::Makie.FigureAxisPlot,N::Val)
     fig,ax,pl = st
-    maketransform(M,pl,N)
+    makietransform(M,pl,N)
     return st
 end
 function makietransform(M,pl,::Val{N}) where N
@@ -428,9 +461,9 @@ for fun ∈ (:streamplot,:streamplot!)
         #Makie.$fun(f::Function,t::Hyperrectangle;args...) = Makie.$fun(f,t.v...;args...)
         Makie.$fun(m::ScalarField{<:Coordinate{<:Chain},<:AbstractReal,N,<:RealSpace} where N;args...) = Makie.$fun(gradient_fast(m);args...)
         Makie.$fun(m::ScalarMap,dims...;args...) = Makie.$fun(gradient_fast(m),dims...;args...)
-        Makie.$fun(m::VectorField{R,F,1,<:SimplexBundle} where {R,F},dims...;args...) = Makie.$fun(p->Makie.Point(m(Chain(one(eltype(p)),p.data...))),dims...;args...)
+        Makie.$fun(m::VectorField{R,F,1,<:SimplexBundle} where {R,F},dims::Union{<:Makie.ClosedInterval,<:AbstractRange}...;args...) = Makie.$fun(p->Makie.Point(m(Chain(one(eltype(p)),p.data...))),dims...;args...)
         Makie.$fun(m::VectorField{<:Coordinate{<:Chain},F,N,<:RealSpace} where {F,N};args...) = Makie.$fun(m,points(m).v...;args...)
-        Makie.$fun(m::VectorField{<:Coordinate{<:Chain},F,N,<:RealSpace} where {F,N},dims...;args...) = Makie.$fun(p->Makie.Point(m(Chain(p.data...))),dims...;streamargs(m,args)...)
+        Makie.$fun(m::VectorField{<:Coordinate{<:Chain},F,N,<:RealSpace} where {F,N},dims::Union{<:Makie.ClosedInterval,<:AbstractRange}...;args...) = Makie.$fun(p->Makie.Point(m(Chain(p.data...))),dims...;streamargs(m,args)...)
         Makie.$fun(t::TensorField{B,<:AbstractReal,2,<:FiberProductBundle} where B;args...) = Makie.$fun(TensorField(GridBundle(base(t)),fiber(t));args...)
         function Makie.$fun(M::VectorField,m::VectorField{<:Coordinate{<:Chain{V}},<:Chain,2,<:RealSpace{2}};args...) where V
             dim = mdims(fibertype(M)) ≠ 2
@@ -445,21 +478,14 @@ for fun ∈ (:streamplot,:streamplot!)
             $(fun≠:streamplot ? :pl : :((fig,ax,pl))) = st
             if dim
                 makietransform(M,st,Val(3))
-                jac,arr = jacobian(M),pl.plots[2]
-                arr.rotation[] = chain3quatf.(jac.(point2chain.(arr.args.value[][1],V)).⋅point2chain.(quatf3vec(arr.rotation[]),V))
+                #jac,arr = jacobian(M),pl.plots[2]
+                #arr.rotation[] = chain3quatf.(jac.(point2chain.(arr.args.value[][1],V)).⋅point2chain.(quatf3vec.(arr.rotation[]),V))
             else
                 xs = getindex.(fiber(M),1); ys = getindex.(fiber(M),2)
                 $(fun≠:streamplot ? nothing : :(ax.limits = ((minimum(xs),maximum(xs)),(minimum(ys),maximum(ys)))))
                 makietransform(M,st,Val(2))
             end
             return st
-        end
-        function Makie.$fun(M::VectorField,m::VectorField{<:Coordinate{<:Chain{V}},<:Chain,3,<:RealSpace{3}};args...) where V
-            kwargs = streamargs(args)
-            st = Makie.$fun(p->(z=m(Chain{V}(p[1],p[2],p[3]));Makie.Point(z[1],z[2],z[3])),points(m).v...;kwargs...)
-            makietransform(M,st,Val(3))
-            #xs = getindex.(fiber(M),1); ys = getindex.(fiber(M),2); zs = getindex.(fiber(M),3)
-            #ax.limits = ((minimum(xs),maximum(xs)),(minimum(ys),maximum(ys)),(minimum(zs),maximum(zs)))
         end
     end
 end

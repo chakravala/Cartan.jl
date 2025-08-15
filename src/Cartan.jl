@@ -439,6 +439,7 @@ vectorize(t::TensorField) = TensorField(base(t),vectorize.(fiber(t)))
 
 (z::Phasor)(t::TensorField,θ...) = TensorField(t,z.(fiber(t),Ref.(θ)...))
 (z::Phasor)(t::TensorField,θ::TensorField) = TensorField(t,z.(fiber(t),fiber(θ)))
+(z::Phasor)(t,θ::TensorField) = TensorField(t,z.(Ref(t),fiber(θ)))
 (z::Phasor)(t::LocalTensor,θ...) = z(fiber(t),θ...)
 (z::Phasor)(t::Coordinate,θ...) = z(point(t),θ...)
 (z::Phasor)(t::LocalTensor,θ::LocalTensor) = z(fiber(t),fiber(θ))
