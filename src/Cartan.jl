@@ -29,6 +29,7 @@ import Grassmann: value, vector, valuetype, tangent, istangent, Derivation, radi
 import Grassmann: realvalue, imagvalue, points, metrictensor, metricextensor
 import Grassmann: Values, Variables, FixedVector, list, volume, compound
 import Grassmann: Scalar, GradedVector, Bivector, Trivector
+import Grassmann: complexify, polarize, vectorize
 import Base: @pure, OneTo, getindex
 import LinearAlgebra: cross
 import ElasticArrays: resize_lastdim!
@@ -378,10 +379,10 @@ end
 for fun ∈ (:exp,:exp2,:exp10,:log,:log2,:log10,:sinh,:cosh,:abs,:sqrt,:cbrt,:cos,:sin,:tan,:cot,:sec,:csc,:asec,:acsc,:sech,:csch,:asech,:tanh,:coth,:asinh,:acosh,:atanh,:acoth,:asin,:acos,:atan,:acot,:sinc,:cosc,:cis,:abs2,:inv)
     @eval Base.$fun(t::TensorField) = TensorField(base(t), $fun.(fiber(t),ref(metricextensor(t))))
 end
-for fun ∈ (:reverse,:clifford,:even,:odd,:scalar,:vector,:bivector,:volume,:value,:complementleft,:realvalue,:imagvalue,:outermorphism,:Outermorphism,:DiagonalOperator,:TensorOperator,:eigen,:eigvecs,:eigvals,:eigvalsreal,:eigvalscomplex,:eigvecsreal,:eigvecscomplex,:eigpolys,:pfaffian,:∧,:↑,:↓)
+for fun ∈ (:reverse,:clifford,:even,:odd,:scalar,:vector,:bivector,:volume,:value,:complementleft,:realvalue,:imagvalue,:outermorphism,:Outermorphism,:DiagonalOperator,:TensorOperator,:eigen,:eigvecs,:eigvals,:eigvalsreal,:eigvalscomplex,:eigvecsreal,:eigvecscomplex,:eigpolys,:pfaffian,:∧,:↑,:↓,:vectorize)
     @eval Grassmann.$fun(t::TensorField) = TensorField(base(t), $fun.(fiber(t)))
 end
-for fun ∈ (:⋆,:angle,:radius,:complementlefthodge,:pseudoabs,:pseudoabs2,:pseudoexp,:pseudolog,:pseudoinv,:pseudosqrt,:pseudocbrt,:pseudocos,:pseudosin,:pseudotan,:pseudocosh,:pseudosinh,:pseudotanh,:metric,:unit)
+for fun ∈ (:⋆,:angle,:radius,:complementlefthodge,:pseudoabs,:pseudoabs2,:pseudoexp,:pseudolog,:pseudoinv,:pseudosqrt,:pseudocbrt,:pseudocos,:pseudosin,:pseudotan,:pseudocosh,:pseudosinh,:pseudotanh,:metric,:unit,:complexify,:polarize,:amplitude,:phase)
     @eval Grassmann.$fun(t::TensorField) = TensorField(base(t), $fun.(fiber(t),ref(metricextensor(t))))
 end
 for fun ∈ (:sum,:prod)
@@ -429,17 +430,10 @@ end
 SimplexBundle(M::TensorField,t::EndomorphismField,n::Int...) = SimplexBundle(resample(M,n...),resample(t,n...))
 SimplexBundle(t::EndomorphismField,n::Int...) = SimplexBundle(resample(t,n...))
 
-import Grassmann: complexify, polarize, vectorize
-complexify(t::LocalFiber) = complexify(fiber(t))
-complexify(t::TensorField) = TensorField(base(t),complexify.(fiber(t)))
-polarize(t::LocalFiber) = polarize(fiber(t))
-polarize(t::TensorField) = TensorField(base(t),polarize.(fiber(t)))
-vectorize(t::LocalFiber) = vectorize(fiber(t))
-vectorize(t::TensorField) = TensorField(base(t),vectorize.(fiber(t)))
-
-(z::Phasor)(t::TensorField,θ...) = TensorField(t,z.(fiber(t),Ref.(θ)...))
+(z::Phasor)(t::TensorField) = TensorField(t,z.(fiber(t)))
+(z::Phasor)(t::TensorField,θ) = TensorField(t,z.(fiber(t),Ref(θ)))
 (z::Phasor)(t::TensorField,θ::TensorField) = TensorField(t,z.(fiber(t),fiber(θ)))
-(z::Phasor)(t,θ::TensorField) = TensorField(t,z.(Ref(t),fiber(θ)))
+(z::Phasor)(t,θ::TensorField) = TensorField(θ,z.(Ref(t),fiber(θ)))
 (z::Phasor)(t::LocalTensor,θ...) = z(fiber(t),θ...)
 (z::Phasor)(t::Coordinate,θ...) = z(point(t),θ...)
 (z::Phasor)(t::LocalTensor,θ::LocalTensor) = z(fiber(t),fiber(θ))
@@ -529,73 +523,73 @@ function modification(cod::TensorField); p = points(cod).v[2]
     TensorField(p,leaf.(Ref(cod),1:length(p),2))
 end
 
-variation(v::TensorField,fun::Function,args...) = variation(v,0.0,fun,args...)
-variation(v::TensorField,fun::Function,fun!::Function,args...) = variation(v,0.0,fun,fun!,args...)
-variation(v::TensorField,fun::Function,fun!::Function,f::Function,args...) = variation(v,0.0,fun,fun!,f,args...)
-function variation(v::Variation,t,fun::Function,args...)
+variation(v::TensorField,fun::Function,args...;kw...) = variation(v,0.0,fun,args...;kw...)
+variation(v::TensorField,fun::Function,fun!::Function,args...;kw...) = variation(v,0.0,fun,fun!,args...;kw...)
+variation(v::TensorField,fun::Function,fun!::Function,f::Function,args...;kw...) = variation(v,0.0,fun,fun!,f,args...;kw...)
+function variation(v::Variation,t,fun::Function,args...;kw...)
     for i ∈ 1:length(v)
-        display(fun(v.cod[i],args...))
+        display(fun(v.cod[i],args...;kw...))
         sleep(t)
     end
 end
-function variation(v::Variation,t,fun::Function,fun!::Function,::Val{T},args...) where T
-    out = fun(v.cod[1],args...)
-    fig,ax,plt = out
-    display(out)
+function variation(v::Variation,t,fun::Function,fun!::Function,::Val{T},args...;kw...) where T
+    out = fun(v.cod[1],args...;kw...)
+    fig,ax,plg = fun≠fun! ? out : (0,0,0)
+    fun≠fun! && display(out)
     sleep(t)
     for i ∈ 2:length(v)
         T && empty!(ax)
-        fun!(v.cod[i],args...)
+        fun!(v.cod[i],args...;kw...)
         sleep(t)
     end
 end
-function variation(v::TensorField,t,fun::Function,args...)
+function variation(v::TensorField,t,fun::Function,args...;kw...)
     for i ∈ 1:length(points(v).v[end])
-        display(fun(leaf(v,i),args...))
+        display(fun(leaf(v,i),args...;kw...))
         sleep(t)
     end
 end
-function variation(v::TensorField,t,fun::Function,fun!::Function,::Val{T},args...) where T
-    out = fun(leaf(v,1),args...)
-    fig,ax,plt = out
-    display(out)
+function variation(v::TensorField,t,fun::Function,fun!::Function,::Val{T},args...;kw...) where T
+    out = fun(leaf(v,1),args...;kw...)
+    fig,ax,plg = fun≠fun! ? out : (0,0,0)
+    fun≠fun! && display(out)
     sleep(t)
     for i ∈ 2:length(points(v).v[end])
         T && empty!(ax)
-        fun!(leaf(v,i),args...)
+        fun!(leaf(v,i),args...;kw...)
         sleep(t)
     end
     return out
 end
-function variation(v::TensorField,t,fun::Function,fun!::Function,n::Int,::Val{T},args...) where T
+function variation(v::TensorField,t,fun::Function,fun!::Function,n::Int,::Val{T},args...;kw...) where T
     x = resample(points(v).v[end],n)
-    out = fun(leaf(v,1),args...)
-    fig,ax,plt = out
-    display(out)
+    out = fun(leaf(v,1),args...;kw...)
+    fig,ax,plg = fun≠fun! ? out : (0,0,0)
+    fun≠fun! && display(out)
     sleep(t)
     for i ∈ 2:length(x)-1
         T && empty!(ax)
-        fun!(leaf(v,float(x[i])),args...)
+        fun!(leaf(v,float(x[i])),args...;kw...)
         sleep(t)
     end
     T && empty!(ax)
-    fun!(leaf(v,size(v)[end]),args...)
+    fun!(leaf(v,size(v)[end]),args...;kw...)
     return out
 end
-function variation(v::TensorField{B,F,2,<:FiberProductBundle} where {B,F},t,fun::Function,args...)
+function variation(v::TensorField{B,F,2,<:FiberProductBundle} where {B,F},t,fun::Function,args...;kw...)
     for i ∈ 1:length(base(v).g.v[1])
-        display(fun(leaf(v,i),args...))
+        display(fun(leaf(v,i),args...;kw...))
         sleep(t)
     end
 end
-function variation(v::TensorField{B,F,2,<:FiberProductBundle} where {B,F},t,fun::Function,fun!::Function,::Val{T},args...) where T
-    out = fun(leaf(v,1),args...)
-    fig,ax,plt = out
-    display(out)
+function variation(v::TensorField{B,F,2,<:FiberProductBundle} where {B,F},t,fun::Function,fun!::Function,::Val{T},args...;kw...) where T
+    out = fun(leaf(v,1),args...;kw...)
+    fig,ax,plg = fun≠fun! ? out : (0,0,0)
+    fun≠fun! && display(out)
     sleep(t)
     for i ∈ 2:length(base(v).g.v[1])
         T && empty!(ax)
-        fun!(leaf(v,i),args...)
+        fun!(leaf(v,i),args...;kw...)
         sleep(t)
     end
     return out
@@ -604,103 +598,103 @@ end
 for fun ∈ (:variation,:alteration,:modification)
     let fun! = Symbol(fun,:!)
     @eval begin
-        $fun(v::TensorField,t,fun::Function,fun!::Function,args...) = $fun(v,t,fun,fun!,Val(true),args...)
-        $fun(v::TensorField,t,fun::Function,fun!::Function,n::Int,args...) = $fun(v,t,fun,fun!,n,Val(true),args...)
-        $fun!(v::TensorField,fun::Function,args...) = $fun(v,0.0,fun,args...)
-        $fun!(v::TensorField,fun::Function,fun!::Function,args...) = $fun!(v,0.0,fun,fun!,args...)
-        $fun!(v::TensorField,fun::Function,fun!::Function,f::Function,args...) = $fun!(v,0.0,fun,fun!,f,args...)
-        $fun!(v::TensorField,fun::Function,fun!::Function,n::Int,args...) = $fun!(v,0.0,fun,fun!,n,args...)
-        $fun!(v::TensorField,t,fun::Function,args...) = $fun(v,t,fun,args...)
-        $fun!(v::TensorField,t,fun::Function,fun!::Function,args...) = $fun(v,t,fun,fun!,Val(false),args...)
-        $fun!(v::TensorField,t,fun::Function,fun!::Function,n::Int,args...) = $fun(v,t,fun,fun!,n,Val(false),args...)
+        $fun(v::TensorField,t,fun::Function,fun!::Function,args...;kw...) = $fun(v,t,fun,fun!,Val(true),args...;kw...)
+        $fun(v::TensorField,t,fun::Function,fun!::Function,n::Int,args...;kw...) = $fun(v,t,fun,fun!,n,Val(true),args...;kw...)
+        $fun!(v::TensorField,fun::Function,args...;kw...) = $fun(v,0.0,fun,args...;kw...)
+        $fun!(v::TensorField,fun::Function,fun!::Function,args...;kw...) = $fun!(v,0.0,fun,fun!,args...;kw...)
+        $fun!(v::TensorField,fun::Function,fun!::Function,f::Function,args...;kw...) = $fun!(v,0.0,fun,fun!,f,args...;kw...)
+        $fun!(v::TensorField,fun::Function,fun!::Function,n::Int,args...;kw...) = $fun!(v,0.0,fun,fun!,n,args...;kw...)
+        $fun!(v::TensorField,t,fun::Function,args...;kw...) = $fun(v,t,fun,args...;kw...)
+        $fun!(v::TensorField,t,fun::Function,fun!::Function,args...;kw...) = $fun(v,t,fun,fun!,Val(false),args...;kw...)
+        $fun!(v::TensorField,t,fun::Function,fun!::Function,n::Int,args...;kw...) = $fun(v,t,fun,fun!,n,Val(false),args...;kw...)
         #$fun!(v::TensorField,t,fun::Function,fun!::Function,n::Int,f::Function,args...) = $fun(v,t,fun,fun!,n,Val(false),f,args...)
     end end
 end
 
-alteration(v::TensorField,fun::Function,args...) = alteration(v,0.0,fun,args...)
-alteration(v::TensorField,fun::Function,fun!::Function,args...) = alteration(v,0.0,fun,fun!,args...)
-alteration(v::TensorField,fun::Function,fun!::Function,f::Function,args...) = alteration(v,0.0,fun,fun!,f,args...)
-function alteration(v::TensorField,t,fun::Function,args...)
+alteration(v::TensorField,fun::Function,args...;kw...) = alteration(v,0.0,fun,args...;kw...)
+alteration(v::TensorField,fun::Function,fun!::Function,args...;kw...) = alteration(v,0.0,fun,fun!,args...;kw...)
+alteration(v::TensorField,fun::Function,fun!::Function,f::Function,args...;kw...) = alteration(v,0.0,fun,fun!,f,args...;kw...)
+function alteration(v::TensorField,t,fun::Function,args...;kw...)
     for i ∈ 1:length(points(v).v[1])
-        display(fun(leaf(v,i,1),args...))
+        display(fun(leaf(v,i,1),args...;kw...))
         sleep(t)
     end
 end
-function alteration(v::TensorField,t,fun::Function,fun!::Function,::Val{T},args...) where T
-    out = fun(leaf(v,1,1),args...)
-    fig,ax,plt = out
-    display(out)
+function alteration(v::TensorField,t,fun::Function,fun!::Function,::Val{T},args...;kw...) where T
+    out = fun(leaf(v,1,1),args...;kw...)
+    fig,ax,plg = fun≠fun! ? out : (0,0,0)
+    fun≠fun! && display(out)
     sleep(t)
     for i ∈ 2:length(points(v).v[1])
         T && empty!(ax)
-        fun!(leaf(v,i,1),args...)
+        fun!(leaf(v,i,1),args...;kw...)
         sleep(t)
     end
     return out
 end
-function alteration(v::TensorField,t,fun::Function,fun!::Function,n::Int,::Val{T},args...) where T
+function alteration(v::TensorField,t,fun::Function,fun!::Function,n::Int,::Val{T},args...;kw...) where T
     x = resample(points(v).v[1],n)
-    out = fun(leaf(v,float(x[1]),1),args...)
-    fig,ax,plt = out
-    display(out)
+    out = fun(leaf(v,float(x[1]),1),args...;kw...)
+    fig,ax,plg = fun≠fun! ? out : (0,0,0)
+    fun≠fun! && display(out)
     sleep(t)
     for i ∈ 2:length(x)
         T && empty!(ax)
-        fun!(leaf(v,float(x[i]),1),args...)
+        fun!(leaf(v,float(x[i]),1),args...;kw...)
         sleep(t)
     end
     return out
 end
-function _alteration(out,v::TensorField,t,fun::Function,fun!::Function,::Val{T},args...) where T
-    fig,ax,plt = out
+function _alteration(out,v::TensorField,t,fun::Function,fun!::Function,::Val{T},args...;kw...) where T
+    fig,ax,plg = fun≠fun! ? out : (0,0,0)
     for i ∈ 1:length(points(v).v[1])
         T && empty!(ax)
-        fun!(leaf(v,i,1),args...)
+        fun!(leaf(v,i,1),args...;kw...)
         sleep(t)
     end
     return out
 end
-function _alteration(out,v::TensorField,t,fun::Function,fun!::Function,n::Int,::Val{T},args...) where T
+function _alteration(out,v::TensorField,t,fun::Function,fun!::Function,n::Int,::Val{T},args...;kw...) where T
     x = resample(points(v).v[1],n)
-    fig,ax,plt = out
+    fig,ax,plg = fun≠fun! ? out : (0,0,0)
     for i ∈ 1:length(x)
         T && empty!(ax)
-        fun!(leaf(v,float(x[i]),1),args...)
+        fun!(leaf(v,float(x[i]),1),args...;kw...)
         sleep(t)
     end
     return out
 end
 
-modification(v::TensorField,fun::Function,args...) = modification(v,0.0,fun,args...)
-modification(v::TensorField,fun::Function,fun!::Function,args...) = modification(v,0.0,fun,fun!,args...)
-modification(v::TensorField,fun::Function,fun!::Function,f::Function,args...) = modification(v,0.0,fun,fun!,f,args...)
-function modification(v::TensorField,t,fun::Function,args...)
+modification(v::TensorField,fun::Function,args...;kw...) = modification(v,0.0,fun,args...;kw...)
+modification(v::TensorField,fun::Function,fun!::Function,args...;kw...) = modification(v,0.0,fun,fun!,args...;kw...)
+modification(v::TensorField,fun::Function,fun!::Function,f::Function,args...;kw...) = modification(v,0.0,fun,fun!,f,args...;kw...)
+function modification(v::TensorField,t,fun::Function,args...;kw...)
     for i ∈ 1:length(points(v).v[2])
-        display(fun(leaf(v,i,2),args...))
+        display(fun(leaf(v,i,2),args...;kw...))
         sleep(t)
     end
 end
-function modification(v::TensorField,t,fun::Function,fun!::Function,::Val{T},args...) where T
-    out = fun(leaf(v,1,2),args...)
-    fig,ax,plt = out
-    display(out)
+function modification(v::TensorField,t,fun::Function,fun!::Function,::Val{T},args...;kw...) where T
+    out = fun(leaf(v,1,2),args...;kw...)
+    fig,ax,plg = fun≠fun! ? out : (0,0,0)
+    fun≠fun! && display(out)
     sleep(t)
     for i ∈ 2:length(points(v).v[2])
         T && empty!(ax)
-        fun!(leaf(v,i,2),args...)
+        fun!(leaf(v,i,2),args...;kw...)
         sleep(t)
     end
     return out
 end
-function modification(v::TensorField,t,fun::Function,fun!::Function,n::Int,::Val{T},args...) where T
+function modification(v::TensorField,t,fun::Function,fun!::Function,n::Int,::Val{T},args...;kw...) where T
     x = resample(points(v).v[2],n)
-    out = fun(leaf(v,float(x[1]),2),args...)
-    fig,ax,plt = out
-    display(out)
+    out = fun(leaf(v,float(x[1]),2),args...;kw...)
+    fig,ax,plg = fun≠fun! ? out : (0,0,0)
+    fun≠fun! && display(out)
     sleep(t)
     for i ∈ 2:length(x)
         T && empty!(ax)
-        fun!(leaf(v,float(x[i]),2),args...)
+        fun!(leaf(v,float(x[i]),2),args...;kw...)
         sleep(t)
     end
     return out

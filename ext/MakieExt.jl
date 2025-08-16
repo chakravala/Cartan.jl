@@ -76,19 +76,19 @@ for fun ∈ (:mesh,:lines)
         end
     end
 end
-for fun ∈ (:(Makie.scatter),:(Makie.scatter!),:(Makie.wireframe),:(Makie.wireframe!),:linegraph,:linegraph!)
+for fun ∈ (:(Makie.scatter),:(Makie.scatter!),:(Makie.wireframe),:(Makie.wireframe!))
     @eval $fun(t::TensorField{B,<:AbstractComplex} where B;args...) = $fun(vectorize(t);args...)
 end
-for fun ∈ (:(Makie.arrows),:(Makie.arrows!),:scaledarrows,:scaledarrows!)
+for fun ∈ (:(Makie.arrows),:(Makie.arrows!),:scaledarrows,:scaledarrows!,:linegraph,:linegraph!)
     @eval begin
-        $fun(t::TensorField{B,<:AbstractComplex} where B;args...) = $fun(vectorize(t);args...)
-        $fun(M::TensorField{B,<:AbstractComplex} where B,t::TensorField{B,<:AbstractComplex} where B;args...) = $fun(vectorize(M),vectorize(t);args...)
+        $fun(t::TensorField{B,<:AbstractComplex} where B,args...;kw...) = $fun(vectorize(t),args...;kw...)
+        $fun(M::TensorField{B,<:AbstractComplex} where B,t::TensorField{B,<:AbstractComplex} where B;args...) = $fun(vectorize(M),Real(angle(t));args...)
     end
 end
 for fun ∈ (:mesh,:streamplot)
     @eval begin
-        Makie.$fun(t::TensorField{B,<:AbstractComplex,2} where B;args...) = Makie.$fun(vectorize(t);args...)
-        Makie.$(Symbol(fun,:!))(t::TensorField{B,<:AbstractComplex,2} where B;args...) = Makie.$(Symbol(fun,:!))(vectorize(t);args...)
+        Makie.$fun(t::TensorField{B,<:AbstractComplex,2} where B,args...;kw...) = Makie.$fun(vectorize(t),args...;kw...)
+        Makie.$(Symbol(fun,:!))(t::TensorField{B,<:AbstractComplex,2} where B,args...;kw...) = Makie.$(Symbol(fun,:!))(vectorize(t),args...;kw...)
     end
 end
 Makie.mesh(t::TensorField{B,<:AbstractComplex,2} where B,f::Function;args...) = Makie.mesh(vectorize(t),f(t);args...)
@@ -577,7 +577,7 @@ for (fun,lin,disp) ∈ ((:linegraph,:(Makie.lines),:display),(:linegraph!,:(Maki
                 Cartan._alteration(out,M,0.0,Makie.lines!,Makie.lines!,Val(false),f;args...)
             end
         end
-        function $fun(M::TensorField{B,<:Chain,2,<:GridBundle} where B,f::TensorField;args...)
+        #=function $fun(M::TensorField{B,<:Chain,2,<:GridBundle} where B,f::TensorField;args...)
             rf = fiber(Real(f))
             minmax = (minimum(rf),maximum(rf))
             if haskey(args,:gridsize)
@@ -597,7 +597,42 @@ for (fun,lin,disp) ∈ ((:linegraph,:(Makie.lines),:display),(:linegraph!,:(Maki
                 out = variation!(M,$lin,Makie.lines!,f;colorrange=minmax,args...)
                 Cartan._alteration(out,M,0.0,Makie.lines!,Makie.lines!,Val(false),f;colorrange=minmax,args...)
             end
+        end=#
+        function $fun(v::TensorField{B,<:Chain,2,<:GridBundle} where B,f::TensorField;args...)
+            rf = fiber(Real(f))
+            minmax = (minimum(rf),maximum(rf))
+            if haskey(args,:gridsize)
+                wargs = Dict(args)
+                delete!(wargs,:gridsize)
+                kwargs = (;wargs...)
+                n = args[:gridsize]
+                x = resample(points(v).v[1],n[1])
+                y = resample(points(v).v[2],n[2])
+                xy = Values(x,y)
+                $disp($lin(Cartan.leaf(v,float(y[1]),1),Cartan.leaf(f,float(y[1]),1);colorrange=minmax,kwargs...))
+                for k ∈ (1,2)
+                    xk = xy[k]
+                    for i ∈ 1:length(xk)
+                        xi = float(xk[i])
+                        Makie.lines!(Cartan.leaf(v,xi,k),Cartan.leaf(f,xi,k);colorrange=minmax,kwargs...)
+                    end
+                end
+            #=elseif haskey(args,:arcgridsize)
+                wargs = Dict(args)
+                delete!(wargs,:arcgridsize)
+                kwargs = (;wargs...)
+                n = args[:arcgridsize]
+                return fun(arcresample(t,args[:arcgridsize]);kwargs...)=#
+            else
+                $disp($lin(Cartan.leaf(v,1,1),Cartan.leaf(f,1,1);colorrange=minmax,args...))
+                for k ∈ (1,2)
+                    for i ∈ 1:length(points(v).v[c[k][1]])
+                        Makie.lines!(Cartan.leaf(v,i,k),Cartan.leaf(v,i,k);colorrange=minmax,args...)
+                    end
+                end
+            end
         end
+
         function $fun(v::TensorField{B,<:Chain,3,<:GridBundle} where B,f::Function=speed;args...)
             if haskey(args,:gridsize)
                 wargs = Dict(args)
@@ -605,7 +640,7 @@ for (fun,lin,disp) ∈ ((:linegraph,:(Makie.lines),:display),(:linegraph!,:(Maki
                 kwargs = (;wargs...)
                 n = args[:gridsize]
                 x = resample(points(v).v[1],n[1])
-                y = resample(points(v).v[2],n[3])
+                y = resample(points(v).v[2],n[2])
                 z = resample(points(v).v[3],n[3])
                 xyz = Values(x,y,z)
                 $disp($lin(Cartan.leaf2(v,float(y[1]),float(z[1]),1),f;kwargs...))
@@ -646,7 +681,7 @@ for (fun,lin,disp) ∈ ((:linegraph,:(Makie.lines),:display),(:linegraph!,:(Maki
                 kwargs = (;wargs...)
                 n = args[:gridsize]
                 x = resample(points(v).v[1],n[1])
-                y = resample(points(v).v[2],n[3])
+                y = resample(points(v).v[2],n[2])
                 z = resample(points(v).v[3],n[3])
                 xyz = Values(x,y,z)
                 $disp($lin(Cartan.leaf2(v,float(y[1]),float(z[1]),1),Cartan.leaf2(f,float(y[1]),float(z[1]),1);colorrange=minmax,kwargs...))
