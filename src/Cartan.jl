@@ -245,6 +245,9 @@ assign!(x::AbstractArray{T,3} where T,i,s) = (@inbounds x[:,:,i] = s)
 assign!(x::AbstractArray{T,4} where T,i,s) = (@inbounds x[:,:,:,i] = s)
 assign!(x::AbstractArray{T,5} where T,i,s) = (@inbounds x[:,:,:,:,i] = s)
 
+Base.collect(x::TensorField) = TensorField(x,collect(fiber(x)))
+Base.broadcastable(x::TensorField{B,F,N,P,<:AbstractRange} where {B,F,N,P}) = collect(x)
+
 Base.BroadcastStyle(::Type{<:TensorField{B,F,N,P,L}}) where {B,F,N,P,L} = Broadcast.ArrayStyle{TensorField{B,F,N,P,L}}()
 
 function Base.similar(bc::Broadcast.Broadcasted{Broadcast.ArrayStyle{TensorField{B,F,N,P,L}}}, ::Type{ElType}) where {B,F,N,P,L,ElType}
@@ -376,7 +379,7 @@ end
 for fun ∈ (:-,:!,:~,:real,:imag,:conj,:deg2rad,:transpose)
     @eval Base.$fun(t::TensorField) = TensorField(base(t), $fun.(fiber(t)))
 end
-for fun ∈ (:exp,:exp2,:exp10,:log,:log2,:log10,:sinh,:cosh,:abs,:sqrt,:cbrt,:cos,:sin,:tan,:cot,:sec,:csc,:asec,:acsc,:sech,:csch,:asech,:tanh,:coth,:asinh,:acosh,:atanh,:acoth,:asin,:acos,:atan,:acot,:sinc,:cosc,:cis,:abs2,:inv)
+for fun ∈ (:exp,:exp2,:exp10,:log2,:log10,:sinh,:cosh,:abs,:sqrt,:cbrt,:cos,:sin,:tan,:cot,:sec,:csc,:asec,:acsc,:sech,:csch,:asech,:tanh,:coth,:asinh,:acosh,:atanh,:acoth,:asin,:acos,:atan,:acot,:sinc,:cosc,:cis,:abs2,:inv)
     @eval Base.$fun(t::TensorField) = TensorField(base(t), $fun.(fiber(t),ref(metricextensor(t))))
 end
 for fun ∈ (:reverse,:clifford,:even,:odd,:scalar,:vector,:bivector,:volume,:value,:complementleft,:realvalue,:imagvalue,:outermorphism,:Outermorphism,:DiagonalOperator,:TensorOperator,:eigen,:eigvecs,:eigvals,:eigvalsreal,:eigvalscomplex,:eigvecsreal,:eigvecscomplex,:eigpolys,:pfaffian,:∧,:↑,:↓,:vectorize)
@@ -396,6 +399,7 @@ for fun ∈ (:cumsum,:cumprod)
     end
 end
 
+Base.log(t::TensorField) = TensorField(base(t), Grassmann.log_metric.(fiber(t),ref(metricextensor(t))))
 Base.:/(a::TensorField,b::TensorAlgebra) = TensorField(base(a),./(fiber(a),b,refmetric(base(a))))
 Grassmann.signbit(::TensorField) = false
 #Base.inv(t::TensorField) = TensorField(fiber(t), base(t))

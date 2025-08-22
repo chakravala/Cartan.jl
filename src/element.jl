@@ -117,9 +117,11 @@ function edgemeshdata(pt::SimplexBundle,E,::Val{n}) where n
     return ed,ind
 end
 
-for fun ∈ (:(Base.maximum),:(Base.minimum),:rms)
+for fun ∈ (:(Base.argmax),:(Base.argmin),:rms)
     @eval $fun(η::TensorField) = $fun(fiber(η))
 end
+Base.maximum(η::TensorField) = η[argmax(η)]
+Base.minimum(η::TensorField) = η[argmin(η)]
 rms(η) = norm(η)/sqrt(length(η))
 select(η,ϵ=rms(η)) = sort!(findall(x->x>ϵ,fiber(η)))
 function refinemesh(g::AbstractRange,args...)
@@ -929,4 +931,91 @@ function refinement(t::LagrangeTetrahedra)
 end
 
 refinetetrahedron(t::Values{4}) = [t]
+
+#= simplex permutations
+
+_sortperm(v::Values) = _sortperm(v...)
+_sortperm(a,b) = a < b ? Values(1,2) : Values(2,1)
+function _sortperm(a,b,c)
+    if a < b
+        if a < c
+            b < c ? Values(1,2,3) : Values(1,3,2)
+        else # c < a
+            Values(2,3,1)
+        end
+    else # b < a
+        if b < c
+            a < c ? Values(2,1,3) : Values(3,1,2)
+        else # c < b
+            Values(3,2,1)
+        end
+    end
+end
+function _sortperm(a,b,c,d)
+    if a > b
+        if b > c
+            if d > b
+                d > a ? Values(3,2,1,4) : Values(4,2,1,3)
+            else
+                d > c ? Values(4,3,1,2) : Values(4,3,2,1)
+            end
+        else
+            if a > c
+                if d > c
+                    d > a ? Values(3,1,2,4) : Values(4,1,2,3)
+                else
+                    d > b ? Values(4,1,3,2) : Values(4,2,3,1)
+                end
+            else
+                if d > a
+                    d > c ? Values(2,1,3,4) : Values(2,1,4,3)
+                else
+                    d > b ? Values(3,1,4,2) : Values(3,2,4,1)
+                end
+            end
+        end
+    else
+        if a > c
+            if d > a
+                d > b ? Values(2,3,1,4) : Values(2,4,1,3)
+            else
+                d > c ? Values(3,4,1,2) : Values(3,4,2,1)
+            end
+        else
+            if b > c
+                if d > c
+                    d > b ? Values(1,3,2,4) : Values(1,4,2,3)
+                else
+                    d > a ? Values(1,4,3,2) : Values(2,4,3,1)
+                end
+            else
+                if d > b
+                    d > c ? Values(1,2,3,4) : Values(1,2,4,3)
+                else
+                    d > a ? Values(1,3,4,2) : Values(2,3,4,1)
+                end
+            end
+        end
+    end
+end
+
+function triangleinteger(r,c)
+    Int(r*(r-1)/2)+c
+end
+function triangleintegers(R,e1=true,e2=true,e3=true)
+    for r ∈ 1:R
+        for c ∈ 1:r
+            print(triangleinteger(e1 ? r : R-r+c,e2 ? c : r-c+1),",")
+        end
+        print("\n")
+    end
+end
+function trianglecoords(R,e1=true,e2=true,e3=true)
+    for r ∈ 1:R
+        for c ∈ 1:r
+            print((e1 ? r : R-r+c,e2 ? c : r-c+1),",")
+        end
+        print("\n")
+    end
+end=#
 

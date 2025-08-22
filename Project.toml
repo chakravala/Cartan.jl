@@ -1,7 +1,7 @@
 name = "Cartan"
 uuid = "e24af43f-9fd5-4672-9264-a75f3ae40eb2"
 authors = ["Michael Reed"]
-version = "0.4.9"
+version = "0.4.10"
 
 [deps]
 Requires = "ae029012-a4dd-5104-9daa-d747884805df"

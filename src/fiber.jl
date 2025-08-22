@@ -247,7 +247,8 @@ Grassmann.eigpolys(t::LocalTensor,G::Val) = LocalTensor(base(t), eigpolys(fiber(
 Base.:<(a::LocalTensor{R},b::LocalTensor{R}) where R = Base.:>(b,a)
 Base.:<(a::Number,b::LocalTensor) = Base.:>(b,a)
 Base.:<(a::LocalTensor,b::Number) = Base.:>(b,a)
-for fun ∈ (:inv,:exp,:exp2,:exp10,:log,:log2,:log10,:sinh,:cosh,:abs,:sqrt,:cbrt,:cos,:sin,:tan,:cot,:sec,:csc,:asec,:acsc,:sech,:csch,:asech,:tanh,:coth,:asinh,:acosh,:atanh,:acoth,:asin,:acos,:atan,:acot,:sinc,:cosc,:cis,:abs2)
+Base.log(s::LocalTensor) = LocalTensor(base(s), Grassmann.log_metric(fiber(s),metricextensor(s)))
+for fun ∈ (:inv,:exp,:exp2,:exp10,:log2,:log10,:sinh,:cosh,:abs,:sqrt,:cbrt,:cos,:sin,:tan,:cot,:sec,:csc,:asec,:acsc,:sech,:csch,:asech,:tanh,:coth,:asinh,:acosh,:atanh,:acoth,:asin,:acos,:atan,:acot,:sinc,:cosc,:cis,:abs2)
     @eval Base.$fun(s::LocalTensor) = LocalTensor(base(s), $fun(fiber(s),metricextensor(s)))
 end
 for type ∈ (:Coordinate,:LocalTensor)
@@ -292,7 +293,7 @@ for type ∈ (:Coordinate,:LocalTensor)
         (::Type{Complex{T}})(s::$type) where T = $type(base(s), Complex{T}(fiber(s)))
         Grassmann.Phasor(s::$type) = $type(base(s), Phasor(fiber(s)))
         Grassmann.Couple(s::$type) = $type(base(s), Couple(fiber(s)))
-        (::Type{T})(s::$type...) where T<:Chain = @inbounds $type(base(s[1]), Chain(fiber.(s)...))
+        (::Type{T})(s::$type...) where T<:Chain = @inbounds $type(base(s[1]), Chain(Values(fiber.(s)...)))
     end
 end
 
