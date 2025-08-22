@@ -101,6 +101,23 @@ end
 LinearAlgebra.dot(::Derivation,t::TensorField) = TensorField(fromany(Grassmann.contraction(∇(t),Chain(t))))
 LinearAlgebra.dot(t::TensorField,::Derivation) = TensorField(fromany(Grassmann.contraction(Chain(t),∇(t))))
 
+#= need AbstractScalar + AbstractReal
+Grassmann.:∧(::Derivation,t::ScalarField) = gradient(t)
+Grassmann.:∧(t::ScalarField,::Derivation) = gradient(t)
+Base.:*(::Derivation,t::ScalarField) = gradient(t)
+Base.:*(t::ScalarField,::Derivation) = gradient(t)
+LinearAlgebra.dot(::Derivation,t::ScalarField) = gradient(t)
+LinearAlgebra.dot(t::ScalarField,::Derivation) = gradient(t)
+LinearAlgebra.dot(::Derivation,t::GradedField) = gradient(t)
+LinearAlgebra.dot(t::GradedField,::Derivation) = ∂(t)
+function LinearAlgebra.dot(t::GradedField{G,B,<:Chain{V}} where B) where {G,V}
+    n = mdims(V)
+    TensorField(base(t), Real.(fiber(t).⋅Chain{V,G}(ones(Values{binomial(n,G),Int}))))
+end
+function LinearAlgebra.dot(t::GradedField{G,B,<:Chain{V}} where B) where {G,V}
+    n = mdims(V)
+    TensorField(base(t), (fiber(t).⋅
+end=#
 function Base.:*(n::Submanifold,t::TensorField)
     if istangent(n)
         gradient(t,Val(indices(n)[1]))
@@ -164,6 +181,23 @@ end
 
 CovariantDerivative(∇::Connection,X) = ∇(X)
 (∇x::CovariantDerivative)(Y::VectorField) = ∇x.v(Y)+(∇x.ωv⋅Y)
+
+#=export Riemann
+
+struct Riemann{X,Y,XY}
+    ∇x::X
+    ∇y::Y
+    ∇xy::XY
+    Riemann(∇x::X,∇y::Y,∇xy::XY) where {X<:CovariantDerivative,Y<:CovariantDerivative,XY<:CovariantDerivative} = new{X,Y,XY}(∇x,∇y,∇xy)
+end
+
+#Riemann2() = (𝓛[X,Y](Z) + (Ω⋅(X∧Y))⋅Z
+Riemann(∇::Connection,X::VectorField,Y::VectorField) = Riemann(∇(X),∇(Y),∇(𝓛[X,Y]))
+function (R::Riemann)(Z::VectorField)
+    ∇yZ = R.∇y.v(Z)+(R.∇y.ωv⋅Z)
+    ∇xZ = R.∇x.v(Z)+(R.∇x.ωv⋅Z)
+    (R.∇x.v(∇yZ)+(R.∇x.ωv⋅∇yZ)) - (R.∇y.v(∇xZ)+(R.∇y.ωv⋅∇xZ) + R.∇xy.v(Z)+(R.∇xy.ωv⋅Z))
+end=#
 
 export arclength, arctime, totalarclength, trapz, cumtrapz, linecumtrapz, psum, pcumsum
 export centraldiff, tangent, tangent_fast, unittangent, speed, normal, unitnormal
@@ -442,6 +476,30 @@ function ballvolume(n::Int)
         2factorial(k)*(4π)^k/factorial(n)
     end
 end
+
+#=function arcparameter(f::IntervalMap,d=centraldiff(points(f)),t=centraldiff(fiber(f),d))
+    cumtrapz(TensorField(unitdomain(f)*sum(value.(abs.(diff(fiber(f))))), t./abs.(t)))
+end
+function arctime(f::IntervalMap,d=centraldiff(points(f)),t=centraldiff(fiber(f),immersion(f),d))
+    al = cumtrapz(arclength(f))
+    out = cumtrapz(TensorField(value.(fiber(al)), inv.(abs.(t))))
+    TensorField(base(out), (fiber(out).*(base(f)[end]/value(fiber(out)[end]))))
+end
+function arctime(f::IntervalMap)
+    al = arclength(f)
+    ad = arcdomain(f)
+    at = TensorField(value.(fiber(al)), collect(points(f)))
+    l = length(ad)
+    TensorField(ad, [i∈(1,l) ? points(f)[i] : at(ad[i]) for i ∈ 1:l])
+end
+function arctime(f::IntervalMap,d=centraldiff(points(f)),t=centraldiff(fiber(f),immersion(f),d))
+    #base(out) → (fiber(out).*(points(f)[end]/value(fiber(out)[end])))
+    al = arclength(f)
+    ad = arcdomain(f)
+    at = TensorField(value.(fiber(al)), inv.(abs.(t)))
+    l = length(ad)
+    cumtrapz(TensorField(ad, [i==1 ? at(ad[i]+eps()) : i==l ? at(ad[i]-eps()) : at(ad[i]) for i ∈ 1:l]))
+end=#
 
 function speed(f::IntervalMap,d=centraldiffpoints(f),t=centraldifffiber(f,d))
     TensorField(base(f), Real.(abs.(t,refmetric(f))))
@@ -734,7 +792,7 @@ sectorize(f::PlaneCurve,g::TensorField) = fibersector(f,g,sectorize23)
 sectorize(f::SpaceCurve,g::TensorField) = fibersector(f,g,sectorize33)
 cylinderize(f::TensorField,n::Int=30) = cylinderize(f,LinRange(0,1,n))
 cylinderize(f::TensorField,t::AbstractRange) = cylinderize(f,TensorField(t))
-cylinderize(f::TensorField,t::RealFunction) = sectorize(Chain.(t+0,0t+1),f)
+cylinderize(f::TensorField,t::RealFunction) = sectorize(Chain.(t,0t+1),f)
 
 unitcircle(n::Int=61) = unitcircle(SphereParameter(n))
 unitcircle(t::AbstractRange) = unitcircle(TensorField(t))
@@ -749,10 +807,12 @@ unitsphere(n::Int=31,m=61) = unitsphere(LinRange(-π/2,π/2,n),m)
 unitsphere(n,m) = revolvesphere(unitcircle(n),unitcircle(m))
 unitdisk(n=61,r=20) = sectorize(r,unitcircle(n))
 unitball(n=31,m=61,r=10) = sectorize(r,unitsphere(n,m))
+riemannsphere(n::Int=31,m=61) = unitsphere(n,m)/2+Chain(0,0,1/2)
+riemannline(x,n=11) = resample(TensorField(0:2,[Chain(x[1],x[2],0.0),Chain(x[1],x[2],x[1]^2+x[2]^2)/(x[1]^2+x[2]^2+1),Chain(0,0,1.0)]),n)
 
 unitpipe(n::Int=20,m=61) = unitpipe(LinRange(-1,1,n),m)
 unitpipe(t::AbstractRange,m=61) = unitpipe(TensorField(t),m)
-unitpipe(t::RealFunction,m=61) = revolve(Chain.(0t+1,t+0),m)
+unitpipe(t::RealFunction,m=61) = revolve(Chain.(0t+1,t),m)
 unitcylinder(n=20,m=61,r=20) = cylinderize(unitpipe(n,m),r)
 
 unitconic(n::Int=20,m=61) = unitconic(LinRange(0,1,n),m)
@@ -791,7 +851,8 @@ function unitframe(f::VectorField{<:Coordinate{<:Chain},<:Chain,2,<:RealSpace{2}
     TensorField(base(f), TensorOperator.(Chain.(fiber(Ψu/abs(Ψu)),fiber(ξ2/abs(ξ2)),fiber(ξ3/abs(ξ3)))))
 end
 
-export surfacemetric, surfacemetricdiag, surfaceframe, shape
+export surfacemetric, surfacemetricdiag, surfaceframe
+export intrinsicmetric, intrinsicmetricdiag, intrinsicframe, shape
 export firstform, firstformdiag, secondform, firstsecondform, thirdform
 export applymetric, firstkind, secondkind, geodesic
 
@@ -807,100 +868,277 @@ function LMN(V,n,ddfdx2,ddfdxdy,ddfdy2)
     TensorOperator.(Chain{V}.(Chain{V}.(L,M),Chain{V}.(M,N)))
 end
 
+function EFG(V,dfdx,dfdy,dfdz)
+    xx,xy,yy,xz,yz,zz = fiber(Real(dfdx⋅dfdx)),fiber(Real(dfdx⋅dfdy)),fiber(Real(dfdy⋅dfdy)),fiber(Real(dfdx⋅dfdz)),fiber(Real(dfdy⋅dfdz)),fiber(Real(dfdz⋅dfdz))
+    TensorOperator.(Chain{V}.(Chain{V}.(xx,xy,xz),Chain{V}.(xy,yy,yz),Chain{V}.(xz,yz,zz)))
+end
+function EG(V,dfdx,dfdy,dfdz)
+    DiagonalOperator.(Chain{V}.(fiber(Real(dfdx⋅dfdx)),fiber(Real(dfdy⋅dfdy)),fiber(Real(dfdz⋅dfdz))))
+end
+function LMN(V,n,ddfdx2,ddfdxdy,ddfdy2,ddfdxdz,ddfdydz,ddfdz2)
+    xx,xy,yy,xz,yz,zz = fiber(Real(ddfdx2⋅n)),fiber(Real(ddfdxdy⋅n)),fiber(Real(ddfdy2⋅n)),fiber(Real(ddfdxdz⋅n)),fiber(Real(ddfdydz⋅n)),fiber(Real(ddfdz2⋅n))
+    TensorOperator.(Chain{V}.(Chain{V}.(xx,xy,xz),Chain{V}.(xy,yy,yz),Chain{V}.(xz,yz,zz)))
+end
+
+function EFG(V,dfdx,dfdy,dfdz,dfdw)
+    xx,xy,yy,xz,yz,zz,xw,yw,zw,ww = fiber(Real(dfdx⋅dfdx)),fiber(Real(dfdx⋅dfdy)),fiber(Real(dfdy⋅dfdy)),fiber(Real(dfdx⋅dfdz)),fiber(Real(dfdy⋅dfdz)),fiber(Real(dfdz⋅dfdz)),fiber(Real(dfdx⋅dfdw)),fiber(Real(dfdy⋅dfdw)),fiber(Real(dfdz⋅dfdw)),fiber(Real(dfdw⋅dfdw))
+    TensorOperator.(Chain{V}.(Chain{V}.(xx,xy,xz,xw),Chain{V}.(xy,yy,yz,yw),Chain{V}.(xz,yz,zz,zw),Chain{V}.(xw,yw,zw,ww)))
+end
+function EG(V,dfdx,dfdy,dfdz,dfdw)
+    DiagonalOperator.(Chain{V}.(fiber(Real(dfdx⋅dfdx)),fiber(Real(dfdy⋅dfdy)),fiber(Real(dfdz⋅dfdz)),fiber(Real(dfdw⋅dfdw))))
+end
+function LMN(V,n,ddfdx2,ddfdxdy,ddfdy2,ddfdxdz,ddfdydz,ddfdz2,ddfdxdw,ddfdydw,ddfdzdw,ddfdw2)
+    xx,xy,yy,xz,yz,zz,xw,yw,zw,ww = fiber(Real(ddfdx2⋅n)),fiber(Real(ddfdxdy⋅n)),fiber(Real(ddfdy2⋅n)),fiber(Real(ddfdxdz⋅n)),fiber(Real(ddfdydz⋅n)),fiber(Real(ddfdz2⋅n)),fiber(Real(ddfdxdw⋅n)),fiber(Real(ddfdydw⋅n)),fiber(Real(ddfdzdw⋅n)),fiber(Real(ddfdw2⋅n))
+    TensorOperator.(Chain{V}.(Chain{V}.(xx,xy,xz,xw),Chain{V}.(xy,yy,yz,yw),Chain{V}.(xz,yz,zz,zw),Chain{V}.(xw,yw,zw,ww)))
+end
+
+function EFG(V,dfdx,dfdy,dfdz,dfdw,dfdv)
+    xx,xy,yy,xz,yz,zz,xw,yw,zw,ww,xv,yv,zv,wv,vv = fiber(Real(dfdx⋅dfdx)),fiber(Real(dfdx⋅dfdy)),fiber(Real(dfdy⋅dfdy)),fiber(Real(dfdx⋅dfdz)),fiber(Real(dfdy⋅dfdz)),fiber(Real(dfdz⋅dfdz)),fiber(Real(dfdx⋅dfdw)),fiber(Real(dfdy⋅dfdw)),fiber(Real(dfdz⋅dfdw)),fiber(Real(dfdw⋅dfdw)),fiber(Real(dfdx⋅dfdv)),fiber(Real(dfdy⋅dfdv)),fiber(Real(dfdz⋅dfdv)),fiber(Real(dfdw⋅dfdv)),fiber(Real(dfdv⋅dfdv))
+    TensorOperator.(Chain{V}.(Chain{V}.(xx,xy,xz,xw,xv),Chain{V}.(xy,yy,yz,yw,yv),Chain{V}.(xz,yz,zz,zw,zv),Chain{V}.(xw,yw,zw,ww,wv),Chain{V}.(xv,yv,zv,wv,vv)))
+end
+function EG(V,dfdx,dfdy,dfdz,dfdw,dfdv)
+    DiagonalOperator.(Chain{V}.(fiber(Real(dfdx⋅dfdx)),fiber(Real(dfdy⋅dfdy)),fiber(Real(dfdz⋅dfdz)),fiber(Real(dfdw⋅dfdw)),fiber(Real(dfdv⋅dfdv))))
+end
+function LMN(V,n,ddfdx2,ddfdxdy,ddfdy2,ddfdxdz,ddfdydz,ddfdz2,ddfdxdw,ddfdydw,ddfdzdw,ddfdw2,ddfdxdv,ddfdydv,ddfdzdv,ddfdwdv,ddfdv2)
+    xx,xy,yy,xz,yz,zz,xw,yw,zw,ww,xv,yv,zv,wv,vv = fiber(Real(ddfdx2⋅n)),fiber(Real(ddfdxdy⋅n)),fiber(Real(ddfdy2⋅n)),fiber(Real(ddfdxdz⋅n)),fiber(Real(ddfdydz⋅n)),fiber(Real(ddfdz2⋅n)),fiber(Real(ddfdxdw⋅n)),fiber(Real(ddfdydw⋅n)),fiber(Real(ddfdzdw⋅n)),fiber(Real(ddfdw2⋅n)),fiber(Real(ddfdxdv⋅n)),fiber(Real(ddfdydv⋅n)),fiber(Real(ddfdzdv⋅n)),fiber(Real(ddfdwdv⋅n)),fiber(Real(ddfdv2⋅n))
+    TensorOperator.(Chain{V}.(Chain{V}.(xx,xy,xz,xw,xv),Chain{V}.(xy,yy,yz,yw,yv),Chain{V}.(xz,yz,zz,zw,zv),Chain{V}.(xw,yw,zw,ww,wv),Chain{V}.(xv,yv,zv,wv,vv)))
+end
+
 firstform(dom::ScalarField,f::Function) = firstform(TensorField(dom,f))
-function firstform(t::ScalarField,g=gradient(t),V=Submanifold(2))
-    dfdx,dfdy = getindex.(g,1),getindex.(g,2)
-    E,F,G = fiber(dfdx*dfdx),fiber(dfdx*dfdy),fiber(dfdy*dfdy)
-    TensorField(base(t),TensorOperator.(Chain{V}.(Chain{V}.(E.+1,F),Chain{V}.(F,G.+1))))
+function firstform(t::ScalarField,g=gradient(t),V=Submanifold(ndims(t)))
+    if ndims(t) == 1
+        return g
+    elseif ndims(t) == 2
+        dfdx,dfdy = getindex.(g,1),getindex.(g,2)
+        E,F,G = fiber(dfdx*dfdx),fiber(dfdx*dfdy),fiber(dfdy*dfdy)
+        TensorField(base(t),TensorOperator.(Chain{V}.(Chain{V}.(E.+1,F),Chain{V}.(F,G.+1))))
+    elseif ndims(t) == 3
+        dfdx,dfdy,dfdz = getindex.(g,1),getindex.(g,2),getindex.(g,3)
+        xx,xy,yy,xz,yz,zz = fiber(dfdx*dfdx),fiber(dfdx*dfdy),fiber(dfdy*dfdy),fiber(dfdx*dfdz),fiber(dfdy*dfdz),fiber(dfdz*dfdz)
+        TensorField(base(t),TensorOperator.(Chain{V}.(Chain{V}.(xx.+1,xy,xz),Chain{V}.(xy,yy.+1,yz),Chain{V}.(xz,yz,zz.+1))))
+    elseif ndims(t) == 4
+        dfdx,dfdy,dfdz,dfdw = getindex.(g,1),getindex.(g,2),getindex.(g,3),getindex.(g,4)
+        xx,xy,yy,xz,yz,zz,xw,yw,zw,ww = fiber(dfdx*dfdx),fiber(dfdx*dfdy),fiber(dfdy*dfdy),fiber(dfdx*dfdz),fiber(dfdy*dfdz),fiber(dfdz*dfdz),fiber(dfdx*dfdw),fiber(dfdy*dfdw),fiber(dfdz*dfdw),fiber(dfdw*dfdw)
+        TensorField(base(t),TensorOperator.(Chain{V}.(Chain{V}.(xx.+1,xy,xz,xw),Chain{V}.(xy,yy.+1,yz,yw),Chain{V}.(xz,yz,zz.+1,zw),Chain{V}.(xw,yw,zw,ww.+1))))
+    elseif ndims(t) == 5
+        dfdx,dfdy,dfdz,dfdw,dfdv = getindex.(g,1),getindex.(g,2),getindex.(g,3),getindex.(g,4),getindex.(g,5)
+        xx,xy,yy,xz,yz,zz,xw,yw,zw,ww,xv,yv,zv,wv,vv = fiber(dfdx*dfdx),fiber(dfdx*dfdy),fiber(dfdy*dfdy),fiber(dfdx*dfdz),fiber(dfdy*dfdz),fiber(dfdz*dfdz),fiber(dfdx*dfdw),fiber(dfdy*dfdw),fiber(dfdz*dfdw),fiber(dfdw*dfdw),fiber(dfdx*dfdv),fiber(dfdy*dfdv),fiber(dfdz*dfdv),fiber(dfdw*dfdv),fiber(dfdv*dfdv)
+        TensorField(base(t),TensorOperator.(Chain{V}.(Chain{V}.(xx.+1,xy,xz,xw,xv),Chain{V}.(xy,yy.+1,yz,yw,yv),Chain{V}.(xz,yz,zz.+1,zw,zv),Chain{V}.(xw,yw,zw,ww.+1,wv),Chain{V}.(xv,yv,zv,wv,vv.+1))))
+    end
 end
 
 firstformdiag(dom::ScalarField,f::Function) = firstformdiag(TensorField(dom,f))
-function firstformdiag(t::ScalarField,g=gradient(t),V=Submanifold(2))
-    dfdx,dfdy = getindex.(g,1),getindex.(g,2)
-    E1,G1 = fiber(1+dfdx*dfdx),fiber(1+dfdy*dfdy)
-    TensorField(base(t),DiagonalOperator.(Chain{V}.(E1,G1)))
+function firstformdiag(t::ScalarField,g=gradient(t),V=Submanifold(ndims(t)))
+    if ndims(t) == 1
+        return g
+    elseif ndims(t) == 2
+        dfdx,dfdy = getindex.(g,1),getindex.(g,2)
+        E1,G1 = fiber(1+dfdx*dfdx),fiber(1+dfdy*dfdy)
+        TensorField(base(t),DiagonalOperator.(Chain{V}.(E1,G1)))
+    elseif ndims(t) == 3
+        dfdx,dfdy,dfdz = getindex.(g,1),getindex.(g,2),getindex.(g,3)
+        xx1,yy1,zz1 = fiber(1+dfdx*dfdx),fiber(1+dfdy*dfdy),fiber(1+dfdz*dfdz)
+        TensorField(base(t),DiagonalOperator.(Chain{V}.(xx1,yy1,zz1)))
+    elseif ndims(t) == 4
+        dfdx,dfdy,dfdz,dfdw = getindex.(g,1),getindex.(g,2),getindex.(g,3),getindex.(g,4)
+        xx1,yy1,zz1,ww1 = fiber(1+dfdx*dfdx),fiber(1+dfdy*dfdy),fiber(1+dfdz*dfdz),fiber(1+dfdw*dfdw)
+        TensorField(base(t),DiagonalOperator.(Chain{V}.(xx1,yy1,zz1,ww1)))
+    elseif ndims(t) == 5
+        dfdx,dfdy,dfdz,dfdw,dfdv = getindex.(g,1),getindex.(g,2),getindex.(g,3),getindex.(g,4),getindex.(g,5)
+        xx1,yy1,zz1,ww1,vv1 = fiber(1+dfdx*dfdx),fiber(1+dfdy*dfdy),fiber(1+dfdz*dfdz),fiber(1+dfdw*dfdw),fiber(1+dfdv*dfdv)
+        TensorField(base(t),DiagonalOperator.(Chain{V}.(xx1,yy1,zz1,ww1,vv1)))
+    end
 end
 
 firstform(dom,f::Function) = firstform(TensorField(dom,f))
-function firstform(t,g=gradient(t),V=Submanifold(2))
-    TensorField(base(t),EFG(V,getindex.(g,1),getindex.(g,2)))
+function firstform(t,g=gradient(t),V=Submanifold(ndims(t)))
+    if ndims(t) == 1
+        return Real.(abs.(g,refmetric(t)))
+    elseif ndims(t) == 2
+        TensorField(base(t),EFG(V,getindex.(g,1),getindex.(g,2)))
+    elseif ndims(t) == 3
+        TensorField(base(t),EFG(V,getindex.(g,1),getindex.(g,2),getindex.(g,3)))
+    elseif ndims(t) == 4
+        TensorField(base(t),EFG(V,getindex.(g,1),getindex.(g,2),getindex.(g,3),getindex.(g,4)))
+    elseif ndims(t) == 5
+        TensorField(base(t),EFG(V,getindex.(g,1),getindex.(g,2),getindex.(g,3),getindex.(g,4),getindex.(g,5)))
+    end
 end
 
 firstformdiag(dom,f::Function) = firstformdiag(TensorField(dom,f))
-function firstformdiag(t,g=gradien(t),V=Submanifold(2))
-    TensorField(base(t),EG(V,getindex.(g,1),getindex.(g,2)))
+function firstformdiag(t,g=gradien(t),V=Submanifold(ndims(t)))
+    if ndims(t) == 1
+        return Real.(abs.(g,refmetric(t)))
+    elseif ndims(t) == 2
+        TensorField(base(t),EG(V,getindex.(g,1),getindex.(g,2)))
+    elseif ndims(t) == 3
+        TensorField(base(t),EG(V,getindex.(g,1),getindex.(g,2),getindex.(g,3)))
+    elseif ndims(t) == 4
+        TensorField(base(t),EG(V,getindex.(g,1),getindex.(g,2),getindex.(g,3),getindex.(g,4)))
+    elseif ndims(t) == 5
+        TensorField(base(t),EG(V,getindex.(g,1),getindex.(g,2),getindex.(g,3),getindex.(g,4),getindex.(g,5)))
+    end
 end
 
 secondform(dom,f::Function) = secondform(TensorField(dom,f))
-function secondform(t,g=gradient(t),V=Submanifold(2))
+function secondform(t,g=gradient(t),V=Submanifold(ndims(t)))
     n = ⋆unittangent(t,∧(g))
-    dfdx,dfdy = getindex.(g,1),getindex.(g,2)
-    ddfdx,ddfdy2 = gradient(dfdx),gradient(dfdy,Val(2))
-    ddfdx2,ddfdxdy = getindex.(ddfdx,1),getindex.(ddfdx,2)
-    TensorField(base(t),LMN(V,n,ddfdx2,ddfdxdy,ddfdy2))
+    if ndims(t) == 2
+        dfdx,dfdy = getindex.(g,1),getindex.(g,2)
+        ddfdx,ddfdy2 = gradient(dfdx),gradient(dfdy,Val(2))
+        ddfdx2,ddfdxdy = getindex.(ddfdx,1),getindex.(ddfdx,2)
+        TensorField(base(t),LMN(V,n,ddfdx2,ddfdxdy,ddfdy2))
+    elseif ndims(t) == 3
+        dfdx,dfdy,dfdz = getindex.(g,1),getindex.(g,2),getindex.(g,3)
+        ddfdx,ddfdy2,ddfdydz = gradient(dfdx),gradient(dfdy,Val(2)),gradient(dfdy,Val(3))
+        ddfdx2,ddfdxdy,ddfdxdz = getindex.(ddfdx,1),getindex.(ddfdx,2),getindex.(ddfdx,3)
+        ddfdz2 = gradient(dfdz,Val(3))
+        TensorField(base(t),LMN(V,n,ddfdx2,ddfdxdy,ddfdy2,ddfdxdz,ddfdydz,ddfdz2))
+    elseif ndims(t) == 4
+        dfdx,dfdy,dfdz,dfdw = getindex.(g,1),getindex.(g,2),getindex.(g,3),getindex.(g,4)
+        ddfdx,ddfdy2,ddfdydz,ddfdydw = gradient(dfdx),gradient(dfdy,Val(2)),gradient(dfdy,Val(3)),gradient(dfdy,Val(4))
+        ddfdx2,ddfdxdy,ddfdxdz,ddfdxdw = getindex.(ddfdx,1),getindex.(ddfdx,2),getindex.(ddfdx,3),getindex.(ddfdx,4)
+        ddfdz2,ddfdzdw = gradient(dfdz,Val(3)),gradient(dfdz,Val(4))
+        ddfdw2 = gradient(dfdw,Val(4))
+        TensorField(base(t),LMN(V,n,ddfdx2,ddfdxdy,ddfdy2,ddfdxdz,ddfdydz,ddfdz2,ddfdxdw,ddfdydw,ddfdzdw,ddfdw2))
+    elseif ndims(t) == 5
+        dfdx,dfdy,dfdz,dfdw,dfdv = getindex.(g,1),getindex.(g,2),getindex.(g,3),getindex.(g,4),getindex.(g,5)
+        ddfdx,ddfdy2,ddfdydz,ddfdydw,ddfdydv = gradient(dfdx),gradient(dfdy,Val(2)),gradient(dfdy,Val(3)),gradient(dfdy,Val(4)),gradient(dfdy,Val(5))
+        ddfdx2,ddfdxdy,ddfdxdz,ddfdxdw,ddfdxdv = getindex.(ddfdx,1),getindex.(ddfdx,2),getindex.(ddfdx,3),getindex.(ddfdx,4),getindex.(ddfdx,5)
+        ddfdz2,ddfdzdw,ddfdzdv = gradient(dfdz,Val(3)),gradient(dfdz,Val(4)),gradient(dfdz,Val(5))
+        ddfdw2,ddfdwdv = gradient(dfdw,Val(4)),gradient(dfdv,Val(5))
+        ddfdv2 = gradient(dfdv,Val(5))
+        TensorField(base(t),LMN(V,n,ddfdx2,ddfdxdy,ddfdy2,ddfdxdz,ddfdydz,ddfdz2,ddfdxdw,ddfdydw,ddfdzdw,ddfdw2,ddfdxdv,ddfdydv,ddfdzdv,ddfdwdv,ddfdv2))
+    end
 end
 
 firstsecondform(dom,f::Function) = firstsecondform(TensorField(dom,f))
-function firstsecondform(t,g=gradient(t),V=Submanifold(2))
+function firstsecondform(t,g=gradient(t),V=Submanifold(ndims(t)))
     n = ⋆unittangent(t,∧(g))
-    dfdx,dfdy = getindex.(g,1),getindex.(g,2)
-    ddfdx,ddfdy2 = gradient(dfdx),gradient(dfdy,Val(2))
-    ddfdx2,ddfdxdy = getindex.(ddfdx,1),getindex.(ddfdx,2)
-    return (TensorField(base(t),EFG(V,dfdx,dfdy)),
-        TensorField(base(t),LMN(V,n,ddfdx2,ddfdxdy,ddfdy2)))
+    if ndims(t) == 2
+        dfdx,dfdy = getindex.(g,1),getindex.(g,2)
+        ddfdx,ddfdy2 = gradient(dfdx),gradient(dfdy,Val(2))
+        ddfdx2,ddfdxdy = getindex.(ddfdx,1),getindex.(ddfdx,2)
+        return (TensorField(base(t),EFG(V,dfdx,dfdy)),
+            TensorField(base(t),LMN(V,n,ddfdx2,ddfdxdy,ddfdy2)))
+    elseif ndims(t) == 3
+        dfdx,dfdy,dfdz = getindex.(g,1),getindex.(g,2),getindex.(g,3)
+        ddfdx,ddfdy2,ddfdydz = gradient(dfdx),gradient(dfdy,Val(2)),gradient(dfdy,Val(3))
+        ddfdx2,ddfdxdy,ddfdxdz = getindex.(ddfdx,1),getindex.(ddfdx,2),getindex.(ddfdx,3)
+        ddfdz2 = gradient(dfdz,Val(3))
+        return (TensorField(base(t),EFG(V,dfdx,dfdy,dfdz)),
+            TensorField(base(t),LMN(V,n,ddfdx2,ddfdxdy,ddfdy2,ddfdxdz,ddfdydz,ddfdz2)))
+    elseif ndims(t) == 4
+        dfdx,dfdy,dfdz,dfdw = getindex.(g,1),getindex.(g,2),getindex.(g,3),getindex.(g,4)
+        ddfdx,ddfdy2,ddfdydz,ddfdydw = gradient(dfdx),gradient(dfdy,Val(2)),gradient(dfdy,Val(3)),gradient(dfdy,Val(4))
+        ddfdx2,ddfdxdy,ddfdxdz,ddfdxdw = getindex.(ddfdx,1),getindex.(ddfdx,2),getindex.(ddfdx,3),getindex.(ddfdx,4)
+        ddfdz2,ddfdzdw = gradient(dfdz,Val(3)),gradient(dfdz,Val(4))
+        ddfdw2 = gradient(dfdw,Val(4))
+        return (TensorField(base(t),EFG(V,dfdx,dfdy,dfdz,dfdw)),
+            TensorField(base(t),LMN(V,n,ddfdx2,ddfdxdy,ddfdy2,ddfdxdz,ddfdydz,ddfdz2,ddfdxdw,ddfdydw,ddfdzdw,ddfdw2)))
+    elseif ndims(t) == 5
+        dfdx,dfdy,dfdz,dfdw,dfdv = getindex.(g,1),getindex.(g,2),getindex.(g,3),getindex.(g,4),getindex.(g,5)
+        ddfdx,ddfdy2,ddfdydz,ddfdydw,ddfdydv = gradient(dfdx),gradient(dfdy,Val(2)),gradient(dfdy,Val(3)),gradient(dfdy,Val(4)),gradient(dfdy,Val(5))
+        ddfdx2,ddfdxdy,ddfdxdz,ddfdxdw,ddfdxdv = getindex.(ddfdx,1),getindex.(ddfdx,2),getindex.(ddfdx,3),getindex.(ddfdx,4),getindex.(ddfdx,5)
+        ddfdz2,ddfdzdw,ddfdzdv = gradient(dfdz,Val(3)),gradient(dfdz,Val(4)),gradient(dfdz,Val(5))
+        ddfdw2,ddfdwdv = gradient(dfdw,Val(4)),gradient(dfdv,Val(5))
+        ddfdv2 = gradient(dfdv,Val(5))
+        return (TensorField(base(t),EFG(V,dfdx,dfdy,dfdz,dfdw,dfdv)),
+            TensorField(base(t),LMN(V,n,ddfdx2,ddfdxdy,ddfdy2,ddfdxdz,ddfdydz,ddfdz2,ddfdxdw,ddfdydw,ddfdzdw,ddfdw2,ddfdxdv,ddfdydv,ddfdzdv,ddfdwdv,ddfdv2)))
+    end
 end
 
 thirdform(dom,f::Function) = thirdform(TensorField(dom,f))
-thirdform(t,V=Submanifold(2)) = firstform(t,gradient(unitnormal(t)),V)
+thirdform(t,V=Submanifold(ndims(t))) = firstform(t,gradient(unitnormal(t)),V)
 
 shape(dom,f::Function) = shape(TensorField(dom,f))
-function shape(t,g=gradient(t),V=Submanifold(2))
+function shape(t,g=gradient(t),V=Submanifold(ndims(t)))
     EFG,LMN = firstsecondform(t,g,V)
     return inv(EFG)⋅LMN
 end
 
-surfacemetric(dom,f::Function) = surfacemetric(TensorField(dom,f))
-function surfacemetric(t::DiagonalField)
+intrinsicmetric(dom,f::Function) = intrinsicmetric(TensorField(dom,f))
+function intrinsicmetric(t::DiagonalField)
     GridBundle(PointArray(points(t),fiber(outermorphism(t))),immersion(t))
 end
-function surfacemetric(t::EndomorphismField)
+function intrinsicmetric(t::EndomorphismField)
     GridBundle(PointArray(points(t),fiber(Outermorphism(t))),immersion(t))
 end
-function surfacemetric(t,g=gradient(t))
-    V = Submanifold(MetricTensor([1 1; 1 1]))
+function intrinsicmetric(t,g=gradient(t))
+    V = if ndims(t) == 2
+        Submanifold(MetricTensor([1 1; 1 1]))
+    elseif ndims(t) == 3
+        Submanifold(MetricTensor([1 1 1; 1 1 1; 1 1 1]))
+    elseif ndims(t) == 4
+        Submanifold(MetricTensor([1 1 1 1; 1 1 1 1; 1 1 1 1; 1 1 1 1]))
+    elseif ndims(t) == 5
+        Submanifold(MetricTensor([1 1 1 1 1; 1 1 1 1 1; 1 1 1 1 1; 1 1 1 1 1; 1 1 1 1 1]))
+    end
     EFG = Outermorphism.(fiber(firstform(t,g,V)))
     GridBundle(PointArray(points(t),EFG),immersion(t))
 end
 
-surfacemetricdiag(dom,f::Function) = surfacemetricdiag(TensorField(dom,f))
-surfacemetricdiag(t::DiagonalField) = surfacemetric(t)
-function surfacemetricdiag(t,g=gradient(t))
-    V = Submanifold(DiagonalForm(Values(1,1)))
+intrinsicmetricdiag(dom,f::Function) = intrinsicmetricdiag(TensorField(dom,f))
+intrinsicmetricdiag(t::DiagonalField) = intrinsicmetric(t)
+function intrinsicmetricdiag(t,g=gradient(t))
+    V = if ndims(t) == 2
+        Submanifold(DiagonalForm(Values(1,1)))
+    elseif ndims(t) == 3
+        Submanifold(DiagonalForm(Values(1,1,1)))
+    elseif ndims(t) == 4
+        Submanifold(DiagonalForm(Values(1,1,1,1)))
+    elseif ndims(t) == 5
+        Submanifold(DiagonalForm(Values(1,1,1,1,1)))
+    end
     EG = outermorphism.(fiber(firstformdiag(t,g,V)))
     GridBundle(PointArray(points(t),EG),immersion(t))
 end
+const surfacemetric, surfacemetricdiag = intrinsicmetric, intrinsicmetricdiag
 
-surfaceframe(t::DiagonalField) = surfaceframediag(t)
-surfaceframe(t::FrameBundle) = surfaceframe(metrictensorfield(t))
-function surfaceframe(t::EndomorphismField)
-    surfaceframe(base(t),getindex.(t,1,1),getindex.(t,1,2),getindex.(t,2,2))
+intrinsicframe(t::DiagonalField) = intrinsicframediag(t)
+intrinsicframe(t::FrameBundle) = intrinsicframe(metrictensorfield(t))
+function intrinsicframe(t::EndomorphismField)
+    if  ndims(t) == 2
+        intrinsicframe(base(t),getindex.(t,1,1),getindex.(t,1,2),getindex.(t,2,2))
+    elseif ndims(t) == 3
+        intrinsicframe(base(t),getindex.(t,1,1),getindex.(t,1,2),getindex.(t,2,2),getindex.(t,1,3),getindex.(t,2,3),getindex.(3,3))
+    elseif ndims(t) == 4
+        intrinsicframe(base(t),getindex.(t,1,1),getindex.(t,1,2),getindex.(t,2,2),getindex.(t,1,3),getindex.(t,2,3),getindex.(3,3),getindex.(t,1,4),getindex.(t,2,4),getindex.(t,3,4),getindex.(t,4,4))
+    elseif ndims(t) == 5
+        intrinsicframe(base(t),getindex.(t,1,1),getindex.(t,1,2),getindex.(t,2,2),getindex.(t,1,3),getindex.(t,2,3),getindex.(3,3),getindex.(t,1,4),getindex.(t,2,4),getindex.(t,3,4),getindex.(t,4,4),getindex.(t,1,5),getindex.(t,2,5),getindex.(t,3,5),getindex.(t,4,5),getindex.(t,5,5))
+    end
 end
-function surfaceframe(t,g=gradient(t))
-    dx,dy = getindex.(g,1),getindex.(g,2)
-    surfaceframe(base(t),fiber(Real(dx⋅dx)),fiber(Real(dx⋅dy)),fiber(Real(dy⋅dy)))
+function intrinsicframe(t,g=gradient(t))
+    if ndims(t) == 2
+        dx,dy = getindex.(g,1),getindex.(g,2)
+        intrinsicframe(base(t),fiber(Real(dx⋅dx)),fiber(Real(dx⋅dy)),fiber(Real(dy⋅dy)))
+    elseif ndims(t) == 3
+        dx,dy,dz = getindex.(g,1),getindex.(g,2),getindex.(g,3)
+        intrinsicframe(base(t),fiber(Real(dx⋅dx)),fiber(Real(dx⋅dy)),fiber(Real(dy⋅dy)),fiber(Real(dx⋅dz)),fiber(Real(dy⋅dz)),fiber(Real(dz⋅dz)))
+    elseif ndims(t) == 4
+        dx,dy,dz,dw = getindex.(g,1),getindex.(g,2),getindex.(g,3),getindex.(g,4)
+        intrinsicframe(base(t),fiber(Real(dx⋅dx)),fiber(Real(dx⋅dy)),fiber(Real(dy⋅dy)),fiber(Real(dx⋅dz)),fiber(Real(dy⋅dz)),fiber(Real(dz⋅dz)),fiber(Real(dx⋅dw)),fiber(Real(dy⋅dw)),fiber(Real(dz⋅dw)),fiber(Real(dw⋅dw)))
+    elseif ndims(t) == 5
+        dx,dy,dz,dw,dv = getindex.(g,1),getindex.(g,2),getindex.(g,3),getindex.(g,4),getindex.(g,5)
+        intrinsicframe(base(t),fiber(Real(dx⋅dx)),fiber(Real(dx⋅dy)),fiber(Real(dy⋅dy)),fiber(Real(dx⋅dz)),fiber(Real(dy⋅dz)),fiber(Real(dz⋅dz)),fiber(Real(dx⋅dw)),fiber(Real(dy⋅dw)),fiber(Real(dz⋅dw)),fiber(Real(dw⋅dw)),fiber(Real(dx⋅dv)),fiber(Real(dy⋅dv)),fiber(Real(dz⋅dv)),fiber(Real(dw⋅dv)),fiber(Real(dv⋅dv)))
+    end
 end
-function surfaceframe(b,E,F,G)
+function intrinsicframe(b,E,F,G)
     F2 = F.*F; mag,sig = sqrt.((E.*E).+F2), sign.(F2.-(E.*G))
     TensorField(b,TensorOperator.(Chain.(Chain.(E,F)./mag,Chain.(F,.-E)./(sig.*mag))))
 end
+#function intrinsicframe(b,xx,xy,yy,xz,yz,zz)
 
-surfaceframediag(t) = surfaceframediag(firstformdiag(t))
-surfaceframediag(t::FrameBundle) = surfaceframediag(metrictensorfield(t))
-function surfaceframediag(t::DiagonalField)
-    E,G = getindex.(value.(fiber(g)),1),getindex.(value.(fiber(g)),2)
-    mag,sig = sqrt.(E.*E), sign.(.-(E.*G))
-    TensorField(base(t),DiagonalOperator.(Chain.(E./mag,.-E./(sig.*mag))))
+intrinsicframediag(t) = intrinsicframediag(firstformdiag(t))
+intrinsicframediag(t::FrameBundle) = intrinsicframediag(metrictensorfield(t))
+function intrinsicframediag(t::DiagonalField)
+    if ndims(t) == 2
+        E,G = getindex.(value.(fiber(g)),1),getindex.(value.(fiber(g)),2)
+        mag,sig = sqrt.(E.*E), sign.(.-(E.*G))
+        TensorField(base(t),DiagonalOperator.(Chain.(E./mag,.-E./(sig.*mag))))
+    end
 end
+const surfaceframe, surfaceframediag = intrinsicframe, intrinsicframediag
 
 _firstkind(dg,k,i,j) = dg[k,j][i] + dg[i,k][j] - dg[i,j][k]
 firstkind(g::FrameBundle) = firstkind(metrictensorfield(g))
