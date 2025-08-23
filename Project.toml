@@ -21,6 +21,8 @@ MiniQhull = "978d7f02-9e05-4691-894f-ae31a51d76ca"
 Triangulate = "f7e6ffb2-c36d-4f8f-a77e-16e897189344"
 TetGen = "c5d3f3f7-f850-59f6-8a2e-ffc6dc1317ea"
 MATLAB = "10e44e05-a98a-55b3-a45b-ba969058deb6"
+SpecialFunctions = "276daf66-3868-5448-9aa4-cd146d93841b"
+EllipticFunctions = "6a4e32cb-b31a-4929-85af-fb29d9a80738"
 
 [extensions]
 MakieExt = "Makie"
@@ -33,6 +35,8 @@ MiniQhullExt = "MiniQhull"
 TriangulateExt = "Triangulate"
 TetGenExt = "TetGen"
 MATLABExt = "MATLAB"
+SpecialFunctionsExt = "SpecialFunctions"
+EllipticFunctionsExt = "EllipticFunctions"
 
 [compat]
 julia = "1"
