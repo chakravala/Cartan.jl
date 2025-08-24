@@ -29,13 +29,13 @@ import Grassmann: value, vector, valuetype, tangent, istangent, Derivation, radi
 import Grassmann: realvalue, imagvalue, points, metrictensor, metricextensor
 import Grassmann: Values, Variables, FixedVector, list, volume, compound
 import Grassmann: Scalar, GradedVector, Bivector, Trivector
-import Grassmann: complexify, polarize, vectorize
+import Grassmann: complexify, polarize, vectorize, gradient
 import Base: @pure, OneTo, getindex
 import LinearAlgebra: cross
 import ElasticArrays: resize_lastdim!
 
-export Values, Derivation
-export initmesh, pdegrad, det, graphbundle
+export Values, Derivation, differential, codifferential, boundary
+export initmesh, pdegrad, det, graphbundle, divergence, grad, nabla
 
 macro elastic(itr)
     :(elastic($(itr.args[1]),$(itr.args[2])))
@@ -455,6 +455,9 @@ end
 
 Base.size(f::FourierSpace) = size(f.f)
 Base.getindex(f::FourierSpace,i::Int) = f.f[i]
+invdim(f::FourierSpace,dims=1) = length(f.v)
+invdim(f::ProductSpace,dims=1) = invdim(f.v[dims])
+invdim(f,dims=1) = length(f)
 
 import AbstractFFTs: fftfreq, rfftfreq, fftshift, ifftshift
 for fun ∈ (:fftfreq,:ifftfreq,:rfftfreq,:irfftfreq)
@@ -488,7 +491,10 @@ for fun ∈ (:rfft,)
     @eval AbstractFFTs.$fun(t::TensorField,args...) = TensorField(rfftfreq(base(t)), $fun(fiber(t),args...))
 end
 for fun ∈ (:irfft,:brfft)
-    @eval AbstractFFTs.$fun(t::TensorField,args...) = TensorField(irfftfreq(base(t)), $fun(fiber(t),args...))
+    @eval begin
+        AbstractFFTs.$fun(t::TensorField) = TensorField(irfftfreq(base(t)), $fun(fiber(t),invdim(points(t))))
+        AbstractFFTs.$fun(t::TensorField,dims) = TensorField(irfftfreq(base(t)), $fun(fiber(t),invdim(points(t),dims[1]),dims))
+    end
 end
 
 disconnect(t::FaceMap) = TensorField(disconnect(base(t)),fiber(t))

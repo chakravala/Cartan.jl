@@ -49,7 +49,10 @@ cartan(ξ) = invd(ξ)⋅ξ
 firststructure(θ,ω) = d(θ)+ω∧θ
 secondstructure(ω) = d(ω)+ω∧ω
 
+Base.div(t::TensorField) = divergence(t)
+Grassmann.divergence(t::TensorField) = ∂(t)
 Grassmann.curl(t::TensorField) = ⋆d(t)
+Grassmann.δ(t::TensorField) = -∂(t)
 Grassmann.d(t::TensorField) = TensorField(fromany(∇(t)∧Chain(t)))
 Grassmann.∂(t::TensorField) = TensorField(fromany(Chain(t)⋅∇(t)))
 Grassmann.d(t::ScalarField{B,<:AbstractReal,N,<:FrameBundle,<:AbstractArray} where {B,N}) = gradient(t)
