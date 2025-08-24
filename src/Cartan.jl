@@ -24,7 +24,7 @@ module Cartan
 #  / / |  __/ | | \__ \ (_) | | / /   | |  __/ | (_| \__ \
 #  \/   \___|_| |_|___/\___/|_| \/    |_|\___|_|\__,_|___/
 
-using SparseArrays, LinearAlgebra, ElasticArrays, Base.Threads, Grassmann
+using SparseArrays, LinearAlgebra, ElasticArrays, Base.Threads, Grassmann, AbstractFFTs
 import Grassmann: value, vector, valuetype, tangent, istangent, Derivation, radius, ⊕
 import Grassmann: realvalue, imagvalue, points, metrictensor, metricextensor
 import Grassmann: Values, Variables, FixedVector, list, volume, compound
@@ -60,7 +60,7 @@ export RealFunction, ComplexMap, SpinorField, CliffordField
 export ScalarMap, GradedField, QuaternionField, PhasorField
 export GlobalFrame, DiagonalField, EndomorphismField, OutermorphismField
 export ParametricMap, RectangleMap, HyperrectangleMap, AbstractCurve
-export metrictensorfield, metricextensorfield, polarize, complexify, vectorize
+export metrictensorfield, metricextensorfield, polarize, complexify, vectorize, findroot
 export leaf, alteration, variation, modification, alteration!, variation!, modification!
 
 # TensorField
@@ -434,6 +434,9 @@ end
 SimplexBundle(M::TensorField,t::EndomorphismField,n::Int...) = SimplexBundle(resample(M,n...),resample(t,n...))
 SimplexBundle(t::EndomorphismField,n::Int...) = SimplexBundle(resample(t,n...))
 
+findroot(t::TensorField) = minimum(norm(t))
+findroot(t::TensorField,x) = minimum(norm(t-x))
+
 (z::Phasor)(t::TensorField) = TensorField(t,z.(fiber(t)))
 (z::Phasor)(t::TensorField,θ) = TensorField(t,z.(fiber(t),Ref(θ)))
 (z::Phasor)(t::TensorField,θ::TensorField) = TensorField(t,z.(fiber(t),fiber(θ)))
@@ -444,6 +447,49 @@ SimplexBundle(t::EndomorphismField,n::Int...) = SimplexBundle(resample(t,n...))
 (z::Phasor)(t::LocalTensor,θ::Coordinate) = z(fiber(t),point(θ))
 (z::Phasor)(t::Coordinate,θ::LocalTensor) = z(point(t),fiber(θ))
 (z::Phasor)(t::Coordinate,θ::Coordinate) = z(point(t),point(θ))
+
+struct FourierSpace{T,F<:AbstractVector{T},G} <: AbstractVector{T}
+    f::F
+    v::G
+end
+
+Base.size(f::FourierSpace) = size(f.f)
+Base.getindex(f::FourierSpace,i::Int) = f.f[i]
+
+import AbstractFFTs: fftfreq, rfftfreq, fftshift, ifftshift
+for fun ∈ (:fftfreq,:ifftfreq,:rfftfreq,:irfftfreq)
+    @eval begin
+        $fun(t::TensorField) = TensorField($fun(base(t)))
+        $fun(x::GridBundle) = GridBundle($fun(points(x)))
+        $fun(x::ProductSpace{V}) where V = ProductSpace{V}($fun.(x.v))
+    end
+end
+
+fftfreq(x::AbstractRange) = FourierSpace(fftfreq(length(x),inv(step(x))),x)
+ifftfreq(x::FourierSpace) = x.v
+rfftfreq(x::AbstractRange) = FourierSpace(rfftfreq(length(x),inv(step(x))),x)
+irfftfreq(x::FourierSpace) = x.v
+
+for fun ∈ (:fftshift,:ifftshift)
+    @eval begin
+        $fun(t::TensorField) = TensorField($fun(base(t)),$fun(fiber(t)))
+        $fun(x::GridBundle) = GridBundle($fun(points(x)))
+        $fun(x::ProductSpace{V}) where V = ProductSpace{V}($fun.(x.v))
+        $fun(x::FourierSpace) = FourierSpace($fun(x.f),x.v)
+    end
+end
+for fun ∈ (:fft,:fft!)
+    @eval AbstractFFTs.$fun(t::TensorField,args...) = TensorField(fftfreq(base(t)), $fun(fiber(t),args...))
+end
+for fun ∈ (:ifft,:ifft!,:bfft,:bfft!)
+    @eval AbstractFFTs.$fun(t::TensorField,args...) = TensorField(ifftfreq(base(t)), $fun(fiber(t),args...))
+end
+for fun ∈ (:rfft,)
+    @eval AbstractFFTs.$fun(t::TensorField,args...) = TensorField(rfftfreq(base(t)), $fun(fiber(t),args...))
+end
+for fun ∈ (:irfft,:brfft)
+    @eval AbstractFFTs.$fun(t::TensorField,args...) = TensorField(irfftfreq(base(t)), $fun(fiber(t),args...))
+end
 
 disconnect(t::FaceMap) = TensorField(disconnect(base(t)),fiber(t))
 discontinuous(t::FaceMap) = discontinuous(t,discontinuous(base(t)))
@@ -819,6 +865,8 @@ function __init__()
     @require Triangulate = "f7e6ffb2-c36d-4f8f-a77e-16e897189344" include("../ext/TriangulateExt.jl")
     @require TetGen="c5d3f3f7-f850-59f6-8a2e-ffc6dc1317ea" include("../ext/TetGenExt.jl")
     @require MATLAB="10e44e05-a98a-55b3-a45b-ba969058deb6" include("../ext/MATLABExt.jl")
+    @require SpecialFunctions="276daf66-3868-5448-9aa4-cd146d93841b" include("../ext/SpecialFunctionsExt.jl")
+    @require EllipticFunctions="6a4e32cb-b31a-4929-85af-fb29d9a80738" include("../ext/EllipticFunctionsExt.jl")
 end
 end
 

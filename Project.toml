@@ -9,6 +9,7 @@ Grassmann = "4df31cd9-4c27-5bea-88d0-e6a7146666d8"
 SparseArrays = "2f01184e-e22b-5df5-ae63-d93ebab69eaf"
 ElasticArrays = "fdbdab4c-e67f-52f5-8c3f-e7b388dad3d4"
 LinearAlgebra = "37e2e46d-f89d-539d-b4ee-838fcccc9c8e"
+AbstractFFTs = "621f4979-c628-5d54-868e-fcf4e3e8185c"
 
 [weakdeps]
 Makie = "ee78f7c6-11fb-53f2-987a-cfe4a2b5a57a"
@@ -43,6 +44,7 @@ julia = "1"
 Requires = "1"
 Grassmann = "0.8"
 ElasticArrays = "1"
+AbstractFFTs = "1"
 
 [extras]
 Test = "8dfed614-e22c-5e08-85e1-65c5234f0b40"
