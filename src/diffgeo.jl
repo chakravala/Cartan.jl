@@ -50,7 +50,7 @@ firststructure(θ,ω) = d(θ)+ω∧θ
 secondstructure(ω) = d(ω)+ω∧ω
 
 Base.div(t::TensorField) = divergence(t)
-Grassmann.divergence(t::TensorField) = ∂(t)
+divergence(t::TensorField) = ∂(t)
 Grassmann.curl(t::TensorField) = ⋆d(t)
 Grassmann.δ(t::TensorField) = -∂(t)
 Grassmann.d(t::TensorField) = TensorField(fromany(∇(t)∧Chain(t)))

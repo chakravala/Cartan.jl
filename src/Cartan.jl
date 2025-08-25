@@ -898,6 +898,8 @@ function __init__()
     @require MATLAB="10e44e05-a98a-55b3-a45b-ba969058deb6" include("../ext/MATLABExt.jl")
     @require SpecialFunctions="276daf66-3868-5448-9aa4-cd146d93841b" include("../ext/SpecialFunctionsExt.jl")
     @require EllipticFunctions="6a4e32cb-b31a-4929-85af-fb29d9a80738" include("../ext/EllipticFunctionsExt.jl")
+    @require Elliptic="b305315f-e792-5b7a-8f41-49f472929428" include("../ext/EllipticExt.jl")
+    @require JacobiElliptic="2a8b799e-c098-4961-872a-356c768d184c" include("../ext/JacobiEllipticExt.jl")
 end
 end
 

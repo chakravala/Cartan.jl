@@ -13,7 +13,7 @@
 #   https://crucialflow.com
 
 export centraldiff, centraldiff_slow, centraldiff_fast
-export gradient, gradient_slow, gradient_fast, unitgradient
+export gradient, gradient_slow, gradient_fast, gradient_fft, unitgradient
 export fiberproduct, fibersphere, fibersector
 export integral, integrate, ∫
 
@@ -466,6 +466,9 @@ function unitgradient(f::TensorField,args...)
     t = gradient(f,args...)
     return t/abs(t)
 end
+
+spectral_diff_real(N::Int) = im*vcat(0:N/2-1,0,-N/2+1:-1)
+gradient_fft(t::RealFunction) = real(ifft(spectral_diff_real(length(t)).*fft(t)))
 
 import Base: @nloops, @nref, @ncall
 
