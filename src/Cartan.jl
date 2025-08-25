@@ -782,6 +782,31 @@ include("grid.jl")
 include("element.jl")
 include("diffgeo.jl")
 
+
+@doc """
+    ∂(ω) = ω⋅∇ # boundary
+
+Defined by Grassmann's interior differential acting on `TensorAlgebra` elements, the `boundary` operator is symbolized as `∂`.
+The operator contracts `ω` with the vector‑valued `nabla` derivation `∇`, lowering grade by one.
+This operator is nilpotent (`∂(∂(ω)) == 0`) and constitutes the negative of the adjoint operator corresponding to exterior differential `d`.
+""" Grassmann.boundary, Grassmann.∂
+
+@doc """
+    d(ω) = ∇∧ω # differential
+
+Exterior `differential` symbolized as `d` is defined with action based on Grassmann's `TensorAlgebra` elements.
+It raises the grade of `ω` by taking exterior products with the vector-valued `nabla` derivation `∇`.
+Hence, `d` is nilpotent (`d(d(ω)) == 0`) and, together with interior `codifferential` `δ` these form the de Rham cochain complex (`Δ = d⋅δ + δ⋅d`).
+""" Grassmann.differential, Grassmann.d
+
+@doc """
+    δ(ω) = -∂(ω) # codifferential
+
+Interior `codifferential` symbolized as `δ` is the adjoint action of the exterior `differential` operator on `TensorAlgebra` elements.
+In `Grassmann` it is defined as the negative of the interior `boundary` operator, so `δ` lowers the grade by one and satisfies `δ(δ(ω)) == 0` also.
+Together with exterior `differential` `d` these form de Rham cochain complex `Δ = d⋅δ + δ⋅d`.
+""" Grassmann.codifferential, Grassmann.δ
+
 for fun ∈ (:unorientedpoly,:orientedpoly,:makietransform)
     @eval function $fun end
 end
