@@ -815,20 +815,20 @@ function Makie.mesh!(M::SimplexBundle;args...)
     end
 end
 
-function Makie.surface(M::ScalarMap,f::Function=laplacian;args...)
+function Makie.surface(M::ScalarMap,f::Function=Cartan._laplacian;args...)
     fM = f(M)
     col = isdiscontinuous(M) && !isdiscontinuous(fM) ? discontinuous(fM,base(M)) : fM
     Makie.mesh(hcat(submesh(base(M)),Real.(fiber(M))),Cartan.array(immersion(M));color=fiber(col),args...)
 end
-function Makie.surface!(M::ScalarMap,f::Function=laplacian;args...)
+function Makie.surface!(M::ScalarMap,f::Function=Cartan._laplacian;args...)
     fM = f(M)
     col = isdiscontinuous(M) && !isdiscontinuous(fM) ? discontinuous(fM,base(M)) : fM
     Makie.mesh!(hcat(submesh(base(M)),Real.(fiber(M))),Cartan.array(immersion(M));color=fiber(col),args...)
 end
-function Makie.surface(M::TensorField{B,<:AbstractReal,1,<:FaceBundle} where B,f::Function=laplacian;args...)
+function Makie.surface(M::TensorField{B,<:AbstractReal,1,<:FaceBundle} where B,f::Function=Cartan._laplacian;args...)
     Makie.surface(interp(M),f;args...)
 end
-function Makie.surface!(M::TensorField{B,<:AbstractReal,1,<:FaceBundle} where B,f::Function=laplacian;args...)
+function Makie.surface!(M::TensorField{B,<:AbstractReal,1,<:FaceBundle} where B,f::Function=Cartan._laplacian;args...)
     Makie.surface!(interp(M),f;args...)
 end
 

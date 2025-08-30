@@ -201,6 +201,8 @@ LinearAlgebra.cross(m::OpenTopology{1},n::OpenTopology{3}) = OpenTopology(m.s...
 LinearAlgebra.cross(m::OpenTopology{3},n::OpenTopology{1}) = OpenTopology(m.s...,n.s...)
 LinearAlgebra.cross(m::OpenTopology,n::Int) = OpenTopology(m.s...,n)
 LinearAlgebra.cross(m::OpenTopology{1},n::Int) = OpenTopology(m.s...,n)
+LinearAlgebra.cross(m::Int,n::OpenTopology) = OpenTopology(m,n.s...)
+LinearAlgebra.cross(m::Int,n::OpenTopology{1}) = OpenTopology(m,n.s...)
 function LinearAlgebra.cross(m::QuotientTopology{1},n::Int)
     QuotientTopology(m.p,
         Values((zeroprodtop(m.r[1],n)...,zeroprodtop(m.r[2],n)...)),
@@ -208,6 +210,14 @@ function LinearAlgebra.cross(m::QuotientTopology{1},n::Int)
 end
 function LinearAlgebra.cross(m::QuotientTopology,n::Int)
     QuotientTopology(m.p,m.q .× n,Values(m.r...,0,0),Values(m.s...,n))
+end
+function LinearAlgebra.cross(m::Int,n::QuotientTopology{1})
+    QuotientTopology(n.p,
+        Values((zeroprodtop(n.r[1],m)...,zeroprodtop(n.r[2],m)...)),
+        Values(0,0,n.r...),Values(m,n.s...))
+end
+function LinearAlgebra.cross(m::Int,n::QuotientTopology)
+    QuotientTopology(n.p,m .× n.q,Values(0,0,n.r...),Values(m,n.s...))
 end
 
 function LinearAlgebra.cross(m::QuotientTopology{1},n::QuotientTopology{1})
@@ -686,6 +696,15 @@ function subtopology(m::QuotientTopology,i::NTuple{N,Int},::Colon,j::NTuple{M,In
     #e = iszero(pz) ? Values{0,Int} : vpz((p1z ? () : (1,))...,(p2z ? () : (!(p1z)+!(p2z),))...,(p3z ? () : (!(p1z)+!(p2z)+!(p3z),))...,(p4z ? () : (!(p1z)+!(p2z)+!(p3z)+!(p4z),))...,(p5z ? () : (!(p1z)+!(p2z)+!(p3z)+!(p4z)+!(p5z),))...,(p6z ? () : (!(p1z)+!(p2z)+!(p3z)+!(p4z)+!(p5z)+!(p6z),))...,(p7z ? () : (!(p1z)+!(p2z)+!(p3z)+!(p4z)+!(p5z)+!(p6z)+!(p7z),))...,(p8z ? () : (pz,))...)
     QuotientTopology(a,b,c,Values(s[N1],s[M1],s[L1],s[O1]),m.c[R])
 end
+#=function subtop(N=4)
+    syms = Symbol.(:N,list(1,N),1)
+    symso = [:(2*$(syms[i])-1) for i ∈ list(1,N)]
+    symse = [:(2*$(syms[i])) for i ∈ list(1,N)]
+    Expr(:block,
+        [:($(syms[i]) = $(Symbol(:N,i))+1) for i ∈ list(1,N)]...,
+        :(r,vals = m.r[Values($([isodd(i) ? symso[(i+1)÷2] : symse[(i+1)÷2] for i ∈ list(1,2N)]...))],Values($([Expr(:...,Symbol(:i,i)) for i ∈ list(1,N+1)]...)))
+       )
+end=#
 
 # 1
 (m::QuotientTopology)(c::Colon,i::Int...) = subtopology(m,(),c,i)

@@ -331,7 +331,7 @@ function Grassmann.Chain(t::TensorField{B,<:Chain{V,G}} where B) where {V,G}
     Chain{V,G}((TensorField(base(t), getindex.(fiber(t),j)) for j ∈ 1:binomial(mdims(V),G))...)
 end
 Base.:^(t::TensorField,n::Int) = TensorField(base(t), .^(fiber(t),n,refmetric(t)))
-for op ∈ (:+,:-,:&,:∧,:∨)
+for op ∈ (:+,:-,:&,:∧,:∨,:min,:max,:div,:rem,:mod,:mod1,:ldexp)
     let bop = op ∈ (:∧,:∨) ? :(Grassmann.$op) : :(Base.$op)
         @eval begin
             $bop(a::TensorField,b::TensorField) = checkdomain(a,b) && TensorField(base(a), $op.(fiber(a),fiber(b)))
@@ -376,7 +376,7 @@ for (op,mop) ∈ ((:*,:wedgedot_metric),(:wedgedot,:wedgedot_metric),(:veedot,:v
         $bop(a::TensorField,b::Number) = TensorField(base(a), Grassmann.$op.(fiber(a),b,$((op≠:^ ? () : (:(refmetric(base(a))),))...)))
     end end
 end
-for fun ∈ (:-,:!,:~,:real,:imag,:conj,:deg2rad,:transpose)
+for fun ∈ (:-,:!,:~,:real,:imag,:conj,:deg2rad,:transpose,:iszero,:isone,:isnan,:isinf,:isfinite,:floor,:ceil,:round)
     @eval Base.$fun(t::TensorField) = TensorField(base(t), $fun.(fiber(t)))
 end
 for fun ∈ (:exp,:exp2,:exp10,:log2,:log10,:sinh,:cosh,:abs,:sqrt,:cbrt,:cos,:sin,:tan,:cot,:sec,:csc,:asec,:acsc,:sech,:csch,:asech,:tanh,:coth,:asinh,:acosh,:atanh,:acoth,:asin,:acos,:atan,:acot,:sinc,:cosc,:cis,:abs2,:inv)
@@ -398,6 +398,23 @@ for fun ∈ (:cumsum,:cumprod)
          TensorField(base(t), out)
     end
 end
+
+#Base.:*(m::DenseMatrix,t::TensorField) = TensorField(base(t),reshape(m*fiber(vec(t)),size(t)))
+#Base.:*(m::AbstractSparseMatrix,t::TensorField) = TensorField(base(t),reshape(m*fiber(vec(t)),size(t)))
+Base.:*(m::AbstractMatrix,t::RealFunction) = TensorField(base(t),reshape(m*fiber(t),size(t)))
+#Base.:*(m::RectangleMap,t::RealFunction) = fiber(m)*t
+#Base.:\(m::DenseMatrix,t::TensorField) = TensorField(base(t),reshape(m\fiber(vec(t)),size(t)))
+#Base.:\(m::AbstractSparseMatrix,t::TensorField) = TensorField(base(t),reshape(m\fiber(vec(t)),size(t)))
+Base.:\(m::AbstractMatrix,t::RealFunction) = TensorField(base(t),reshape(m\fiber(t),size(t)))
+#Base.:\(m::RectangleMap,t::RealFunction) = fiber(m)\t
+#Base.:*(t::TensorField,m::DenseMatrix) = TensorField(base(t),reshape(vec(transpose(fiber(vec(t)))*m),size(t)))
+#Base.:*(t::TensorField,m::AbstractSparseMatrix) = TensorField(base(t),reshape(vec(transpose(fiber(vec(t)))*m),size(t)))
+Base.:*(t::RealFunction,m::AbstractMatrix) = TensorField(base(t),reshape(vec(transpose(fiber(vec(t)))*m),size(t)))
+#Base.:*(t::RealFunction,m::RectangleMap) = t*fiber(m)
+#Base.:\(t::TensorField,m::DenseMatrix) = TensorField(base(t),reshape(vec(fiber(vec(t))\m),size(t)))
+#Base.:\(t::TensorField,m::AbstractSparseMatrix) = TensorField(base(t),reshape(vec(fiber(vec(t))\m),size(t)))
+Base.:\(t::RealFunction,m::AbstractMatrix) = TensorField(base(t),reshape(vec(fiber(vec(t))\m),size(t)))
+#Base.:\(t::RealFunction,m::RectangleMap) = t\fiber(m)
 
 Base.log(t::TensorField) = TensorField(base(t), Grassmann.log_metric.(fiber(t),ref(metricextensor(t))))
 Base.:/(a::TensorField,b::TensorAlgebra) = TensorField(base(a),./(fiber(a),b,refmetric(base(a))))
@@ -470,8 +487,10 @@ end
 
 fftfreq(x::AbstractRange) = FourierSpace(fftfreq(length(x),inv(step(x))),x)
 ifftfreq(x::FourierSpace) = x.v
+ifftfreq(x::Frequencies) = Base.OneTo(length(x))
 rfftfreq(x::AbstractRange) = FourierSpace(rfftfreq(length(x),inv(step(x))),x)
 irfftfreq(x::FourierSpace) = x.v
+irfftfreq(x::Frequencies) = Base.OneTo(length(x))
 
 for fun ∈ (:fftshift,:ifftshift)
     @eval begin
@@ -495,6 +514,68 @@ for fun ∈ (:irfft,:brfft)
         AbstractFFTs.$fun(t::TensorField) = TensorField(irfftfreq(base(t)), $fun(fiber(t),invdim(points(t))))
         AbstractFFTs.$fun(t::TensorField,dims) = TensorField(irfftfreq(base(t)), $fun(fiber(t),invdim(points(t),dims[1]),dims))
     end
+end
+
+flt(f::TensorField,σ::Number) = fft(exp((-σ)*TensorField(base(f)))*f)
+bflt(f::TensorField,σ::Number) = bfft(exp((-σ)*TensorField(base(f)))*f)
+rflt(f::TensorField,σ::Number) = rfft(exp((-σ)*TensorField(base(f)))*f)
+brflt(f::TensorField,σ::Number) = brfft(exp((-σ)*TensorField(base(f)))*f)
+iflt(f::TensorField,σ::Number) = ifft(exp(σ*TensorField(base(f)))*f)
+irflt(f::TensorField,σ::Number) = irfft(exp(σ*TensorField(base(f)))*f)
+
+export flt, bflt, rflt, brflt, iflt, irflt
+function flt(f::TensorField,σ::AbstractVector)
+    t = TensorField(base(f))
+    out = Matrix{Complex{Float64}}(undef,length(σ),length(t))
+    for i ∈ 1:length(σ)
+        out[i,:] = fiber(fft(exp((-fiber(σ)[i])*t)*f))
+    end
+    return TensorField(σ⊕fftfreq(base(f)),out)
+end
+function bflt(f::TensorField,σ::AbstractVector)
+    t = TensorField(base(f))
+    out = Matrix{Complex{Float64}}(undef,length(σ),length(t))
+    for i ∈ 1:length(σ)
+        out[i,:] = fiber(bfft(exp((-fiber(σ)[i])*t)*f))
+    end
+    return TensorField(σ⊕fftfreq(base(f)),out)
+end
+function rflt(f::TensorField,σ::AbstractVector)
+    t = TensorField(base(f))
+    out = Matrix{Complex{Float64}}(undef,length(σ),length(t))
+    for i ∈ 1:length(σ)
+        out[i,:] = fiber(rfft(exp((-fiber(σ)[i])*t)*f))
+    end
+    return TensorField(σ⊕rfftfreq(base(f)),out)
+end
+function brflt(f::TensorField,σ::AbstractVector)
+    t = TensorField(base(f))
+    id = length(t)
+    out = Matrix{Complex{Float64}}(undef,length(σ),id)
+    for i ∈ 1:length(σ)
+        out[i,:] = fiber(brfft(exp((-fiber(σ)[i])*t)*f,id))
+    end
+    return TensorField(σ⊕rfftfreq(base(f)),out)
+end
+
+function iflt(f::TensorField)
+    σ = TensorField(points(f).v[1])
+    t = TensorField(ifftfreq(points(f).v[2]))
+    out = Matrix{Complex{Float64}}(undef,length(σ),length(t))
+    for i ∈ 1:length(σ)
+        out[i,:] = exp.(fiber(σ)[i]*fiber(t)).*ifft(view(fiber(f),i,:))
+    end
+    return TensorField(base(t),vec(sum(out;dims=1))/length(σ))
+end
+function irflt(f::TensorField)
+    σ = TensorField(points(f).v[1])
+    t = TensorField(irfftfreq(points(f).v[2]))
+    id = length(t)
+    out = Matrix{Complex{Float64}}(undef,length(σ),id)
+    for i ∈ 1:length(σ)
+        out[i,:] = exp.(fiber(σ)[i]*fiber(t)).*irfft(view(fiber(f),i,:),id)
+    end
+    return TensorField(base(t),vec(sum(out;dims=1))/length(σ))
 end
 
 disconnect(t::FaceMap) = TensorField(disconnect(base(t)),fiber(t))
@@ -773,15 +854,9 @@ function tensorfield(t,ϕ::T) where T<:AbstractVector
     end
 end
 
-_unorientedplane(p,v1,v2) = p.+[-v1-v2 v1+v2; v1-v2 v2-v1]
-_orientedplane(p,v1,v2) = p.+[zero(v1) v1+v2; v1 v2]
-unorientedplane(p,v1,v2) = TensorField(base(OpenParameter(2,2)),_unorientedplane(p,v1,v2))
-orientedplane(p,v1,v2) = TensorField(base(OpenParameter(2,2)),_orientedplane(p,v1,v2))
-
 include("grid.jl")
 include("element.jl")
 include("diffgeo.jl")
-
 
 @doc """
     ∂(ω) = ω⋅∇ # boundary
@@ -806,6 +881,11 @@ Interior `codifferential` symbolized as `δ` is the adjoint action of the exteri
 In `Grassmann` it is defined as the negative of the interior `boundary` operator, so `δ` lowers the grade by one and satisfies `δ(δ(ω)) == 0` also.
 Together with exterior `differential` `d` these form de Rham cochain complex `Δ = d⋅δ + δ⋅d`.
 """ Grassmann.codifferential, Grassmann.δ
+
+_unorientedplane(p,v1,v2) = p.+[-v1-v2 v1+v2; v1-v2 v2-v1]
+_orientedplane(p,v1,v2) = p.+[zero(v1) v1+v2; v1 v2]
+unorientedplane(p,v1,v2) = TensorField(base(OpenParameter(2,2)),_unorientedplane(p,v1,v2))
+orientedplane(p,v1,v2) = TensorField(base(OpenParameter(2,2)),_orientedplane(p,v1,v2))
 
 for fun ∈ (:unorientedpoly,:orientedpoly,:makietransform)
     @eval function $fun end

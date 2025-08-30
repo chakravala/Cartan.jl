@@ -18,36 +18,44 @@ isdefined(Cartan, :Requires) ? (import Cartan: Elliptic) : (using Elliptic)
 
 for fun ∈ (:K,:E,:ellipke)
     @eval begin
-        Elliptic.$fun(t::TensorField) = TensorField(base(t), Elliptic.$fun.(fiber(t)))
-        Elliptic.$fun(t::LocalTensor) = LocalTensor(base(t), Elliptic.$fun(fiber(t)))
+        Elliptic.$fun(x::TensorField) = TensorField(base(x), Elliptic.$fun.(fiber(x)))
+        Elliptic.$fun(x::LocalTensor) = LocalTensor(base(x), Elliptic.$fun(fiber(x)))
     end
 end
 for fun ∈ (:F,:E,:ellipj)
     @eval begin
-        Elliptic.$fun(m,t::TensorField) = TensorField(base(t), Elliptic.$fun.(m,fiber(t)))
-        Elliptic.$fun(m,t::LocalTensor) = LocalTensor(base(t), Elliptic.$fun(m,fiber(t)))
-        Elliptic.$fun(a::TensorField,z) = TensorField(base(a), Elliptic.$fun.(fiber(a),z))
-        Elliptic.$fun(a::LocalTensor,z) = LocalTensor(base(a), Elliptic.$fun(fiber(a),z))
+        Elliptic.$fun(x,y::TensorField) = TensorField(base(y), Elliptic.$fun.(x,fiber(y)))
+        Elliptic.$fun(x,y::LocalTensor) = LocalTensor(base(y), Elliptic.$fun(x,fiber(y)))
+        Elliptic.$fun(x::TensorField,y) = TensorField(base(x), Elliptic.$fun.(fiber(x),y))
+        Elliptic.$fun(x::LocalTensor,y) = LocalTensor(base(x), Elliptic.$fun(fiber(x),y))
         Elliptic.$fun(x::TensorField,y::TensorField) = TensorField(base(x), Elliptic.$fun.(fiber(x),fiber(y)))
         Elliptic.$fun(x::LocalTensor,y::LocalTensor) = LocalTensor(base(x), Elliptic.$fun(fiber(x),fiber(y)))
     end
 end
 for fun ∈ (:Pi,)
     @eval begin
-        Elliptic.$fun(n,m,t::TensorField) = TensorField(base(t), Elliptic.$fun.(n,m,fiber(t)))
-        Elliptic.$fun(n,m,t::LocalTensor) = LocalTensor(base(t), Elliptic.$fun(n,m,fiber(t)))
-        Elliptic.$fun(n,a::TensorField,z) = TensorField(base(a), Elliptic.$fun.(n,fiber(a),z))
-        Elliptic.$fun(n,a::LocalTensor,z) = LocalTensor(base(a), Elliptic.$fun(n,fiber(a),z))
-        Elliptic.$fun(n,x::TensorField,y::TensorField) = TensorField(base(x), Elliptic.$fun.(n,fiber(x),fiber(y)))
-        Elliptic.$fun(n,x::LocalTensor,y::LocalTensor) = LocalTensor(base(x), Elliptic.$fun(n,fiber(x),fiber(y)))
+        Elliptic.$fun(x,y,z::TensorField) = TensorField(base(z), Elliptic.$fun.(x,y,fiber(z)))
+        Elliptic.$fun(x,y,z::LocalTensor) = LocalTensor(base(z), Elliptic.$fun(x,y,fiber(z)))
+        Elliptic.$fun(x,y::TensorField,z) = TensorField(base(y), Elliptic.$fun.(x,fiber(y),z))
+        Elliptic.$fun(x,y::LocalTensor,z) = LocalTensor(base(y), Elliptic.$fun(x,fiber(y),z))
+        Elliptic.$fun(x::TensorField,y,z) = TensorField(base(x), Elliptic.$fun.(fiber(x),y,z))
+        Elliptic.$fun(x::LocalTensor,y,z) = LocalTensor(base(x), Elliptic.$fun(fiber(x),y,z))
+        Elliptic.$fun(x,y::TensorField,z::TensorField) = TensorField(base(y), Elliptic.$fun.(x,fiber(y),fiber(z)))
+        Elliptic.$fun(x,y::LocalTensor,z::LocalTensor) = LocalTensor(base(y), Elliptic.$fun(x,fiber(y),fiber(z)))
+        Elliptic.$fun(x::TensorField,y,z::TensorField) = TensorField(base(x), Elliptic.$fun.(fiber(x),y,fiber(z)))
+        Elliptic.$fun(x::LocalTensor,y,z::LocalTensor) = LocalTensor(base(x), Elliptic.$fun(fiber(x),y,fiber(z)))
+        Elliptic.$fun(x::TensorField,y::TensorField,z) = TensorField(base(x), Elliptic.$fun.(fiber(x),fiber(y),z))
+        Elliptic.$fun(x::LocalTensor,y::LocalTensor,z) = LocalTensor(base(x), Elliptic.$fun(fiber(x),fiber(y),z))
+        Elliptic.$fun(x::TensorField,y::TensorField,z::TensorField) = TensorField(base(x), Elliptic.$fun.(fiber(x),fiber(y),fiber(z)))
+        Elliptic.$fun(x::LocalTensor,y::LocalTensor,z::LocalTensor) = LocalTensor(base(x), Elliptic.$fun(fiber(x),fiber(y),fiber(z)))
     end
 end
 for fun ∈ (:am,:sn,:cn,:dn,:sd,:cd,:nd,:dc,:nc,:sc,:ns,:ds,:cs)
     @eval begin
-        Elliptic.Jacobi.$fun(m,t::TensorField) = TensorField(base(t), Elliptic.Jacobi.$fun.(m,fiber(t)))
-        Elliptic.Jacobi.$fun(m,t::LocalTensor) = LocalTensor(base(t), Elliptic.Jacobi.$fun(m,fiber(t)))
-        Elliptic.Jacobi.$fun(a::TensorField,z) = TensorField(base(a), Elliptic.Jacobi.$fun.(fiber(a),z))
-        Elliptic.Jacobi.$fun(a::LocalTensor,z) = LocalTensor(base(a), Elliptic.Jacobi.$fun(fiber(a),z))
+        Elliptic.Jacobi.$fun(x,y::TensorField) = TensorField(base(y), Elliptic.Jacobi.$fun.(x,fiber(y)))
+        Elliptic.Jacobi.$fun(x,y::LocalTensor) = LocalTensor(base(y), Elliptic.Jacobi.$fun(x,fiber(y)))
+        Elliptic.Jacobi.$fun(x::TensorField,y) = TensorField(base(x), Elliptic.Jacobi.$fun.(fiber(x),y))
+        Elliptic.Jacobi.$fun(x::LocalTensor,y) = LocalTensor(base(x), Elliptic.Jacobi.$fun(fiber(x),y))
         Elliptic.Jacobi.$fun(x::TensorField,y::TensorField) = TensorField(base(x), Elliptic.Jacobi.$fun.(fiber(x),fiber(y)))
         Elliptic.Jacobi.$fun(x::LocalTensor,y::LocalTensor) = LocalTensor(base(x), Elliptic.Jacobi.$fun(fiber(x),fiber(y)))
     end

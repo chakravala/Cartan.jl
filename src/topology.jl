@@ -329,7 +329,9 @@ end
 
 cross(a::ProductTopology,b::ProductTopology) = ProductTopology(Values(a.v...,b.v...))
 cross(a::ProductTopology,b::AbstractVector{Int}) = ProductTopology(Values(a.v...,b))
+cross(a::AbstractVector{Int},b::ProductTopology) = ProductTopology(Values(a,b.v...))
 cross(a::ProductTopology,b::Int) = a × OneTo(b)
+cross(a::Int,b::ProductTopology) = OneTo(a) × b
 
 # SimplexTopology
 

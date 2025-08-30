@@ -255,7 +255,7 @@ for type ∈ (:Coordinate,:LocalTensor)
     for tensor ∈ (:Single,:Couple,:PseudoCouple,:Chain,:Spinor,:AntiSpinor,:Multivector,:DiagonalOperator,:TensorOperator,:Outermorphism)
         @eval (T::Type{<:$tensor})(s::$type) = $type(base(s), T(fiber(s)))
     end
-    for fun ∈ (:-,:!,:~,:real,:imag,:conj,:deg2rad,:transpose)
+    for fun ∈ (:-,:!,:~,:real,:imag,:conj,:deg2rad,:transpose,:iszero,:isone,:isnan,:isinf,:isfinite,:floor,:ceil,:round)
         @eval Base.$fun(s::$type) = $type(base(s), $fun(fiber(s)))
     end
     for fun ∈ (:reverse,:involute,:clifford,:even,:odd,:scalar,:vector,:bivector,:volume,:value,:curl,:∂,:d,:complementleft,:realvalue,:imagvalue,:outermorphism,:Outermorphism,:DiagonalOperator,:TensorOperator,:eigen,:eigvecs,:eigvals,:eigvalsreal,:eigvalscomplex,:eigvecsreal,:eigvecscomplex,:eigpolys,:pfaffian,:∧,:↑,:↓,:vectorize)
@@ -264,7 +264,7 @@ for type ∈ (:Coordinate,:LocalTensor)
     for fun ∈ (:⋆,:angle,:radius,:complementlefthodge,:pseudoabs,:pseudoabs2,:pseudoexp,:pseudolog,:pseudoinv,:pseudosqrt,:pseudocbrt,:pseudocos,:pseudosin,:pseudotan,:pseudocosh,:pseudosinh,:pseudotanh,:metric,:unit,:complexify,:polarize,:amplitude,:phase)
         @eval Grassmann.$fun(s::$type) = $type(base(s), $fun(fiber(s),metricextensor(s)))
     end
-    for op ∈ (:+,:-,:&,:∧,:∨)
+    for op ∈ (:+,:-,:&,:∧,:∨,:max,:min,:div,:rem,:mod,:mod1,:ldexp)
         let bop = op ∈ (:∧,:∨) ? :(Grassmann.$op) : :(Base.$op)
         @eval begin
             $bop(a::$type{R},b::$type{R}) where R = $type(base(a),$op(fiber(a),fiber(b)))
@@ -295,6 +295,12 @@ for type ∈ (:Coordinate,:LocalTensor)
         Grassmann.Couple(s::$type) = $type(base(s), Couple(fiber(s)))
         (::Type{T})(s::$type...) where T<:Chain = @inbounds $type(base(s[1]), Chain(Values(fiber.(s)...)))
     end
+    if VERSION≥v"1.9"
+        @eval (::Type{T})(s::Union{<:$type,<:Real,<:Complex,<:TensorAlgebra}...) where T<:Chain = @inbounds $type(base(s[1]), Chain(Values(fiber.(s)...)))
+    end
+end
+if VERSION≥v"1.9" && Base.pkgversion(Grassmann)≤v"0.8.42"
+    @inline (::Type{T})(x::Union{<:Real,<:Complex,<:TensorAlgebra}...) where T<:Chain = T(x)
 end
 
 # FiberBundle
@@ -539,6 +545,7 @@ end
 
 ⊕(a::PointArray,b::PointArray) = PointArray(points(a)⊕points(b))
 ⊕(a::PointArray,b::AbstractVector{<:Real}) = PointArray(points(a)⊕b)
+⊕(a::AbstractVector{<:Real},b::PointArray) = PointArray(a⊕points(b))
 cross(a::PointArray,b::PointArray) = a⊕b
 cross(a::PointArray,b::AbstractVector{<:Real}) = a⊕b
 
@@ -723,6 +730,7 @@ GridBundle(dom::AbstractArray,fun::Function) = GridBundle(dom, fun.(dom))
 
 ⊕(a::GridBundle,b::GridBundle) = GridBundle(coordinates(a)⊕coordinates(b),immersion(a)×immersion(b))
 ⊕(a::GridBundle,b::AbstractVector{<:Real}) = GridBundle(coordinates(a)⊕b,immersion(a)×length(b))
+⊕(a::AbstractVector{<:Real},b::GridBundle) = GridBundle(a⊕coordinates(b),length(a)×immersion(b))
 cross(a::GridBundle,b::GridBundle) = a⊕b
 cross(a::GridBundle,b::AbstractVector{<:Real}) = a⊕b
 cross_sphere(a::GridBundle,b::GridBundle) = GridBundle(coordinates(a)⊕coordinates(b),cross_sphere(immersion(a),immersion(b)))

@@ -498,10 +498,12 @@ function gradienthat(t::FaceBundle,m=volumes(t))
     end)
 end
 
-function laplacian(t::ElementMap,m=volumes(base(t)),g=gradienthat(base(t),m))
+import Grassmann: laplacian
+#=(::Laplacian)(t::ElementMap,m=volumes(base(t)),g=gradienthat(base(t),m)) = _laplacian(t,m,g)
+function _laplacian(t::ElementMap,m=volumes(base(t)),g=gradienthat(base(t),m))
     out = gradient(t,m,g)
-    TensorField(base(out),Real.(abs.(fiber(out))))
-end
+    TensorField(base(out),Real.(abs2.(fiber(out),refmetric(t))))
+end=#
 function gradient(t::SimplexMap,m=volumes(t),g=gradienthat(t,m))
     out = gradient_2(t,m,g)
     pt = continuous(base(out))
@@ -541,7 +543,8 @@ for T ∈ (:Values,:Variables)
     end
 end
 
-laplacian(t::SimplexTopology) = Diagonal(degrees(t)) - adjacency(t)
+(::Laplacian)(t::SimplexTopology) = _laplacian(t)
+_laplacian(t::SimplexTopology) = Diagonal(degrees(t)) - adjacency(t)
 weights(t::FrameBundle) = inv(degrees(t))
 weights(t::FrameBundle,B::SparseMatrixCSC) = inv(degrees(t,B))
 weights(t::SimplexTopology) = inv.(degrees(t))

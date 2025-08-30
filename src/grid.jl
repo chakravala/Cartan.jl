@@ -12,10 +12,13 @@
 #   https://github.com/chakravala
 #   https://crucialflow.com
 
-export centraldiff, centraldiff_slow, centraldiff_fast
-export gradient, gradient_slow, gradient_fast, gradient_fft, unitgradient
 export fiberproduct, fibersphere, fibersector
-export integral, integrate, ∫
+export centraldiff, centraldiff_slow, centraldiff_fast
+export gradient, gradient_slow, gradient_fast, unitgradient
+export gradient_fft, gradient_rfft, integral_fft, integral_rfft
+export gradient_impulse, gradient_impulse_fft, gradient_impulse_rfft
+export integral_impulse, integral_impulse_fft, integral_impulse_rfft
+export integral, integrate, ∫, convolve, spike, heaviside
 
 function _product(f::AbstractVector,g::AbstractVector,fun::Function)
     [fun(fiber(f)[i],fiber(g)[j]) for i ∈ OneTo(length(f)), j ∈ OneTo(length(g))]
@@ -449,6 +452,158 @@ function quintlinterp(m,t::Chain{V,G,T,5} where {G,T}) where V
         f[i,j,k+1,l+1,o+1],f[i+1,j,k+1,l+1,o+1],f[i,j+1,k+1,l+1,o+1],f[i+1,j+1,k+1,l+1,o+1])
 end
 
+# spectral
+
+convolve(f::ScalarField...) = real(irfft(*(rfft.(f)...)))
+
+spectral_diff_fft(N::Int) = im*vcat(0:Int((N-isodd(N))/2)-1,-Int((N+isodd(N))/2):-1)
+spectral_diff_rfft(N::Int) = im*(0:Int((N-isodd(N))/2))
+spectral_sum_fft(N::Int) = -im*vcat(0,inv.(1:Int((N-isodd(N))/2)-1),inv.(-Int((N+isodd(N))/2):-1))
+spectral_sum_rfft(N::Int) = -im*vcat(0,inv.(1:Int((N-isodd(N))/2)))
+for fun ∈ (:spectral_diff_fft,:spectral_diff_rfft,:spectral_sum_fft,:spectral_sum_rfft)
+    @eval begin
+        $fun(t,i,N) = TensorField(base(t),$fun(N).*fiber(t))
+        function $fun(t,i,N,M)
+            ω = $fun((N,M)[i])
+            TensorField(base(t),[fiber(t)[n,m]*ω[(n,m)[i]] for n ∈ OneTo(N), m ∈ OneTo(M)])
+        end
+        function $fun(t,i,N,M,O)
+            ω = $fun((N,M,O)[i])
+            TensorField(base(t),[fiber(t)[n,m,o]*ω[(n,m,o)[i]] for n ∈ OneTo(N), m ∈ OneTo(M), o ∈ OneTo(O)])
+        end
+        function $fun(t,i,N,M,O,P)
+            ω = $fun((N,M,O,P)[i])
+            TensorField(base(t),[fiber(t)[n,m,o,p]*ω[(n,m,o,p)[i]] for n ∈ OneTo(N), m ∈ OneTo(M), o ∈ OneTo(O), p ∈ OneTo(P)])
+        end
+        function $fun(t,i,N,M,O,P,Q)
+            ω = $fun((N,M,O,P,Q)[i])
+            TensorField(base(t),[fiber(t)[n,m,o,p,q]*ω[(n,m,o,p,q)[i]] for n ∈ OneTo(N), m ∈ OneTo(M), o ∈ OneTo(O), p ∈ OneTo(P), q ∈ OneTo(Q)])
+        end
+    end
+end
+
+gradient_fft(t::RealFunction,d=spectral_diff_fft(length(t))) = real(ifft(d.*fft(t)))
+gradient_fft(t::AbstractCurve,d=spectral_diff_fft(length(t))) = Chain.(gradient_fft.(value(fiber(Chain(t))),Ref(d))...)
+gradient_fft(t::ScalarField,i::Int) = real(ifft(spectral_diff_fft(fft(t,i),i,size(t)...),i))
+gradient_fft(t::TensorField) = Chain.(gradient_fft.(Ref(t),list(1,mdims(pointtype(t))))...)
+gradient_fft(t::VectorField,i::Int) = gradient_fft.(value(fiber(Chain(t))),i)
+gradient_rfft(t::RealFunction,d=spectral_diff_rfft(length(t))) = real(irfft(d.*rfft(t)))
+gradient_rfft(t::AbstractCurve,d=spectral_diff_rfft(length(t))) = Chain.(gradient_rfft.(value(fiber(Chain(t))),Ref(d))...)
+gradient_rfft(t::ScalarField,i::Int) = real(irfft(spectral_diff_rfft(rfft(t,i),i,size(t)...),i))
+gradient_rfft(t::TensorField) = Chain.(gradient_rfft.(Ref(t),list(1,mdims(pointtype(t))))...)
+gradient_rfft(t::VectorField,i::Int) = gradient_rfft.(value(fiber(Chain(t))),i)
+gradient_impulse(t::TensorField) = real(irfft(gradient_impulse_rfft(t)))
+gradient_impulse_fft(N::Int) = TensorField(fftfreq(N),spectral_diff_fft(N))
+gradient_impulse_fft(t::TensorField) = TensorField(fftfreq(t),spectral_diff_fft(length(t)))
+gradient_impulse_rfft(N::Int) = TensorField(rfftfreq(N),spectral_diff_rfft(N))
+gradient_impulse_rfft(t::TensorField) = TensorField(rfftfreq(t),spectral_diff_rfft(length(t)))
+
+integral_fft(t::AbstractCurve,d=spectral_diff_fft(length(t))) = Chain.(integral_fft.(value(fiber(Chain(t))),Ref(d))...)
+function integral_fft(t::RealFunction,d=spectral_sum_fft(length(t)))
+    m = mean(fiber(t))
+    out = real(ifft(d.*fft(t-m)))
+    out+m*(TensorField(base(t))-(points(t)[1]+fiber(out[1])/m))
+end
+integral_rfft(t::AbstractCurve,d=spectral_diff_rfft(length(t))) = Chain.(integral_rfft.(value(fiber(Chain(t))),Ref(d))...)
+function integral_rfft(t::RealFunction,d=spectral_sum_rfft(length(t)))
+    m = mean(fiber(t))
+    out = real(irfft(d.*rfft(t-m)))
+    out+m*(TensorField(base(t))-(points(t)[1]+fiber(out[1])/m))
+end
+integral_impulse(t::TensorField) = real(irfft(integral_impulse_rfft(t)))
+integral_impulse_fft(N::Int) = TensorField(fftfreq(N),spectral_sum_fft(N))
+integral_impulse_fft(t::TensorField) = TensorField(fftfreq(t),spectral_sum_fft(length(t)))
+integral_impulse_rfft(N::Int) = TensorField(rfftfreq(N),spectral_sum_rfft(N))
+integral_impulse_rfft(t::TensorField) = TensorField(rfftfreq(t),spectral_sum_rfft(length(t)))
+
+function spectral_sum_impulse(N::Int)
+    x = N/2 # midpoint
+    b = (π/2)/x # amplitude
+    (b/-x).*(0:N-1).+b # slope
+end
+integral_impulse_line(t::TensorField) = TensorField(base(t),spectral_sum_impulse(length(t)))
+
+select_spike(p,t,i) = abs(p[i]-t) < abs(p[i+1]-t) ? i : i+1
+spike(x::Chain) = prod(spike.(value(x)))
+spike(x::T) where T<:Real = iszero(x) ? one(T) : zero(T)
+spike(x,t) = spike(x-t)
+spike(x::Chain,t::Chain) = spike(x-t)
+spike(x::Chain,t) = prod(spike.(value(x),t))
+spike(t::TensorField,x...) = spike(base(t),x...)
+spike(b::GridBundle,x::Chain) = spike(b,value(x)...)
+function spike(b::GridBundle{1},x=0)
+    p = points(b)
+    i,i0 = searchpoints(p,x)
+    out = zeros(length(p))
+    if !(i0||i==length(p))
+        out[select_spike(p,x,i)] = 1
+    end
+    return TensorField(b,out)
+end
+function spike(b::GridBundle{2},x=0,y=x)
+    p = points(b)
+    i,i0 = searchpoints(p.v[1],x)
+    j,j0 = searchpoints(p.v[2],y)
+    s = size(p)
+    out = zeros(s)
+    if !(i0||i==s[1]||j0||j==s[2])
+        out[select_spike(p.v[1],x,i),select_spike(p.v[2],y,j)] = 1
+    end
+    return TensorField(b,out)
+end
+function spike(b::GridBundle{3},x=0,y=x,z=y)
+    p = points(b)
+    i,i0 = searchpoints(p.v[1],x)
+    j,j0 = searchpoints(p.v[2],y)
+    k,k0 = searchpoints(p.v[3],z)
+    s = size(p)
+    out = zeros(s)
+    if !(i0||i==s[1]||j0||j==s[2]||k0||k==s[3])
+        out[select_spike(p.v[1],x,i),select_spike(p.v[2],y,j),select_spike(p.v[3],z,k)] = 1
+    end
+    return TensorField(b,out)
+end
+function spike(b::GridBundle{4},x=0,y=x,z=y,w=z)
+    p = points(b)
+    i,i0 = searchpoints(p.v[1],x)
+    j,j0 = searchpoints(p.v[2],y)
+    k,k0 = searchpoints(p.v[3],z)
+    m,m0 = searchpoints(p.v[4],w)
+    s = size(p)
+    out = zeros(s)
+    if !(i0||i==s[1]||j0||j==s[2]||k0||k==s[3]||m0||m==s[4])
+        out[select_spike(p.v[1],x,i),select_spike(p.v[2],y,j),select_spike(p.v[3],z,k),select_spike(p.v[4],w,m)] = 1
+    end
+    return TensorField(b,out)
+end
+function spike(b::GridBundle{5},x=0,y=x,z=y,w=z,v=w)
+    p = points(b)
+    i,i0 = searchpoints(p.v[1],x)
+    j,j0 = searchpoints(p.v[2],y)
+    k,k0 = searchpoints(p.v[3],z)
+    m,m0 = searchpoints(p.v[4],w)
+    n,n0 = searchpoints(p.v[5],v)
+    s = size(p)
+    out = zeros(s)
+    if !(i0||i==s[1]||j0||j==s[2]||k0||k==s[3]||m0||m==s[4]||n0||n==s[5])
+        out[select_spike(p.v[1],x,i),select_spike(p.v[2],y,j),select_spike(p.v[3],z,k),select_spike(p.v[4],w,m),select_spike(p.v[5],v,n)] = 1
+    end
+    return TensorField(b,out)
+end
+
+heaviside(x::Chain) = prod(heaviside.(value(x)))
+heaviside(x::T) where T<:Real = x<0 ? zero(T) : one(T)
+heaviside(x::LocalTensor) = LocalTensor(base(x),heaviside(fiber(x)))
+heaviside(x::TensorField) = TensorField(base(x),heaviside.(fiber(x)))
+heaviside(x,t) = heaviside(x-t)
+heaviside(x::Chain,t::Chain) = heaviside(x-t)
+heaviside(x::Chain,t) = prod(heaviside.(value(x),t))
+heaviside(x::Chain,t...) = heaviside(x,Values(t))
+heaviside(x::LocalTensor,t) = LocalTensor(base(x),heaviside(fiber(x),t))
+heaviside(x::LocalTensor,t...) = heaviside(x,Values(t))
+heaviside(x::TensorField,t) = TensorField(base(x),heaviside.(fiber(x),Ref(t)))
+heaviside(x::TensorField,t...) = heaviside(x,Values(t))
+
 # centraldiff
 
 centraldiffdiff(f,dt,l) = centraldiff(centraldiff(f,dt,l),dt,l)
@@ -466,9 +621,6 @@ function unitgradient(f::TensorField,args...)
     t = gradient(f,args...)
     return t/abs(t)
 end
-
-spectral_diff_real(N::Int) = im*vcat(0:N/2-1,0,-N/2+1:-1)
-gradient_fft(t::RealFunction) = real(ifft(spectral_diff_real(length(t)).*fft(t)))
 
 import Base: @nloops, @nref, @ncall
 
