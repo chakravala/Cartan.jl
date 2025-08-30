@@ -166,7 +166,7 @@
         "#Cartan.jl-language-design" title="Permalink"></a></h1>
         <p><em>TensorField topology over FrameBundle ∇ with
         <a href="https://github.com/chakravala/Grassmann.jl">Grassmann.jl</a>
-        elements</em></p>
+        finite elements</em></p>
         <p><a href=
         "https://zenodo.org/badge/latestdoi/673606851"><img src=
         "https://zenodo.org/badge/673606851.svg" alt="DOI"></a>
@@ -310,7 +310,7 @@
         <p>Building on the <em>Grassmann.jl</em> foundation, the
         <em>Cartan.jl</em> extension then defines
         <code>TensorField{B,F,N} &lt;:
-        GlobalFiber{LocalTensor{B,F},N}</code> for both a local
+        FiberBundle{LocalTensor{B,F},N}</code> for both a local
         <code>ProductSpace</code> and general
         <code>ImmersedTopology</code> specifications on any
         <code>FrameBundle</code> expressed with
@@ -1154,8 +1154,8 @@ style=
           <code>FiberBundle</code> or <code>LocalFiber</code></li>
           <li><code>immersion(m::FiberBundle)</code> returns
           <code>ImmersedTopology</code> data</li>
-          <li><code>immersiontype</code> return applies to
-          <code>FiberBundle</code> or <code>LocalFiber</code></li>
+          <li><code>immersiontype</code> return applies to the
+          topology of a <code>FiberBundle</code></li>
           <li><code>base</code> returns the <span>$B$</span>
           element of a <code>LocalFiber{B,F}</code> or
           <code>FiberBundle</code></li>
@@ -2044,13 +2044,15 @@ streamplot!(F.(cube),gridsize=(11,11,11))</code></pre>
         x_1}\times\frac{\partial\gamma(x)}{\partial
         x_2}\right)dx_1dx_2\]</p>
         <pre><code class=
-        "language-julia hljs">integrate(disk*(curl(F.(cube)).(S) ⋅ normal(S)))</code></pre>
+        "language-julia hljs">integrate(disk*(curl(F.(cube)).(S) ⋅ normal(S)))
+fluxintegrate(S,curl(F.(cube)),disk) # alternative syntax</code></pre>
         <p class="math-container">\[\int_{\partial(S)} F\cdot ds =
         \int_0^{2\pi} F(f(t))\cdot f'(t) dt\]</p>
         <pre><code class=
         "language-julia hljs">t = TensorField(0:0.001:2pi)
 f(t) = Chain(3cos(t[1]),3sin(t[1]),0.0)
-integrate(F.(f.(t)) ⋅ tangent(f.(t)))</code></pre>
+integrate(F.(f.(t)) ⋅ tangent(f.(t)))
+integrate(f.(t),F) # alternate syntax</code></pre>
         <p class="math-container">\[\int_S \nabla\times F\cdot dS =
         \int_{\partial(S)} F\cdot ds\]</p>
         <p class="math-container">\[56.5474 \approx 56.547 \approx
@@ -2332,9 +2334,9 @@ integrate(F.(f.(t)) ⋅ tangent(f.(t)))</code></pre>
           <hr>
           <p>This document was generated with <a href=
           "https://github.com/JuliaDocs/Documenter.jl">Documenter.jl</a>
-          version 1.12.0 on <span class="colophon-date" title=
-          "Monday 23 June 2025 10:39">Monday 23 June 2025</span>.
-          Using Julia version 1.11.0.</p>
+          version 1.14.1 on <span class="colophon-date" title=
+          "Saturday 30 August 2025 12:07">Saturday 30 August
+          2025</span>. Using Julia version 1.11.1.</p>
         </section>
         <footer class="modal-card-foot"></footer>
       </div>

@@ -140,7 +140,7 @@
         "Permalink"></a></h1>
         <p><em>TensorField topology over FrameBundle ∇ with
         <a href="https://github.com/chakravala/Grassmann.jl">Grassmann.jl</a>
-        elements</em></p>
+        finite elements</em></p>
         <p><a href=
         "https://zenodo.org/badge/latestdoi/673606851"><img src=
         "https://zenodo.org/badge/673606851.svg" alt="DOI"></a>
@@ -175,10 +175,10 @@
         codifferential, Lie derivative, interior product, and Hodge
         star) using a coordinate-free algebraic language grounded
         in Grassmann-Cartan multivector theory. Its core
-        architecture accomodates numerical representations of fiber
-        bundles, product manifolds, and submanifold immersion,
-        providing native support for PDE models defined on
-        structured or unstructured domains.</p>
+        architecture accomodates numerical representations of
+        principal G-fiber bundles, product manifolds, and
+        submanifold immersion, providing native support for PDE
+        models defined on structured or unstructured domains.</p>
         <p><em>Cartan.jl</em> integrates naturally with
         simplex-based finite element exterior calculus, allowing
         for geometrical discretizations of field theories and
@@ -200,7 +200,7 @@
         "https://github.com/chakravala">chakravala</a> with
         <a href="https://github.com/chakravala/Grassmann.jl">Grassmann.jl</a></p>
         <p>Provides <code>TensorField{B,F,N} &lt;:
-        GlobalFiber{LocalTensor{B,F},N}</code> implementation for
+        FiberBundle{LocalTensor{B,F},N}</code> implementation for
         both a local <code>ProductSpace</code> and general
         <code>ImmersedTopology</code> specifications on any
         <code>FrameBundle</code> expressed with <a href=
@@ -210,8 +210,8 @@
         there are some methods which are specialized. Building on
         this, <code>Cartan</code> provides an algebra for
         <code>FiberBundle</code> sections and associated bundles on
-        a manifold, such as general <code>Connection</code>,
-        <code>LieDerivative</code>, and
+        a manifold, <code>PrincipalFiber</code>,
+        <code>Connection</code>, <code>LieDerivative</code>, and
         <code>CovariantDerivative</code> operators in terms of
         <code>Grassmann</code> elements. Calculus of
         <code>Variation</code> fields can also be generated with
@@ -344,9 +344,9 @@
           <hr>
           <p>This document was generated with <a href=
           "https://github.com/JuliaDocs/Documenter.jl">Documenter.jl</a>
-          version 1.12.0 on <span class="colophon-date" title=
-          "Monday 23 June 2025 10:39">Monday 23 June 2025</span>.
-          Using Julia version 1.11.0.</p>
+          version 1.14.1 on <span class="colophon-date" title=
+          "Saturday 30 August 2025 12:07">Saturday 30 August
+          2025</span>. Using Julia version 1.11.1.</p>
         </section>
         <footer class="modal-card-foot"></footer>
       </div>

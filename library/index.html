@@ -179,10 +179,6 @@
           </li>
           <li>
             <a href=
-            "#Cartan.GlobalFiber"><code>Cartan.GlobalFiber</code></a>
-          </li>
-          <li>
-            <a href=
             "#Cartan.GridBundle"><code>Cartan.GridBundle</code></a>
           </li>
           <li>
@@ -199,11 +195,19 @@
           </li>
           <li>
             <a href=
+            "#Cartan.LocalPrincipal"><code>Cartan.LocalPrincipal</code></a>
+          </li>
+          <li>
+            <a href=
             "#Cartan.LocalTensor"><code>Cartan.LocalTensor</code></a>
           </li>
           <li>
             <a href=
             "#Cartan.PointArray"><code>Cartan.PointArray</code></a>
+          </li>
+          <li>
+            <a href=
+            "#Cartan.PrincipalFiber"><code>Cartan.PrincipalFiber</code></a>
           </li>
           <li>
             <a href=
@@ -407,6 +411,27 @@
             <a href=
             "#Grassmann.points-Tuple{PointArray}"><code>Grassmann.points</code></a>
           </li>
+          <li>
+            <a href=
+            "#Leibniz.boundary"><code>Leibniz.boundary</code></a>
+          </li>
+          <li>
+            <a href=
+            "#Leibniz.codifferential"><code>Leibniz.codifferential</code></a>
+          </li>
+          <li>
+            <a href="#Leibniz.d"><code>Leibniz.d</code></a>
+          </li>
+          <li>
+            <a href=
+            "#Leibniz.differential"><code>Leibniz.differential</code></a>
+          </li>
+          <li>
+            <a href="#Leibniz.%CE%B4"><code>Leibniz.δ</code></a>
+          </li>
+          <li>
+            <a href="#Leibniz.%E2%88%82"><code>Leibniz.∂</code></a>
+          </li>
         </ul>
         <article class="docstring">
           <header>
@@ -450,7 +475,7 @@ metrictype(s) # G</code></pre>
           <section>
             <div>
               <pre><code class=
-              "language-julia hljs">Coordinates{P,G,N} &lt;: FiberBundle{Coordinate{P,G},N} &lt;: Number</code></pre>
+              "language-julia hljs">Coordinates{P,G,N} &lt;: FiberBundle{Coordinate{P,G},N}</code></pre>
               <p>Defines a <code>FiberBundle</code> type with
               <code>pointtype</code> of <code>P</code> and
               <code>metrictype</code> of <code>G</code>.</p>
@@ -564,7 +589,7 @@ immersion(s) # ::ImmersedTopology</code></pre>
           <section>
             <div>
               <pre><code class=
-              "language-julia hljs">FiberBundle{T,N} &lt;: Number</code></pre>
+              "language-julia hljs">FiberBundle{T,N} &lt;: AbstractArray{T,N}</code></pre>
               <p>Defines a global <code>FiberBundle</code> type
               with <code>basetype</code> and <code>fibertype</code>
               over <code>N</code> dimensions.</p>
@@ -624,8 +649,8 @@ immersion(s) # ::ImmersedTopology</code></pre>
           <section>
             <div>
               <pre><code class=
-              "language-julia hljs">FrameBundle{C,N} &lt;: GlobalFiber{C,N} &lt;: FiberBundle{C,N}</code></pre>
-              <p>Defines a <code>GlobalFiber</code> type with
+              "language-julia hljs">FrameBundle{C,N} &lt;: FiberBundle{C,N}</code></pre>
+              <p>Defines a <code>FiberBundle</code> type with
               <code>coordinatetype</code> of <code>C</code> and
               <code>immersion</code>.</p>
               <pre><code class=
@@ -671,25 +696,6 @@ julia&gt; ans[1]
 InducedMetric()</code></pre>
               <p>For example, <code>Global{N,InducedMetric}</code>
               is commonly used for a globally induced metric.</p>
-            </div>
-          </section>
-        </article>
-        <article class="docstring">
-          <header>
-            <a class=
-            "docstring-article-toggle-button fa-solid fa-chevron-down"
-            href="javascript:;" title=
-            "Collapse docstring"></a><a class="docstring-binding"
-            id="Cartan.GlobalFiber" href=
-            "#Cartan.GlobalFiber"><code>Cartan.GlobalFiber</code></a>
-            — <span class="docstring-category">Type</span>
-          </header>
-          <section>
-            <div>
-              <pre><code class=
-              "language-julia hljs">GlobalFiber{E,N} &lt;: FiberBundle{E,N} &lt;: Number</code></pre>
-              <p>Defines a <code>FiberBundle</code> type with
-              <code>basetype</code> and <code>fibertype</code>.</p>
             </div>
           </section>
         </article>
@@ -809,6 +815,38 @@ fibertype(s) # F</code></pre>
             "docstring-article-toggle-button fa-solid fa-chevron-down"
             href="javascript:;" title=
             "Collapse docstring"></a><a class="docstring-binding"
+            id="Cartan.LocalPrincipal" href=
+            "#Cartan.LocalPrincipal"><code>Cartan.LocalPrincipal</code></a>
+            — <span class="docstring-category">Type</span>
+          </header>
+          <section>
+            <div>
+              <pre><code class=
+              "language-julia hljs">LocalPrincipal{M,G} &lt;: LocalFiber{M,G} &lt;: Number</code></pre>
+              <p>A <code>LocalPrincipal</code> bundled with
+              <code>principalbasetype</code> of <code>M</code> and
+              <code>principalfibertype</code> of
+              <code>G</code>.</p>
+              <pre><code class=
+              "language-Julia hljs">principalbase(s) # ::M
+principalfiber(s) # ::G
+principalbasetype(s) # M
+principalfibertype(s) # G</code></pre>
+              <p>A <code>LocalPrincipal{M,G}</code> consists of two
+              components: <code>M</code>, which represents the
+              <code>principalbase</code> manifold, and
+              <code>G</code>, which represents the
+              <code>principalfiber</code> bundle over
+              <code>M</code>.</p>
+            </div>
+          </section>
+        </article>
+        <article class="docstring">
+          <header>
+            <a class=
+            "docstring-article-toggle-button fa-solid fa-chevron-down"
+            href="javascript:;" title=
+            "Collapse docstring"></a><a class="docstring-binding"
             id="Cartan.LocalTensor" href=
             "#Cartan.LocalTensor"><code>Cartan.LocalTensor</code></a>
             — <span class="docstring-category">Type</span>
@@ -845,7 +883,7 @@ fibertype(s) # F</code></pre>
           <section>
             <div>
               <pre><code class=
-              "language-julia hljs">PointArray{P,G,N} &lt;: FiberBundle{Coordinate{P,G},N} &lt;: Number</code></pre>
+              "language-julia hljs">PointArray{P,G,N} &lt;: FiberBundle{Coordinate{P,G},N}</code></pre>
               <p>Defines a <code>FiberBundle</code> type with
               <code>pointtype</code> of <code>P</code> and
               <code>metrictype</code> of <code>G</code>.</p>
@@ -863,6 +901,42 @@ metrictype(s) # G</code></pre>
               <code>basetype</code>, <code>fibertype</code>,
               <code>coordinatetype</code>, <code>pointtype</code>,
               <code>metrictype</code>.</p>
+            </div>
+          </section>
+        </article>
+        <article class="docstring">
+          <header>
+            <a class=
+            "docstring-article-toggle-button fa-solid fa-chevron-down"
+            href="javascript:;" title=
+            "Collapse docstring"></a><a class="docstring-binding"
+            id="Cartan.PrincipalFiber" href=
+            "#Cartan.PrincipalFiber"><code>Cartan.PrincipalFiber</code></a>
+            — <span class="docstring-category">Type</span>
+          </header>
+          <section>
+            <div>
+              <pre><code class=
+              "language-julia hljs">PrincipalFiber{M,G,N} &lt;: FiberBundle{LocalPrincipal{M,G},N}</code></pre>
+              <p>Defines a principal <code>FiberBundle</code>
+              morphism type with <code>eltype</code> of
+              <code>LocalPrincipal{M,G}</code>.</p>
+              <pre><code class=
+              "language-Julia hljs">coordinates(s) # ::AbstractArray{X,N}
+principalbase(s) # ::AbstractArray{M,N}
+principalfiber(s) # ::AbstractArray{G,N}
+coordinatetype(s) # X
+principalbasetype(s) # M
+principalfibertype(s) # G
+immersion(s) # ::ImmersedTopology</code></pre>
+              <p>Various methods work on any
+              <code>PrincipalFiber</code>, such as
+              <code>isbundle</code>, <code>base</code>,
+              <code>fiber</code>, <code>coordinates</code>,
+              <code>points</code>, <code>metricextensor</code>,
+              <code>basetype</code>, <code>fibertype</code>,
+              <code>coordinatetype</code>, <code>pointtype</code>,
+              <code>metrictype</code>, <code>immersion</code>.</p>
             </div>
           </section>
         </article>
@@ -1053,10 +1127,11 @@ verticesinv(t) # inverted data of vertices</code></pre>
           <section>
             <div>
               <pre><code class=
-              "language-julia hljs">TensorField{B,F,N} &lt;: GlobalFiber{LocalTensor{B,F},N}</code></pre>
-              <p>Defines a <code>GlobalFiber</code> type with
-              <code>eltype</code> of <code>LocalTensor{B,F}</code>
-              and <code>immersion</code>.</p>
+              "language-julia hljs">TensorField{B,F,N} &lt;: FiberBundle{LocalTensor{B,F},N}</code></pre>
+              <p>Defines a section of a <code>FrameBundle</code>
+              with <code>eltype</code> of
+              <code>LocalTensor{B,F}</code> and
+              <code>immersion</code>.</p>
               <pre><code class=
               "language-Julia hljs">coordinates(s) # ::AbstractArray{B,N}
 fiber(s) # ::AbstractArray{F,N}
@@ -1943,6 +2018,170 @@ immersion(s) # ::ImmersedTopology</code></pre>
             </div>
           </section>
         </article>
+        <article class="docstring">
+          <header>
+            <a class=
+            "docstring-article-toggle-button fa-solid fa-chevron-down"
+            href="javascript:;" title=
+            "Collapse docstring"></a><a class="docstring-binding"
+            id="Leibniz.boundary" href=
+            "#Leibniz.boundary"><code>Leibniz.boundary</code></a> —
+            <span class="docstring-category">Function</span>
+          </header>
+          <section>
+            <div>
+              <pre><code class=
+              "language-julia hljs">∂(ω) = ω⋅∇ # boundary</code></pre>
+              <p>Defined by Grassmann's interior differential
+              acting on <code>TensorAlgebra</code> elements, the
+              <code>boundary</code> operator is symbolized as
+              <code>∂</code>. The operator contracts <code>ω</code>
+              with the vector‑valued <code>nabla</code> derivation
+              <code>∇</code>, lowering grade by one. This operator
+              is nilpotent (<code>∂(∂(ω)) == 0</code>) and
+              constitutes the negative of the adjoint operator
+              corresponding to exterior differential
+              <code>d</code>.</p>
+            </div>
+          </section>
+        </article>
+        <article class="docstring">
+          <header>
+            <a class=
+            "docstring-article-toggle-button fa-solid fa-chevron-down"
+            href="javascript:;" title=
+            "Collapse docstring"></a><a class="docstring-binding"
+            id="Leibniz.codifferential" href=
+            "#Leibniz.codifferential"><code>Leibniz.codifferential</code></a>
+            — <span class="docstring-category">Function</span>
+          </header>
+          <section>
+            <div>
+              <pre><code class=
+              "language-julia hljs">δ(ω) = -∂(ω) # codifferential</code></pre>
+              <p>Interior <code>codifferential</code> symbolized as
+              <code>δ</code> is the adjoint action of the exterior
+              <code>differential</code> operator on
+              <code>TensorAlgebra</code> elements. In
+              <code>Grassmann</code> it is defined as the negative
+              of the interior <code>boundary</code> operator, so
+              <code>δ</code> lowers the grade by one and satisfies
+              <code>δ(δ(ω)) == 0</code> also. Together with
+              exterior <code>differential</code> <code>d</code>
+              these form de Rham cochain complex <code>Δ = d⋅δ +
+              δ⋅d</code>.</p>
+            </div>
+          </section>
+        </article>
+        <article class="docstring">
+          <header>
+            <a class=
+            "docstring-article-toggle-button fa-solid fa-chevron-down"
+            href="javascript:;" title=
+            "Collapse docstring"></a><a class="docstring-binding"
+            id="Leibniz.d" href=
+            "#Leibniz.d"><code>Leibniz.d</code></a> — <span class=
+            "docstring-category">Function</span>
+          </header>
+          <section>
+            <div>
+              <pre><code class=
+              "language-julia hljs">d(ω) = ∇∧ω # differential</code></pre>
+              <p>Exterior <code>differential</code> symbolized as
+              <code>d</code> is defined with action based on
+              Grassmann's <code>TensorAlgebra</code> elements. It
+              raises the grade of <code>ω</code> by taking exterior
+              products with the vector-valued <code>nabla</code>
+              derivation <code>∇</code>. Hence, <code>d</code> is
+              nilpotent (<code>d(d(ω)) == 0</code>) and, together
+              with interior <code>codifferential</code>
+              <code>δ</code> these form the de Rham cochain complex
+              (<code>Δ = d⋅δ + δ⋅d</code>).</p>
+            </div>
+          </section>
+        </article>
+        <article class="docstring">
+          <header>
+            <a class=
+            "docstring-article-toggle-button fa-solid fa-chevron-down"
+            href="javascript:;" title=
+            "Collapse docstring"></a><a class="docstring-binding"
+            id="Leibniz.differential" href=
+            "#Leibniz.differential"><code>Leibniz.differential</code></a>
+            — <span class="docstring-category">Function</span>
+          </header>
+          <section>
+            <div>
+              <pre><code class=
+              "language-julia hljs">d(ω) = ∇∧ω # differential</code></pre>
+              <p>Exterior <code>differential</code> symbolized as
+              <code>d</code> is defined with action based on
+              Grassmann's <code>TensorAlgebra</code> elements. It
+              raises the grade of <code>ω</code> by taking exterior
+              products with the vector-valued <code>nabla</code>
+              derivation <code>∇</code>. Hence, <code>d</code> is
+              nilpotent (<code>d(d(ω)) == 0</code>) and, together
+              with interior <code>codifferential</code>
+              <code>δ</code> these form the de Rham cochain complex
+              (<code>Δ = d⋅δ + δ⋅d</code>).</p>
+            </div>
+          </section>
+        </article>
+        <article class="docstring">
+          <header>
+            <a class=
+            "docstring-article-toggle-button fa-solid fa-chevron-down"
+            href="javascript:;" title=
+            "Collapse docstring"></a><a class="docstring-binding"
+            id="Leibniz.δ" href=
+            "#Leibniz.%CE%B4"><code>Leibniz.δ</code></a> —
+            <span class="docstring-category">Function</span>
+          </header>
+          <section>
+            <div>
+              <pre><code class=
+              "language-julia hljs">δ(ω) = -∂(ω) # codifferential</code></pre>
+              <p>Interior <code>codifferential</code> symbolized as
+              <code>δ</code> is the adjoint action of the exterior
+              <code>differential</code> operator on
+              <code>TensorAlgebra</code> elements. In
+              <code>Grassmann</code> it is defined as the negative
+              of the interior <code>boundary</code> operator, so
+              <code>δ</code> lowers the grade by one and satisfies
+              <code>δ(δ(ω)) == 0</code> also. Together with
+              exterior <code>differential</code> <code>d</code>
+              these form de Rham cochain complex <code>Δ = d⋅δ +
+              δ⋅d</code>.</p>
+            </div>
+          </section>
+        </article>
+        <article class="docstring">
+          <header>
+            <a class=
+            "docstring-article-toggle-button fa-solid fa-chevron-down"
+            href="javascript:;" title=
+            "Collapse docstring"></a><a class="docstring-binding"
+            id="Leibniz.∂" href=
+            "#Leibniz.%E2%88%82"><code>Leibniz.∂</code></a> —
+            <span class="docstring-category">Function</span>
+          </header>
+          <section>
+            <div>
+              <pre><code class=
+              "language-julia hljs">∂(ω) = ω⋅∇ # boundary</code></pre>
+              <p>Defined by Grassmann's interior differential
+              acting on <code>TensorAlgebra</code> elements, the
+              <code>boundary</code> operator is symbolized as
+              <code>∂</code>. The operator contracts <code>ω</code>
+              with the vector‑valued <code>nabla</code> derivation
+              <code>∇</code>, lowering grade by one. This operator
+              is nilpotent (<code>∂(∂(ω)) == 0</code>) and
+              constitutes the negative of the adjoint operator
+              corresponding to exterior differential
+              <code>d</code>.</p>
+            </div>
+          </section>
+        </article>
       </article>
       <nav class="docs-footer">
         <a class="docs-footer-prevpage" href="../videos/">«
@@ -1991,9 +2230,9 @@ immersion(s) # ::ImmersedTopology</code></pre>
           <hr>
           <p>This document was generated with <a href=
           "https://github.com/JuliaDocs/Documenter.jl">Documenter.jl</a>
-          version 1.12.0 on <span class="colophon-date" title=
-          "Monday 23 June 2025 10:39">Monday 23 June 2025</span>.
-          Using Julia version 1.11.0.</p>
+          version 1.14.1 on <span class="colophon-date" title=
+          "Saturday 30 August 2025 12:07">Saturday 30 August
+          2025</span>. Using Julia version 1.11.1.</p>
         </section>
         <footer class="modal-card-foot"></footer>
       </div>
