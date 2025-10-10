@@ -389,14 +389,10 @@ for fun ∈ (:⋆,:angle,:radius,:complementlefthodge,:pseudoabs,:pseudoabs2,:ps
     @eval Grassmann.$fun(t::TensorField) = TensorField(base(t), $fun.(fiber(t),ref(metricextensor(t))))
 end
 for fun ∈ (:sum,:prod)
-    @eval Base.$fun(t::TensorField) = LocalTensor(base(t)[end], $fun(fiber(t)))
+    @eval Base.$fun(t::TensorField) = $fun(fiber(t))
 end
 for fun ∈ (:cumsum,:cumprod)
-    @eval function Base.$fun(t::TensorField)
-         out = $fun(fiber(t))
-         pushfirst!(out,zero(eltype(out)))
-         TensorField(base(t), out)
-    end
+    @eval Base.$fun(t::TensorField) = TensorField(base(t),$fun(fiber(t)))
 end
 
 #Base.:*(m::DenseMatrix,t::TensorField) = TensorField(base(t),reshape(m*fiber(vec(t)),size(t)))
@@ -477,7 +473,7 @@ invdim(f::ProductSpace,dims=1) = invdim(f.v[dims])
 invdim(f,dims=1) = length(f)
 
 import AbstractFFTs: fftfreq, rfftfreq, fftshift, ifftshift
-for fun ∈ (:fftfreq,:ifftfreq,:rfftfreq,:irfftfreq)
+for fun ∈ (:fftfreq,:ifftfreq,:rfftfreq,:irfftfreq,:fftfreqalias)
     @eval begin
         $fun(t::TensorField) = TensorField($fun(base(t)))
         $fun(x::GridBundle) = GridBundle($fun(points(x)))
@@ -485,23 +481,31 @@ for fun ∈ (:fftfreq,:ifftfreq,:rfftfreq,:irfftfreq)
     end
 end
 
+GridBundle(x::FourierSpace) = GridBundle(x,ClampedTopology(size(x)))
 fftfreq(x::AbstractRange) = FourierSpace(fftfreq(length(x),inv(step(x))),x)
 ifftfreq(x::FourierSpace) = x.v
 ifftfreq(x::Frequencies) = Base.OneTo(length(x))
 rfftfreq(x::AbstractRange) = FourierSpace(rfftfreq(length(x),inv(step(x))),x)
 irfftfreq(x::FourierSpace) = x.v
 irfftfreq(x::Frequencies) = Base.OneTo(length(x))
+fftfreqalias(x::AbstractRange) = FourierSpace(fftfreqalias(length(x),inv(step(x))),x)
+function fftfreqalias(N::Real,fs=1)
+    n=(2(N-1)+iseven(N))
+    (n/N)*rfftfreq(n,fs)
+end
 
+fftshiftalias(x) = fftshift(x).-x[Int(ceil(length(x)/2))]
+fftshift(x::FourierSpace) = FourierSpace(fftshiftalias(x.f),x.v)
+ifftshift(x::FourierSpace) = fftfreqalias(x.v)
 for fun ∈ (:fftshift,:ifftshift)
     @eval begin
         $fun(t::TensorField) = TensorField($fun(base(t)),$fun(fiber(t)))
         $fun(x::GridBundle) = GridBundle($fun(points(x)))
         $fun(x::ProductSpace{V}) where V = ProductSpace{V}($fun.(x.v))
-        $fun(x::FourierSpace) = FourierSpace($fun(x.f),x.v)
     end
 end
 for fun ∈ (:fft,:fft!)
-    @eval AbstractFFTs.$fun(t::TensorField,args...) = TensorField(fftfreq(base(t)), $fun(fiber(t),args...))
+    @eval AbstractFFTs.$fun(t::TensorField,args...) = TensorField(fftfreqalias(base(t)), $fun(fiber(t),args...))
 end
 for fun ∈ (:ifft,:ifft!,:bfft,:bfft!)
     @eval AbstractFFTs.$fun(t::TensorField,args...) = TensorField(ifftfreq(base(t)), $fun(fiber(t),args...))
@@ -523,7 +527,7 @@ brflt(f::TensorField,σ::Number) = brfft(exp((-σ)*TensorField(base(f)))*f)
 iflt(f::TensorField,σ::Number) = ifft(exp(σ*TensorField(base(f)))*f)
 irflt(f::TensorField,σ::Number) = irfft(exp(σ*TensorField(base(f)))*f)
 
-export flt, bflt, rflt, brflt, iflt, irflt
+export flt, bflt, rflt, brflt, iflt, irflt, fftfreqalias
 function flt(f::TensorField,σ::AbstractVector)
     t = TensorField(base(f))
     out = Matrix{Complex{Float64}}(undef,length(σ),length(t))
@@ -977,6 +981,7 @@ function __init__()
     @require TetGen="c5d3f3f7-f850-59f6-8a2e-ffc6dc1317ea" include("../ext/TetGenExt.jl")
     @require MATLAB="10e44e05-a98a-55b3-a45b-ba969058deb6" include("../ext/MATLABExt.jl")
     @require SpecialFunctions="276daf66-3868-5448-9aa4-cd146d93841b" include("../ext/SpecialFunctionsExt.jl")
+    @require FewSpecialFunctions="6fcbd3ca-4273-49c4-98b3-81b765566de6" include("..ext/FewSpecialFunctionsExt.jl")
     @require EllipticFunctions="6a4e32cb-b31a-4929-85af-fb29d9a80738" include("../ext/EllipticFunctionsExt.jl")
     @require Elliptic="b305315f-e792-5b7a-8f41-49f472929428" include("../ext/EllipticExt.jl")
     @require JacobiElliptic="2a8b799e-c098-4961-872a-356c768d184c" include("../ext/JacobiEllipticExt.jl")

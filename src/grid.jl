@@ -454,7 +454,7 @@ end
 
 # spectral
 
-convolve(f::ScalarField...) = real(irfft(*(rfft.(f)...)))
+convolve(f::ScalarField...) = irfft(*(rfft.(f)...))
 
 spectral_diff_fft(N::Int) = im*vcat(0:Int((N-isodd(N))/2)-1,-Int((N+isodd(N))/2):-1)
 spectral_diff_rfft(N::Int) = im*(0:Int((N-isodd(N))/2))

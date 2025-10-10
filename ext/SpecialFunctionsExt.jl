@@ -16,13 +16,13 @@ module SpecialFunctionsExt
 using Grassmann, Cartan
 isdefined(Cartan, :Requires) ? (import Cartan: SpecialFunctions) : (using SpecialFunctions)
 
-for fun ∈ (:gamma,:loggamma,:logfactorial,:digamma,:invdigamma,:trigamma,:expinti,:expintx,:sinint,:cosint,:erf,:erfc,:erfcinv,:erfcx,:logerfc,:logerfcx,:erfi,:erfinv,:dawson,:faddeeva,:airyai,:airyaiprime,:airybi,:airybiprime,:airyaix,:airyaiprimex,:airybix,:airybiprimex,:besselj0,:besselj1,:bessely0,:bessely1,:jinc,:ellipk,:ellipe,:eta,:zeta)
+for fun ∈ (:gamma,:loggamma,:logabsgamma,:loggamma1p,:logfactorial,:digamma,:invdigamma,:trigamma,:expint,:expinti,:expintx,:sinint,:cosint,:erf,:erfc,:erfcinv,:erfcx,:logerfc,:logerfcx,:erfi,:erfinv,:dawson,:faddeeva,:airyai,:airyaiprime,:airybi,:airybiprime,:airyaix,:airyaiprimex,:airybix,:airybiprimex,:besselj0,:besselj1,:bessely0,:bessely1,:jinc,:ellipk,:ellipe,:eta,:zeta)
     @eval begin
         SpecialFunctions.$fun(x::TensorField) = TensorField(base(x), SpecialFunctions.$fun.(fiber(x)))
         SpecialFunctions.$fun(x::LocalTensor) = LocalTensor(base(x), SpecialFunctions.$fun(fiber(x)))
     end
 end
-for fun ∈ (:polygamma,:gamma,:gamma_inc,:loggamma,:beta,:beta_inc,:beta_inc_inv,:logbeta,:logabsbeta,:logabsbinomial,:expint,:erf,:besselj,:besseljx,:sphericalbesselj,:bessely,:besselyx,:sphericalbessely,:hankelh1,:hankelh1x,:hankelh2,:hankelh2x,:besseli,:besselix,:besselk,:besselkx)
+for fun ∈ (:polygamma,:gamma,:gamma_inc,:gamma_inc_asym,:gamma_inc_cf,:gamma_inc_fsum,:loggamma,:beta,:beta_inc,:beta_inc_inv,:logbeta,:logabsbeta,:logabsbinomial,:expint,:erf,:besselj,:besseljx,:sphericalbesselj,:bessely,:besselyx,:sphericalbessely,:hankelh1,:hankelh1x,:hankelh2,:hankelh2x,:besseli,:besselix,:besselk,:besselkx)
     @eval begin
         SpecialFunctions.$fun(x,y::TensorField) = TensorField(base(y), SpecialFunctions.$fun.(x,fiber(y)))
         SpecialFunctions.$fun(x,y::LocalTensor) = LocalTensor(base(y), SpecialFunctions.$fun(x,fiber(y)))
@@ -32,12 +32,16 @@ for fun ∈ (:polygamma,:gamma,:gamma_inc,:loggamma,:beta,:beta_inc,:beta_inc_in
         SpecialFunctions.$fun(x::LocalTensor,y::LocalTensor) = LocalTensor(base(x), SpecialFunctions.$fun(fiber(x),fiber(y)))
     end
 end
-SpecialFunctions.gamma_inc(x::TensorField,y,z) = TensorField(base(x), SpecialFunctions.gamma_inc.(fiber(x),y,z))
-SpecialFunctions.gamma_inc(x::LocalTensor,y,z) = LocalTensor(base(x), SpecialFunctions.gamma_inc(fiber(x),y,z))
-SpecialFunctions.gamma_inc(x,y::TensorField,z) = TensorField(base(y), SpecialFunctions.gamma_inc.(x,k,fiber(y)))
-SpecialFunctions.gamma_inc(x,y::LocalTensor,z) = LocalTensor(base(y), SpecialFunctions.gamma_inc(x,k,fiber(y)))
-SpecialFunctions.gamma_inc(x::TensorField,y::TensorField,z) = TensorField(base(x), SpecialFunctions.gamma_inc.(fiber(x),fiber(y),z))
-SpecialFunctions.gamma_inc(x::LocalTensor,y::LocalTensor,z) = LocalTensor(base(x), SpecialFunctions.gamma_inc(fiber(x),fiber(y),z))
+for fun ∈ (:gamma_inc,:gamma_inc_asym,:gamma_inc_cf)
+    @eval begin
+        SpecialFunctions.$fun(x::TensorField,y,z) = TensorField(base(x), SpecialFunctions.$fun.(fiber(x),y,z))
+        SpecialFunctions.$fun(x::LocalTensor,y,z) = LocalTensor(base(x), SpecialFunctions.$fun(fiber(x),y,z))
+        SpecialFunctions.$fun(x,y::TensorField,z) = TensorField(base(y), SpecialFunctions.$fun.(x,k,fiber(y)))
+        SpecialFunctions.$fun(x,y::LocalTensor,z) = LocalTensor(base(y), SpecialFunctions.$fun(x,k,fiber(y)))
+        SpecialFunctions.$fun(x::TensorField,y::TensorField,z) = TensorField(base(x), SpecialFunctions.$fun.(fiber(x),fiber(y),z))
+        SpecialFunctions.$fun(x::LocalTensor,y::LocalTensor,z) = LocalTensor(base(x), SpecialFunctions.$fun(fiber(x),fiber(y),z))
+    end
+end
 for fun ∈ (:gamma_inc_inv,:beta_inc,:beta_inc_inv)
     @eval begin
         SpecialFunctions.$fun(x,y,z::TensorField) = TensorField(base(z), SpecialFunctions.$fun.(x,y,fiber(z)))
@@ -56,7 +60,7 @@ for fun ∈ (:gamma_inc_inv,:beta_inc,:beta_inc_inv)
         SpecialFunctions.$fun(x::LocalTensor,y::LocalTensor,z::LocalTensor) = LocalTensor(base(x), SpecialFunctions.$fun(fiber(x),fiber(y),fiber(z)))
     end
 end
-for fun ∈ (:beta_inc,:beta_inc_inv)
+for fun ∈ (:beta_inc,:beta_inc_inv,:ncbeta,:ncbeta_poisson,:ncbeta_tail)
     @eval begin
         SpecialFunctions.$fun(a::LocalTensor,b::LocalTensor,x::LocalTensor,y::LocalTensor) = LocalTensor(base(a), SpecialFunctions.$fun(fiber(a),fiber(b),fiber(x),fiber(y)))
         SpecialFunctions.$fun(a::TensorField,b::TensorField,x::TensorField,y::TensorField) = TensorField(base(a), SpecialFunctions.$fun.(fiber(a),fiber(b),fiber(x),fiber(y)))

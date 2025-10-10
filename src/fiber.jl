@@ -722,6 +722,7 @@ const IntervalRange{P<:Real,G,PA<:AbstractRange,GA} = GridBundle{1,Coordinate{P,
 const AlignedRegion{N,P<:Chain,G<:InducedMetric,PA<:RealRegion{V,<:Real,N,<:AbstractRange} where V,GA<:Global} = GridBundle{N,Coordinate{P,G},PointArray{P,G,N,PA,GA}}
 const AlignedSpace{N,P<:Chain,G<:InducedMetric,PA<:RealRegion{V,<:Real,N,<:AbstractRange} where V,GA} = GridBundle{N,Coordinate{P,G},PointArray{P,G,N,PA,GA}}
 
+GridBundle(p::AbstractArray{P,N},i::ImmersedTopology) where {N,P} = GridBundle(PointArray(0,p),i)
 GridBundle(p::AbstractArray{P,N},g::AbstractArray=Global{N}(InducedMetric())) where {N,P} = GridBundle(PointArray(0,p,g))
 GridBundle(dom::GridBundle,fun) = GridBundle(coordinates(dom), fun)
 GridBundle(dom::GridBundle,fun::Array) = GridBundle(coordinates(dom), fun)

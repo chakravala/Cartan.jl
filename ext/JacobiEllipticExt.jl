@@ -24,7 +24,13 @@ for fun ∈ (:K,:E)
         JacobiElliptic.$fun(x::LocalTensor) = LocalTensor(base(x), JacobiElliptic.$fun(fiber(x)))
     end
 end
-for fun ∈ (:F,:E,:Pi,:J,:am,:sn,:cn,:dn,:sd,:cd,:nd,:dc,:sc,:nc,:ns,:ds,:cs,:ss,:dd,:cc,:nn,:asn) #:acn
+JacobiElliptic.FukushimaAlg.J(x,y::TensorField) = TensorField(base(y), JacobiElliptic.FukushimaAlg.J.(x,fiber(y)))
+JacobiElliptic.FukushimaAlg.J(x,y::LocalTensor) = LocalTensor(base(y), JacobiElliptic.FukushimaAlg.J(x,fiber(y)))
+JacobiElliptic.FukushimaAlg.J(x::TensorField,y) = TensorField(base(x), JacobiElliptic.FukushimaAlg.J.(fiber(x),y))
+JacobiElliptic.FukushimaAlg.J(x::LocalTensor,y) = LocalTensor(base(x), JacobiElliptic.FukushimaAlg.J(fiber(x),y))
+JacobiElliptic.FukushimaAlg.J(x::TensorField,y::TensorField) = TensorField(base(x), JacobiElliptic.FukushimaAlg.J.(fiber(x),fiber(y)))
+JacobiElliptic.FukushimaAlg.J(x::LocalTensor,y::LocalTensor) = LocalTensor(base(x), JacobiElliptic.FukushimaAlg.J(fiber(x),fiber(y)))
+for fun ∈ (:F,:E,:Pi,:am,:sn,:cn,:dn,:sd,:cd,:nd,:dc,:sc,:nc,:ns,:ds,:cs,:ss,:dd,:cc,:nn,:asn) #:acn
     @eval begin
         JacobiElliptic.$fun(x,y::TensorField) = TensorField(base(y), JacobiElliptic.$fun.(x,fiber(y)))
         JacobiElliptic.$fun(x,y::LocalTensor) = LocalTensor(base(y), JacobiElliptic.$fun(x,fiber(y)))
@@ -34,7 +40,21 @@ for fun ∈ (:F,:E,:Pi,:J,:am,:sn,:cn,:dn,:sd,:cd,:nd,:dc,:sc,:nc,:ns,:ds,:cs,:s
         JacobiElliptic.$fun(x::LocalTensor,y::LocalTensor) = LocalTensor(base(x), JacobiElliptic.$fun(fiber(x),fiber(y)))
     end
 end
-for fun ∈ (:Pi,:J)
+JacobiElliptic.FukushimaAlg.J(x,y,z::TensorField) = TensorField(base(z), JacobiElliptic.FukushimaAlg.J.(x,y,fiber(z)))
+JacobiElliptic.FukushimaAlg.J(x,y,z::LocalTensor) = LocalTensor(base(z), JacobiElliptic.FukushimaAlg.J(x,y,fiber(z)))
+JacobiElliptic.FukushimaAlg.J(x,y::TensorField,z) = TensorField(base(y), JacobiElliptic.FukushimaAlg.J.(x,fiber(y),z))
+JacobiElliptic.FukushimaAlg.J(x,y::LocalTensor,z) = LocalTensor(base(y), JacobiElliptic.FukushimaAlg.J(x,fiber(y),z))
+JacobiElliptic.FukushimaAlg.J(x::TensorField,y,z) = TensorField(base(x), JacobiElliptic.FukushimaAlg.J.(fiber(x),y,z))
+JacobiElliptic.FukushimaAlg.J(x::LocalTensor,y,z) = LocalTensor(base(x), JacobiElliptic.FukushimaAlg.J(fiber(x),y,z))
+JacobiElliptic.FukushimaAlg.J(x,y::TensorField,z::TensorField) = TensorField(base(y), JacobiElliptic.FukushimaAlg.J(x,fiber(y),fiber(z)))
+JacobiElliptic.FukushimaAlg.J(x,y::LocalTensor,z::LocalTensor) = LocalTensor(base(y), JacobiElliptic.FukushimaAlg.J(x,fiber(y),fiber(z)))
+JacobiElliptic.FukushimaAlg.J(x::TensorField,y,z::TensorField) = TensorField(base(x), JacobiElliptic.FukushimaAlg.J.(fiber(x),y,fiber(z)))
+JacobiElliptic.FukushimaAlg.J(x::LocalTensor,y,z::LocalTensor) = LocalTensor(base(x), JacobiElliptic.FukushimaAlg.J(fiber(x),y,fiber(z)))
+JacobiElliptic.FukushimaAlg.J(x::TensorField,y::TensorField,z) = TensorField(base(x), JacobiElliptic.FukushimaAlg.J.(fiber(x),fiber(y),z))
+JacobiElliptic.FukushimaAlg.J(x::LocalTensor,y::LocalTensor,z) = LocalTensor(base(x), JacobiElliptic.FukushimaAlg.J(fiber(x),fiber(y),z))
+JacobiElliptic.FukushimaAlg.J(x::TensorField,y::TensorField,z::TensorField) = TensorField(base(x), JacobiElliptic.FukushimaAlg.J.(fiber(x),fiber(y),fiber(z)))
+JacobiElliptic.FukushimaAlg.J(x::LocalTensor,y::LocalTensor,z::LocalTensor) = LocalTensor(base(x), JacobiElliptic.FukushimaAlg.J(fiber(x),fiber(y),fiber(z)))
+for fun ∈ (:Pi,)
     @eval begin
         JacobiElliptic.$fun(x,y,z::TensorField) = TensorField(base(z), JacobiElliptic.$fun.(x,y,fiber(z)))
         JacobiElliptic.$fun(x,y,z::LocalTensor) = LocalTensor(base(z), JacobiElliptic.$fun(x,y,fiber(z)))
