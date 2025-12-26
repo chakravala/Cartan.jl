@@ -167,7 +167,7 @@ export 𝓛, Lie, LieBracket, LieDerivative, bracket, Connection, CovariantDeriv
 (X::GradedVector)(f::ScalarField) = action(X,f)
 (X::ScalarField)(f::ScalarField) = action(X,f)
 𝓛dot(x::Chain,y::Simplex{V}) where V = Chain{V}(Real.(x.⋅value(y)))
-action(X::VectorField,f::ScalarField) = X⋅gradient(f)
+action(X::VectorField,f::ScalarField) = Real(X⋅gradient(f))
 action(X::GradedVector,f::ScalarField) = X⋅gradient(f)
 action(X::ScalarField,f::ScalarField) = X⋅gradient(f)
 function action(X::VectorField,Y::VectorField)
@@ -225,9 +225,10 @@ export indexintegral, indexintegrate, indexintegral_slow, indexintegrate_slow
 export unitjacobian, unitjacobian_slow, principal, principalbasetype, principalfibertype
 export PrincipalFiber, LocalPrincipal, principalbase, principalfiber, principalnorm
 export TangentBundle, Pullback, NormalBundle, principalbundle, principalaction
-export UnitTangentBundle, UnitNormalBundle, UnitPullback, SubNormalBundle, unitcone
+export UnitTangentBundle, UnitNormalBundle, UnitPullback, PathNormalBundle, unitcone
 export unitcircle, unithelix, unitsphere, unitdisk, unitball, unitpipe, unitcylinder
 export unitconic, conoid, rightconoid, sectorize, cylinderize, sphereradius, ballradius
+export riemannsphere, riemannline
 
 principal(x::LocalPrincipal) = principalfiber(x)
 principalnorm(x::LocalPrincipal) = Real(abs(det(principalfiber(x))))
@@ -304,12 +305,14 @@ _outermorphism(x) = Outermorphism(x)
 
 UnitTangentBundle(t,d=unitjacobian(t)) = PrincipalFiber(t,_outermorphism(d))
 TangentBundle(t,d=jacobian(t)) = PrincipalFiber(t,_outermorphism(d))
+PathTangentBundle(t,i::AbstractCurve) = PathTangentBundle(TangentBundle(t),i)
+PathTangentBundle(P::PrincipalFiber,i::AbstractCurve) = PrincipalFiber(base(P).(i), _outermorphism(_tangent(fiber(P).(i))))
 UnitPullback(t,d=unitjacobian(t)) = PrincipalFiber(t,_outermorphism(inv(d)))
 Pullback(t,d=jacobian(t)) = PrincipalFiber(t,_outermorphism(inv(d)))
 UnitNormalBundle(t,d=normalunitframe(t)) = PrincipalFiber(t,_outermorphism(d))
 NormalBundle(t,d=normalframe(t)) = PrincipalFiber(t,_outermorphism(d))
-SubNormalBundle(t,i::AbstractCurve) = SubNormalBundle(NormalBundle(t),i)
-SubNormalBundle(P::PrincipalFiber,i::AbstractCurve) = PrincipalFiber(base(P).(i), _outermorphism(_normalframe(fiber(P).(i))))
+PathNormalBundle(t,i::AbstractCurve) = PathNormalBundle(NormalBundle(t),i)
+PathNormalBundle(P::PrincipalFiber,i::AbstractCurve) = PrincipalFiber(base(P).(i), _outermorphism(_normalframe(fiber(P).(i))))
 
 unittangentaction(f,t,d=unitjacobian(t)) = principalaction(t,d,f)
 tangentaction(f,t,d=jacobian(t)) = principalaction(t,d,f)
@@ -439,7 +442,7 @@ degreeintegrate_slow(f,ω::Real=1) = integrate_slow(f,float(ω))/integrate_slow(
 area(f::VectorField) = integral(normalnorm(f))
 surfacearea(f::VectorField) = integrate(normalnorm(f))
 surfacearea(f::ElementBundle) = sum(fiber(volumes(f)))
-surfacearea(f::ScalarMap) = surfacearea(graphbundle(f))
+surfacearea(f::ScalarMap) = surfacearea(base(graphbundle(f)))
 surfacearea(f::FaceMap) = surfacearea(interp(f))
 principals(f::VectorField) = eigvals(shape(f))
 principals(f::VectorField,i) = eigvals(shape(f),i)
@@ -523,10 +526,10 @@ function unitnormal(f::IntervalMap,d=centraldiffpoints(f),t=centraldifffiber(f,d
     TensorField(base(f), unit.(centraldiff(unit.(t,refmetric(f)),immersion(f),d),refmetric(f)))
 end
 
-export curvature, radius, osculatingplane, unitosculatingplane
+export curvature, radius, bending, osculatingplane, unitosculatingplane
 export binormal, unitbinormal, torsion, frame, unitframe, normalframe, normalunitframe
 export frenet, darboux, darbouxframe, darbouxunitframe, wronskian, unitwronskian
-export bishoppolar, bishop, bishopframe, bishopunitframe
+export bishoppolar, bishop, bishopframe, bishopunitframe, normalangle
 
 function curvature(f::AbstractCurve,d=centraldiffpoints(f),t=centraldifffiber(f,d))
     s = abs.(t,refmetric(f))
@@ -536,6 +539,12 @@ function radius(f::AbstractCurve,d=centraldiffpoints(f),t=centraldifffiber(f,d))
     s = abs.(t,refmetric(f))
     TensorField(base(f), Real.(s./abs.(centraldiff(t./s,immersion(f),d),refmetric(f))))
 end
+function _bending(f::AbstractCurve,d=centraldiffpoints(f),t=centraldifffiber(f,d))
+    s = abs.(t,refmetric(f))
+    TensorField(base(f), Real.(abs2.(centraldiff(t./s,immersion(f),d),refmetric(f))./s))/2
+end
+bending(f::AbstractCurve,d=centraldiffpoints(f),t=centraldifffiber(f,d)) = integral(_bending(f,d,t))
+bendingenergy(f::AbstractCurve,d=centraldiffpoints(f),t=centraldifffiber(f,d)) = integrate(_bending(f,d,t))
 function localevolute(f::AbstractCurve,d=centraldiffpoints(f),t=centraldifffiber(f,d))
     s = abs.(t,refmetric(f))
     n = centraldiff(t./s,immersion(f),d)
@@ -543,7 +552,11 @@ function localevolute(f::AbstractCurve,d=centraldiffpoints(f),t=centraldifffiber
     TensorField(base(f), (s./an2).*n)
 end
 evolute(f::AbstractCurve) = f+localevolute(f)
-Grassmann.involute(f::AbstractCurve) = f-unittangent(f)*arclength(f)
+involute(f::AbstractCurve) = f-unittangent(f)*arclength(f)
+function Grassmann.involute(f::AbstractCurve,l)
+    s = arclength(f)
+    f-unittangent(f)*(s-s(float(l)))
+end
 function osculatingplane(f::AbstractCurve,d=centraldiffpoints(f),t=centraldifffiber(f,d))
     TensorField(base(f), TensorOperator.(Chain.(t,fiber(normal(f,d,t)))))
 end
@@ -679,13 +692,13 @@ end
         :(TensorField(base(f),TensorOperator.(Chain.($([:(Chain.($([j ∈ (i-1,i+1) ? j==i-1 ? :(.-$(curvs[j])) : curvs[j-1] : 0 for j ∈ list(1,N)]...))) for i ∈ list(1,N)]...))))))
 end # cartan(unitframe(f))
 function frenet(f::PlaneCurve,d=centraldiffpoints(f),t=centraldifffiber(f,d))
-    s = abs.(t,refmetric(f))
+    s = Real.(abs.(t,refmetric(f)))
     T = t./s
     N = unit.(centraldiff(T,immersion(f),d),refmetric(f))
     TensorField(base(f), TensorOperator.(centraldiff(Chain.(T,N),immersion(f),d)./s))
 end
 function frenet(f::SpaceCurve,d=centraldiffpoints(f),t=centraldifffiber(f,d))
-    s = abs.(t,refmetric(f))
+    s = Real.(abs.(t,refmetric(f)))
     T = t./s
     N = unit.(centraldiff(T,immersion(f),d),refmetric(f))
     TensorField(base(f), TensorOperator.(centraldiff(Chain.(T,N,.⋆(T.∧N,refmetric(f))),immersion(f),d)./s))
@@ -696,19 +709,19 @@ frenet(f::AbstractCurve) = (F = unitframe(f); F⋅cartan(F))
 curvatures(f::PlaneCurve,i::Int,args...) = curvatures(f,Val(i),args...)
 curvatures(f::SpaceCurve,i::Int,args...) = curvatures(f,Val(i),args...)
 curvatures(f::AbstractCurve,i::Int,args...) = curvatures(f,Val(i),args...)
-curvatures(f::PlaneCurve,d=centraldiffpoints(f),t=centraldifffiber(f,d)) = curvatures(f,Val(1),d,t)
+curvatures(f::PlaneCurve,d::AbstractVector=centraldiffpoints(f),t=centraldifffiber(f,d)) = curvatures(f,Val(1),d,t)
 function curvatures(f::SpaceCurve,::Val{2},d=centraldiffpoints(f),t=centraldifffiber(f,d))
     V = Manifold(fibertype(f))
     torsion(f,d,t)*Λ(V).b[7]
 end
-function curvatures(f::SpaceCurve,d::Vector=centraldiffpoints(f),t=centraldifffiber(f,d))
+function curvatures(f::SpaceCurve,d::AbstractVector=centraldiffpoints(f),t=centraldifffiber(f,d))
     V = Manifold(fibertype(f))
     s = abs.(t,refmetric(f))
     n = centraldiff(t./s,immersion(f),d)./s
     b = t.∧n
     TensorField(base(f), Chain{V,2}.(value.(abs.(n,refmetric(f))),0,getindex.((b.∧centraldiff(n,immersion(f),d))./abs.(.⋆(b,refmetric(f)),refmetric(f)).^2,1)))
 end
-@generated function curvatures(f::AbstractCurve,d=centraldiffpoints(f),t=centraldifffiber(f,d))
+@generated function curvatures(f::AbstractCurve,d::AbstractVector=centraldiffpoints(f),t=centraldifffiber(f,d))
     V = Manifold(fibertype(f))
     N = mdims(V)
     bas = Grassmann.bladeindex.(N,UInt.(Λ(V).b[list(2,N)].∧Λ(V).b[list(3,N+1)]))
@@ -753,7 +766,7 @@ function bishopunitframe(f::SpaceCurve,θ0=0.0,d=centraldiffpoints(f),t=centrald
     cθ,sθ = cos.(θ),sin.(θ)
     TensorField(base(f), TensorOperator.(Chain.(T,cθ.*N.-sθ.*B,sθ.*N+cθ.*B)))
 end
-function bishoppolar(f::SpaceCurve,θ0=0.0,d=centraldiffpoints(f),t=centraldifffiber(f,d))
+function bishoppolar(f::AbstractCurve,θ0=0.0,d=centraldiffpoints(f),t=centraldifffiber(f,d))
     n = centraldiff(t,immersion(f),d)
     s,b = abs.(t,refmetric(f)),t.∧n
     κ = Real.(abs.(centraldiff(t./s,immersion(f),d),refmetric(f))./s)
@@ -762,7 +775,7 @@ function bishoppolar(f::SpaceCurve,θ0=0.0,d=centraldiffpoints(f),t=centraldifff
     pushfirst!(θ,θ0)
     TensorField(base(f), Chain.(κ,θ))
 end
-function bishop(f::SpaceCurve,θ0=0.0,d=centraldiffpoints(f),t=centraldifffiber(f,d))
+function bishop(f::AbstractCurve,θ0=0.0,d=centraldiffpoints(f),t=centraldifffiber(f,d))
     n = centraldiff(t,immersion(f),d)
     s,b = abs.(t,refmetric(f)),t.∧n
     κ = Real.(abs.(centraldiff(t./s,immersion(f),d),refmetric(f))./s)
@@ -773,7 +786,19 @@ function bishop(f::SpaceCurve,θ0=0.0,d=centraldiffpoints(f),t=centraldifffiber(
 end
 #bishoppolar(f::TensorField) = TensorField(base(f), Chain.(value.(fiber(curvature(f))),getindex.(fiber(cumtrapz(torsion(f))),1)))
 #bishop(f::TensorField,κ=value.(fiber(curvature(f))),θ=getindex.(fiber(cumtrapz(torsion(f))),1)) = TensorField(base(f), Chain.(κ.*cos.(θ),κ.*sin.(θ)))
+function normalangle(f::AbstractCurve,d=centraldiffpoints(f),t=centraldifffiber(f,d))
+    n = centraldiff(t,immersion(f),d)
+    s,b = abs.(t,refmetric(f)),t.∧n
+    τs = Real.(((b.∧centraldiff(n,immersion(f),d))./abs2.(.⋆(b,refmetric(f)),refmetric(f))).*s)
+    θ = (diff(points(f))/2).*cumsum(τs[2:end]+τs[1:end-1])
+    pushfirst!(θ,0)
+    TensorField(base(f), θ)
+end
 
+tangentangle(f::AbstractCurve) = integral(curvature(f))
+totalcurvature(f::AbstractCurve) = integrate(curvature(f))
+winding(f::AbstractCurve) = totalcurvature(f)/(2π)
+export tangentangle, totalcurvature, winding
 function planecurve(κ::RealFunction,φ::Real=0.0)
     int = iszero(φ) ? integral(κ) : integral(κ)+φ
     integral(Chain.(cos(int),sin(int)))
@@ -795,6 +820,7 @@ revolve33(f::Chain,g::Chain) = Chain(f[1]*g[1],f[2]*g[2],f[3]+g[3])
 for (fun,prod) ∈ ((:revolve,:fiberproduct),(:revolvesphere,:fibersphere),(:revolvesector,:fibersector))
     @eval begin
         $fun(f::TensorField,n::Int=61) = $fun(f,unitcircle(n))
+        $fun(f::RealFunction,n::Int=61) = $fun(f,unitcircle(n))
         $fun(f::TensorField,n::AbstractRange) = $fun(f,unitcircle(n))
         $fun(f::TensorField{B,<:Chain{V,G,T,2} where {V,G,T}} where B,g::PlaneCurve) = $prod(f,g,revolve22)
         $fun(f::TensorField{B,<:Chain{V,G,T,2} where {V,G,T}} where B,g::SpaceCurve) = $prod(f,g,revolve23)

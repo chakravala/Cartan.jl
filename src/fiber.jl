@@ -72,7 +72,7 @@ refmetric(x) = ref(metricextensor(x))
 """
     LocalFiber{B,F} <: Number
 
-Defines abstract bundled type with `basetype` of `B` and `fibertype` of `F` in a manifold.
+Defines abstract local trivial bundle with `basetype` of `B` and `fibertype` of `F`.
 ```Julia
 base(s) # ::B
 fiber(s) # ::F
@@ -99,6 +99,7 @@ basetype(::Type{<:LocalFiber{B}}) where B = B
 pointtype(::Type{<:LocalFiber{B}}) where B = basetype(B)
 fibertype(::Type{<:LocalFiber{B,F} where B}) where F = F
 metrictype(::Type{<:LocalFiber{B,F} where B}) where F = fibertype(B)
+base(s::Real) = s
 
 Base.getindex(s::LocalFiber) = s.v.first
 Base.getindex(s::LocalFiber,i::Int...) = getindex(s.v.second,i...)
@@ -142,7 +143,7 @@ A `Coordinate{P,G}` consists of two components: `P`, which represents the `point
 struct Coordinate{P,G} <: LocalFiber{P,G}
     v::Pair{P,G}
     Coordinate(v::Pair{P,G}) where {P,G} = new{P,G}(v)
-    Coordinate(p::P,g::G) where {P,G} = new{P,G}(p=>g)
+    Coordinate(p::P,g::G=InducedMetric()) where {P,G} = new{P,G}(p=>g)
 end
 
 point(c) = c
@@ -161,9 +162,12 @@ Base.getindex(s::Coordinate,i::Int...) = getindex(s.v.first,i...)
 Base.getindex(s::Coordinate,i::Integer...) = getindex(s.v.first,i...)
 
 graph(s::LocalFiber{<:AbstractReal,<:AbstractReal}) = Chain(Real(base(s)),Real(fiber(s)))
+graph(s::LocalFiber{<:AbstractReal,<:Chain}) = Chain(Real(base(s)),value(fiber(s))...)
 graph(s::LocalFiber{<:Chain,<:AbstractReal}) = Chain(value(base(s))...,Real(fiber(s)))
 graph(s::LocalFiber{<:Coordinate{<:AbstractReal},<:AbstractReal}) = Chain(Real(basepoint(s)),Real(fiber(s)))
+graph(s::LocalFiber{<:Coordinate{<:AbstractReal},<:Chain}) = Chain(Real(basepoint(s)),value(fiber(s))...)
 graph(s::LocalFiber{<:Coordinate{<:Chain},<:AbstractReal}) = Chain(value(basepoint(s))...,Real(fiber(s)))
+graph(s::LocalFiber{<:Coordinate{<:Chain},<:Chain}) = Chain(value(basepoint(s))...,value(fiber(s))...)
 
 export Positions, Interval, RealSpace, ComplexSpace
 const Positions{P<:Chain,G} = AbstractVector{<:Coordinate{P,G}}
@@ -248,7 +252,7 @@ Base.:<(a::LocalTensor{R},b::LocalTensor{R}) where R = Base.:>(b,a)
 Base.:<(a::Number,b::LocalTensor) = Base.:>(b,a)
 Base.:<(a::LocalTensor,b::Number) = Base.:>(b,a)
 Base.log(s::LocalTensor) = LocalTensor(base(s), Grassmann.log_metric(fiber(s),metricextensor(s)))
-for fun ∈ (:inv,:exp,:exp2,:exp10,:log2,:log10,:sinh,:cosh,:abs,:sqrt,:cbrt,:cos,:sin,:tan,:cot,:sec,:csc,:asec,:acsc,:sech,:csch,:asech,:tanh,:coth,:asinh,:acosh,:atanh,:acoth,:asin,:acos,:atan,:acot,:sinc,:cosc,:cis,:abs2)
+for fun ∈ (:inv,:exp,:exp2,:exp10,:log2,:log10,:sinh,:cosh,:abs,:sqrt,:cbrt,:cos,:sin,:tan,:cot,:sec,:csc,:asec,:acsc,:sech,:csch,:acsch,:asech,:tanh,:coth,:asinh,:acosh,:atanh,:acoth,:asin,:acos,:atan,:acot,:sinc,:cosc,:cis,:abs2)
     @eval Base.$fun(s::LocalTensor) = LocalTensor(base(s), $fun(fiber(s),metricextensor(s)))
 end
 for type ∈ (:Coordinate,:LocalTensor)
@@ -258,7 +262,7 @@ for type ∈ (:Coordinate,:LocalTensor)
     for fun ∈ (:-,:!,:~,:real,:imag,:conj,:deg2rad,:transpose,:iszero,:isone,:isnan,:isinf,:isfinite,:floor,:ceil,:round)
         @eval Base.$fun(s::$type) = $type(base(s), $fun(fiber(s)))
     end
-    for fun ∈ (:reverse,:involute,:clifford,:even,:odd,:scalar,:vector,:bivector,:volume,:value,:curl,:∂,:d,:complementleft,:realvalue,:imagvalue,:outermorphism,:Outermorphism,:DiagonalOperator,:TensorOperator,:eigen,:eigvecs,:eigvals,:eigvalsreal,:eigvalscomplex,:eigvecsreal,:eigvecscomplex,:eigpolys,:pfaffian,:∧,:↑,:↓,:vectorize)
+    for fun ∈ (:reverse,:involute,:clifford,:even,:odd,:scalar,:vector,:bivector,:pseudoscalar,:value,:curl,:∂,:d,:complementleft,:realvalue,:imagvalue,:outermorphism,:Outermorphism,:DiagonalOperator,:TensorOperator,:eigen,:eigvecs,:eigvals,:eigvalsreal,:eigvalscomplex,:eigvecsreal,:eigvecscomplex,:eigpolys,:pfaffian,:∧,:↑,:↓,:vectorize,:discriminant,:discriminantreal,:discriminantcomplex,:vandermonde,:vandermondereal,:vandermondecomplex)
         @eval Grassmann.$fun(s::$type) = $type(base(s), $fun(fiber(s)))
     end
     for fun ∈ (:⋆,:angle,:radius,:complementlefthodge,:pseudoabs,:pseudoabs2,:pseudoexp,:pseudolog,:pseudoinv,:pseudosqrt,:pseudocbrt,:pseudocos,:pseudosin,:pseudotan,:pseudocosh,:pseudosinh,:pseudotanh,:metric,:unit,:complexify,:polarize,:amplitude,:phase)
@@ -293,6 +297,7 @@ for type ∈ (:Coordinate,:LocalTensor)
         (::Type{Complex{T}})(s::$type) where T = $type(base(s), Complex{T}(fiber(s)))
         Grassmann.Phasor(s::$type) = $type(base(s), Phasor(fiber(s)))
         Grassmann.Couple(s::$type) = $type(base(s), Couple(fiber(s)))
+        (X::GradedVector)(s::$type) = $type(base(s),X(fiber(s)))
         (::Type{T})(s::$type...) where T<:Chain = @inbounds $type(base(s[1]), Chain(Values(fiber.(s)...)))
     end
     if VERSION≥v"1.9"
@@ -334,7 +339,7 @@ Base.resize!(m::FiberBundle,i) = ((resize!(base(m),i),resize!(fiber(m),i)); m)
 resize_lastdim!(m::FiberBundle,i) = ((resize_lastdim!(base(m),i),resize_lastdim!(fiber(m),i)); m)
 
 """
-    Coordinates{P,G,N} <: FiberBundle{Coordinate{P,G},N}
+    Coordinates{P,G,N} = FiberBundle{Coordinate{P,G},N}
 
 Defines a `FiberBundle` type with `pointtype` of `P` and `metrictype` of `G`.
 ```Julia
@@ -484,6 +489,20 @@ struct PointArray{P,G,N,PA<:AbstractArray{P,N},GA<:AbstractArray{G,N}} <: FiberB
     PointArray(id::Int,p::PA,g::GA) where {P,G,N,PA<:AbstractArray{P,N},GA<:AbstractArray{G,N}} = new{P,G,N,PA,GA}(id,p,g)
 end
 
+"""
+    PointVector{P,G} <: FiberBundle{Coordinate{P,G},1}
+
+Defines a `FiberBundle` type with `pointtype` of `P` and `metrictype` of `G`.
+```Julia
+coordinates(s) # ::PointVector{P,G}
+points(s) # ::AbstractVector{P}
+metricextensor(s) # ::AbstractVector{G}
+coordinatetype(s) # ::Coordinate{P,G}
+pointtype(s) # P
+metrictype(s) # G
+```
+Various methods work on any `PointVector`, such as `base`, `fiber`, `coordinates`, `points`, `metricextensor`, `basetype`, `fibertype`, `coordinatetype`, `pointtype`, `metrictype`.
+"""
 const PointVector{P,G,PA,GA} = PointArray{P,G,1,PA,GA}
 const PointMatrix{P,G,PA,GA} = PointArray{P,G,2,PA,GA}
 const PointCloud = PointVector
@@ -744,7 +763,8 @@ immersiontype(::Type{<:GridBundle{N,C,PA,TA} where {N,C,PA}}) where TA = TA
 points(m::GridBundle) = base(coordinates(m))
 metricextensor(m::GridBundle) = fiber(coordinates(m))
 
-function resample(m::GridBundle,i::NTuple)
+isrange(m::GridBundle) = isrange(points(m))
+function resample(m::GridBundle,i::NTuple=size(m))
     rp,rq = resample(points(m),i),resample(immersion(m),i)
     pid = iszero(bundle(coordinates(m))) ? 0 : (global point_id+=1)
     if isinduced(m)
@@ -1108,6 +1128,7 @@ Base.size(m::FiberProductBundle) = (length(m.s),size(m.g)...)
 metricextensor(m::FiberProductBundle) = Global{mdims(basetype(m))}(InducedMetric())
 
 (m::FaceBundle)(i::ImmersedTopology) = FaceBundle(fullcoordinates(m),i)
+(m::FiberProductBundle)(::Colon,i::Int) = m.s
 
 @pure Base.eltype(::Type{<:FiberProductBundle{P}}) where P = Coordinate{P,InducedMetric}
 Base.getindex(m::FiberProductBundle,i::Int,j::Vararg{Int}) = Coordinate(getindex(points(m.s),i) ⧺ getindex(m.g,j...), InducedMetric())

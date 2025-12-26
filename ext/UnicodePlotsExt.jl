@@ -44,7 +44,7 @@ UnicodePlots.lineplot(t::ComplexMap{B,<:AbstractComplex,1};args...) where B<:Coo
 UnicodePlots.lineplot!(p::UnicodePlots.Plot{<:UnicodePlots.Canvas},t::ComplexMap{B,<:AbstractComplex,1};args...) where B<:Coordinate{<:AbstractReal} = UnicodePlots.lineplot!(p,real.(Complex.(fiber(t))),imag.(Complex.(fiber(t)));args...)
 UnicodePlots.lineplot(t::GradedField{G,B,F,1} where {G,F};args...) where B<:Coordinate{<:AbstractReal} = UnicodePlots.lineplot(Real.(points(t)),Grassmann.array(fiber(t));args...)
 UnicodePlots.lineplot!(p::UnicodePlots.Plot{<:UnicodePlots.Canvas},t::GradedField{G,B,F,1} where {G,F};args...) where B<:Coordinate{<:AbstractReal} = UnicodePlots.lineplot!(p,Real.(points(t)),Grassmann.array(fiber(t));args...)
-UnicodePlots.polarplot(t::RealFunction;args...) = UnicodePlots.lineplot(Real.(points(t)),Real.(fiber(t));args...)
+UnicodePlots.polarplot(t::RealFunction;args...) = UnicodePlots.polarplot(Real.(points(t)),Real.(fiber(t));args...)
 UnicodePlots.polarplot!(p::UnicodePlots.Plot{<:UnicodePlots.Canvas},t::RealFunction;args...) = UnicodePlots.polarplot!(p,Real.(points(t)),Real.(fiber(t));args...)
 UnicodePlots.scatterplot(t::TensorField;args...) = UnicodePlots.scatterplot(fiber(t);args...)
 UnicodePlots.scatterplot!(p::UnicodePlots.Plot{<:UnicodePlots.Canvas},t::TensorField;args...) = UnicodePlots.scatterplot!(p,fiber(t);args...)

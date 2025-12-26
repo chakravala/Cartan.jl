@@ -13,12 +13,14 @@
 #   https://crucialflow.com
 
 export ProductSpace, RealRegion, NumberLine, Rectangle, Hyperrectangle, ⧺, ⊕, resample
+export affinemanifold, isfull
 
 resize_lastdim!(x::Vector,i) = resize!(x,i)
 
 # ProductSpace
 
-affmanifold(N::Int) = Submanifold(N+2)(list(2,N+1)...)
+affinemanifold(N::Int) = Submanifold(N+2)(list(2,N+1)...)
+const affmanifold = affinemanifold
 @generated function affinepoint(p::Chain{V,1,T}) where {V,T}
     :(Chain{$(V(list(1,mdims(V)+1)...))}(Values(one(T),$([:(@inbounds p[$i]) for i ∈ list(1,mdims(V))]...))))
 end
@@ -55,7 +57,8 @@ RealRegion(v::Values{N,S}) where {T<:Real,N,S<:AbstractVector{T}} = ProductSpace
 ProductSpace{V}(v::Values{N,S}) where {V,T<:Real,N,S<:AbstractVector{T}} = ProductSpace{V,T,N}(v)
 ProductSpace(v::Values{N,S}) where {T<:Real,N,S<:AbstractVector{T}} = ProductSpace{affmanifold(N),T,N}(v)
 
-Base.show(io::IO,t::RealRegion{V,T,N,<:AbstractRange} where {V,T,N}) = print(io,'(',Chain(getindex.(t.v,1)),"):(",Chain(Number.(getproperty.(t.v,:step))),"):(",Chain(getindex.(t.v,length.(t.v))),')')
+Base.split(t::ProductSpace) = t.v
+Base.show(io::IO,t::RealRegion{V,T,N,<:AbstractRange} where {V,T,N}) = print(io,'(',Chain(getindex.(split(t),1)),"):(",Chain(Number.(getproperty.(split(t),:step))),"):(",Chain(getindex.(split(t),length.(split(t)))),')')
 
 (::Base.Colon)(min::Chain{V,1,T},step::Chain{V,1,T},max::Chain{V,1,T}) where {V,T} = ProductSpace{V,T}(Colon().(value(min),value(step),value(max)))
 
@@ -74,9 +77,14 @@ resample(m::UnitRange,i::Int) = LinRange(m.start,m.stop,i)
 resample(m::StepRange,i::Int) = LinRange(m.start,m.stop,i)
 resample(m::LinRange,i::Int) = LinRange(m.start,m.stop,i)
 resample(m::StepRangeLen,i::Int) = Base.range_start_step_length(m[1],(step(m)*(m.len-1))/(i-1),i)
+resample(m::AbstractRange) = m
 resample(m::AbstractRange,i::NTuple{1,Int}) = resample(m,i...)
-resample(m::AbstractArray{T,0},::Tuple{}) where T = m
-resample(m::ProductSpace,i::NTuple) = ProductSpace(resample.(m.v,i))
+resample(m::AbstractArray{T,0},::Tuple{}=size(m)) where T = m
+resample(m::ProductSpace,i::NTuple=size(m)) = ProductSpace(resample.(split(m),i))
+
+isrange(m::AbstractRange) = true
+isrange(m::AbstractVector) = false
+isrange(m::ProductSpace) = prod(isrange.(split(m)))
 
 @generated Base.size(m::RealRegion{V}) where V = :(($([:(size(@inbounds m.v[$i])...) for i ∈ 1:mdims(V)]...),))
 @generated Base.getindex(m::RealRegion{V,T,N},i::Vararg{Int}) where {V,T,N} = :(Chain{V,1,T}(Values{N,T}($([:((@inbounds m.v[$j])[@inbounds i[$j]]) for j ∈ 1:N]...))))
@@ -279,8 +287,8 @@ resize(m::ProductTopology{1},i) = ProductTopology(@inbounds resize(m.v[1],i))
 end
 
 resample(m,i::Int...) = resample(m,i)
-resample(m::ProductTopology{1},i::NTuple{1}) = ProductTopology(@inbounds resize(m.v[1],i[1]))
-@generated function resample(m::ProductTopology{N},i::NTuple{N}) where N
+resample(m::ProductTopology{1},i::NTuple{1}=size(m)) = ProductTopology(@inbounds resize(m.v[1],i[1]))
+@generated function resample(m::ProductTopology{N},i::NTuple{N}=size(m)) where N
     Expr(:call,:ProductTopology,Expr(:call,:Values,[:(@inbounds resize(m.v[$j],i[$j])) for j ∈ list(1,N)]...))
 end
 

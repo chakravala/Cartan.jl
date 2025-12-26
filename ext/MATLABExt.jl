@@ -15,6 +15,7 @@ module MATLABExt
 
 using Grassmann, Cartan
 isdefined(Cartan, :Requires) ? (import Cartan: MATLAB) : (using MATLAB)
+import Cartan: initmeshes, totalmesh, totalmeshes, totalmeshdata
 
 const matlab_cache = (Array{T,2} where T)[]
 const matlab_top_cache = (Array{T,2} where T)[]

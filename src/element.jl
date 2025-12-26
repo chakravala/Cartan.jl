@@ -18,9 +18,10 @@ export assemblemassincidence, asssemblemassnodes, assemblenodes
 export assembleload, assemblemassload, assemblerobin, edges, edgesindices, neighbors
 export solvepoisson, solvetransportdiffusion, solvetransport, solvedirichlet, adaptpoisson
 export gradienthat, gradientCR, gradient, interp, nedelec, nedelecmean, jumps
-export submesh, detsimplex, iterable, callable, value, edgelengths, laplacian
+export submesh, detsimplex, iterable, callable, value, edgelengths, laplacian, weights
 export boundary, interior, trilength, trinormals, incidence, degrees, edges, faces, facets
 export adjacency, antiadjacency, facetsigns,refinemesh, refinemesh!, select, rms, unbundle
+export initmeshes, totalmesh, totalmeshes
 import Grassmann: norm, column, columns, points
 using Base.Threads
 
@@ -89,6 +90,9 @@ function initmeshdata(P,E,T,N::Val{n}=Val(size(P,1))) where n
     e = initpointsdata(P,E,N); l = list(1,n+1); np = refnodes(e)
     e(SimplexTopology([Int.(T[l,k]) for k ∈ 1:size(T,2)],OneTo(np.x),np)),e
 end
+function initmeshes end
+function totalmesh end
+function totalmeshes end
 function totalmeshdata(P,E,T,N::Val{n}=Val(size(P,1))) where n
     p = PointCloud(initpoints(P,N))
     np,ln,ln1 = length(p),list(1,n),list(1,n+1)
@@ -458,7 +462,7 @@ Grassmann.:∧(m::SimplexBundle) = ∧(FaceBundle(m))
 function Grassmann.:∧(m::FaceBundle)
     TensorField(m,mdims(m)>sdims(m) ? .∧(Grassmann.vectors.(affinehull(m))) : .∧(affinehull(m)))
 end
-for op ∈ (:mean,:barycenter,:curl)
+for op ∈ (:mean,:centroid,:barycenter,:curl)
     ops = Symbol(op,:s)
     @eval begin
         export $op, $ops
@@ -596,6 +600,12 @@ pretni(t::SimplexMap) = means(t)
 pretni(t,B::SparseMatrixCSC=incidence(t)) = interp(t,sparse(B'))
 pretni(t,ut) = means(t,ut) #interp(t,ut,B::SparseMatrixCSC) = B*ut
 
+export interpCR
+function interpCR(pt,crfun::Function)
+    ed = edges(pt)
+    ei = edgesindices(pt,FaceBundle(ed))
+    interpCR(pt,ed,crfun.(ei))
+end
 interpCR(pt,m) = interpCR(pt,edges(pt),m)
 interpCR(pt,ed,m) = interpCR(pt,discontinuous(immersion(pt)),ed,m)
 function interpCR(pt,dt::DiscontinuousTopology,ed,m::TensorField)

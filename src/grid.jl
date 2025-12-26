@@ -18,7 +18,7 @@ export gradient, gradient_slow, gradient_fast, unitgradient
 export gradient_fft, gradient_rfft, integral_fft, integral_rfft
 export gradient_impulse, gradient_impulse_fft, gradient_impulse_rfft
 export integral_impulse, integral_impulse_fft, integral_impulse_rfft
-export integral, integrate, ∫, convolve, spike, heaviside
+export integral, integrate, ∫, convolve, hat, spike, heaviside
 
 function _product(f::AbstractVector,g::AbstractVector,fun::Function)
     [fun(fiber(f)[i],fiber(g)[j]) for i ∈ OneTo(length(f)), j ∈ OneTo(length(g))]
@@ -180,7 +180,7 @@ function leaf2(m::HyperrectangleMap,t::AbstractFloat,s::AbstractFloat,k::Int=3)
     TensorField(p,bilinterp(t,s,x[i],x[i+1],y[j],y[j+1],f11,f21,f12,f22))
 end
 
-(m::TensorField{B,F,4,<:AbstractArray{<:Coordinate{<:Chain{V,1,<:Real} where V}}} where {B,F})(j::Int=4) = leaf(m,t,j)
+(m::TensorField{B,F,4,<:AbstractArray{<:Coordinate{<:Chain{V,1,<:Real} where V}}} where {B,F})(j::Int=4) = leaf(m,j)
 function leaf(m::TensorField{B,F,4,<:AbstractArray{<:Coordinate{<:Chain{V,1,<:Real} where V}}} where {B,F},i::Int,j::Int=4)
     isone(j) ? m[i,:,:,:] : j==2 ? m[:,i,:,:] : j==3 ? m[:,:,i,:] : m[:,:,:,i]
 end
@@ -254,6 +254,7 @@ function leaf4(m::TensorField{B,F,5,<:AbstractArray{<:Coordinate{<:Chain{V,1,<:R
 end
 
 leaf(m::TensorField{B,F,2,<:FiberProductBundle} where {B,F},i::Int) = TensorField(base(m).s,fiber(m)[:,i])
+(m::TensorField{B,F,2,<:FiberProductBundle} where {B,F})(t::Int) = leaf(m,t)
 function (m::TensorField{B,F,2,<:FiberProductBundle} where {B,F})(t::Real)
     k = 2; p = base(m).g.v[1]
     i,i0 = searchpoints(p,t)
@@ -456,6 +457,18 @@ end
 
 convolve(f::ScalarField...) = irfft(*(rfft.(f)...))
 
+export fftwavenumber, rfftwavenumber, r2rwavenumber
+fftwavenumber(N::AbstractArray) = fftwavenumber(size(N)...)
+rfftwavenumber(N::AbstractArray) = rfftwavenumber(size(N)...)
+r2rwavenumber(N::AbstractArray) = ProductSpace(r2rwavenumber.(size(N))...)
+r2rwavenumber(N::AbstractArray,kind) = ProductSpace(r2rwavenumber.(size(N),kind)...)
+fftwavenumber(N...) = ProductSpace(fftwavenumber.(N)...)
+rfftwavenumber(N...) = ProductSpace(rfftwavenumber.(N)...)
+fftwavenumber(N::Int) = vcat(0:Int((N-isodd(N))/2)-1,-Int((N+isodd(N))/2):-1)
+rfftwavenumber(N::Int) = 0:Int((N-isodd(N))/2)
+r2rwavenumber(N::Int) = 0:N-1
+r2rwavenumber(N::Int,kind) = kind ∈ (9,6,10) ? (1:N) : (0:N-1)
+
 spectral_diff_fft(N::Int) = im*vcat(0:Int((N-isodd(N))/2)-1,-Int((N+isodd(N))/2):-1)
 spectral_diff_rfft(N::Int) = im*(0:Int((N-isodd(N))/2))
 spectral_sum_fft(N::Int) = -im*vcat(0,inv.(1:Int((N-isodd(N))/2)-1),inv.(-Int((N+isodd(N))/2):-1))
@@ -484,19 +497,103 @@ end
 
 gradient_fft(t::RealFunction,d=spectral_diff_fft(length(t))) = real(ifft(d.*fft(t)))
 gradient_fft(t::AbstractCurve,d=spectral_diff_fft(length(t))) = Chain.(gradient_fft.(value(fiber(Chain(t))),Ref(d))...)
-gradient_fft(t::ScalarField,i::Int) = real(ifft(spectral_diff_fft(fft(t,i),i,size(t)...),i))
+function gradient_fft(t::AbstractMatrix,i::Int)
+    V = fft(t,i)
+    N,M = size(V)
+    if isone(i)
+        d = spectral_diff_fft(N)
+        for i ∈ 1:M
+            V[:,i] .*= d
+        end
+    else
+        d = spectral_diff_fft(M)
+        for i ∈ 1:N
+            V[i,:] .*= d
+        end
+    end
+    TensorField(t,ifft(V,i))
+end
+function gradient_fft(t::AbstractArray{T,3} where T,i::Int)
+    V = fft(t,i)
+    N,M,R = size(V)
+    if isone(i)
+        d = spectral_diff_fft(N)
+        for i ∈ 1:M
+            for j ∈ 1:R
+                V[:,i,j] .*= d
+            end
+        end
+    elseif i==2
+        d = spectral_diff_fft(M)
+        for i ∈ 1:N
+            for j ∈ 1:R
+                V[i,:,j] .*= d
+            end
+        end
+    else
+        d = spectral_diff_fft(R)
+        for i ∈ 1:N
+            for j ∈ 1:M
+                V[i,j,:] .*= d
+            end
+        end
+    end
+    TensorField(t,ifft(V,i))
+end
 gradient_fft(t::TensorField) = Chain.(gradient_fft.(Ref(t),list(1,mdims(pointtype(t))))...)
 gradient_fft(t::VectorField,i::Int) = gradient_fft.(value(fiber(Chain(t))),i)
 gradient_rfft(t::RealFunction,d=spectral_diff_rfft(length(t))) = real(irfft(d.*rfft(t)))
 gradient_rfft(t::AbstractCurve,d=spectral_diff_rfft(length(t))) = Chain.(gradient_rfft.(value(fiber(Chain(t))),Ref(d))...)
-gradient_rfft(t::ScalarField,i::Int) = real(irfft(spectral_diff_rfft(rfft(t,i),i,size(t)...),i))
+function gradient_rfft(t::AbstractMatrix,i::Int)
+    V = rfft(t,i)
+    N,M = size(V)
+    if isone(i)
+        d = spectral_diff_fft(N)
+        for i ∈ 1:M
+            V[:,i] .*= d
+        end
+    else
+        d = spectral_diff_fft(M)
+        for i ∈ 1:N
+            V[i,:] .*= d
+        end
+    end
+    TensorField(t,irfft(V,i))
+end
+function gradient_rfft(t::AbstractArray{3,T} where T,i::Int)
+    V = rfft(t,i)
+    N,M,R = size(V)
+    if isone(i)
+        d = spectral_diff_fft(N)
+        for i ∈ 1:M
+            for j ∈ 1:R
+                V[:,i,j] .*= d
+            end
+        end
+    elseif i==2
+        d = spectral_diff_fft(M)
+        for i ∈ 1:N
+            for j ∈ 1:R
+                V[i,:,j] .*= d
+            end
+        end
+    else
+        d = spectral_diff_fft(R)
+        for i ∈ 1:N
+            for j ∈ 1:M
+                V[i,j,:] .*= d
+            end
+        end
+    end
+    TensorField(t,irfft(V,i))
+end
 gradient_rfft(t::TensorField) = Chain.(gradient_rfft.(Ref(t),list(1,mdims(pointtype(t))))...)
 gradient_rfft(t::VectorField,i::Int) = gradient_rfft.(value(fiber(Chain(t))),i)
 gradient_impulse(t::TensorField) = real(irfft(gradient_impulse_rfft(t)))
-gradient_impulse_fft(N::Int) = TensorField(fftfreq(N),spectral_diff_fft(N))
-gradient_impulse_fft(t::TensorField) = TensorField(fftfreq(t),spectral_diff_fft(length(t)))
-gradient_impulse_rfft(N::Int) = TensorField(rfftfreq(N),spectral_diff_rfft(N))
-gradient_impulse_rfft(t::TensorField) = TensorField(rfftfreq(t),spectral_diff_rfft(length(t)))
+gradient_impulse_fft(N::Int) = TensorField(fftspace(N),spectral_diff_fft(N))
+gradient_impulse_fft(t::TensorField) = TensorField(fftspace(t),spectral_diff_fft(length(t)))
+gradient_impulse_rfft(N::Int) = TensorField(rfftspace(N),spectral_diff_rfft(N))
+gradient_impulse_rfft(t::TensorField) = TensorField(rfftspace(t),spectral_diff_rfft(length(t)))
 
 integral_fft(t::AbstractCurve,d=spectral_diff_fft(length(t))) = Chain.(integral_fft.(value(fiber(Chain(t))),Ref(d))...)
 function integral_fft(t::RealFunction,d=spectral_sum_fft(length(t)))
@@ -511,10 +608,15 @@ function integral_rfft(t::RealFunction,d=spectral_sum_rfft(length(t)))
     out+m*(TensorField(base(t))-(points(t)[1]+fiber(out[1])/m))
 end
 integral_impulse(t::TensorField) = real(irfft(integral_impulse_rfft(t)))
-integral_impulse_fft(N::Int) = TensorField(fftfreq(N),spectral_sum_fft(N))
-integral_impulse_fft(t::TensorField) = TensorField(fftfreq(t),spectral_sum_fft(length(t)))
-integral_impulse_rfft(N::Int) = TensorField(rfftfreq(N),spectral_sum_rfft(N))
-integral_impulse_rfft(t::TensorField) = TensorField(rfftfreq(t),spectral_sum_rfft(length(t)))
+integral_impulse_fft(N::Int) = TensorField(fftspace(N),spectral_sum_fft(N))
+integral_impulse_fft(t::TensorField) = TensorField(fftspace(t),spectral_sum_fft(length(t)))
+integral_impulse_rfft(N::Int) = TensorField(rfftspace(N),spectral_sum_rfft(N))
+integral_impulse_rfft(t::TensorField) = TensorField(rfftspace(t),spectral_sum_rfft(length(t)))
+
+integrate_fft(t::AbstractCurve,d=spectral_diff_fft(length(t))) = Chain(integrate_fft.(value(fiber(Chain(t))),Ref(d))...)
+integrate_fft(t::RealFunction,d=spectral_sum_fft(length(t))) = fiber(integral_fft(t,d)[end])
+integrate_rfft(t::AbstractCurve,d=spectral_diff_rfft(length(t))) = Chain(integrate_rfft.(value(fiber(Chain(t))),Ref(d))...)
+integrate_rfft(t::RealFunction,d=spectral_sum_rfft(length(t))) = fiber(integral_rfft(t,d)[end])
 
 function spectral_sum_impulse(N::Int)
     x = N/2 # midpoint
@@ -523,35 +625,264 @@ function spectral_sum_impulse(N::Int)
 end
 integral_impulse_line(t::TensorField) = TensorField(base(t),spectral_sum_impulse(length(t)))
 
-select_spike(p,t,i) = abs(p[i]-t) < abs(p[i+1]-t) ? i : i+1
-spike(x::Chain) = prod(spike.(value(x)))
-spike(x::T) where T<:Real = iszero(x) ? one(T) : zero(T)
-spike(x,t) = spike(x-t)
-spike(x::Chain,t::Chain) = spike(x-t)
-spike(x::Chain,t) = prod(spike.(value(x),t))
-spike(t::TensorField,x...) = spike(base(t),x...)
-spike(b::GridBundle,x::Chain) = spike(b,value(x)...)
-function spike(b::GridBundle{1},x=0)
+gradient_chebyshev(v,D=ChebyshevMatrix(v)) = D*v
+
+function gradient_chebyshevfft(v::AbstractVector,d=spectral_diff_chebfft(v))
+    U = real.(chebyshevfft(v))
+    TensorField(v,chebyshevifft(d.*U,U,length(v)))
+end
+
+function gradient_chebyshevfft(v::AbstractMatrix,i)
+    U = real.(chebyshevfft(v,i))
+    V = complex.(U)
+    N,M = size(v)
+    if isone(i)
+        d = spectral_diff_chebfft(N)
+        for i ∈ 1:M
+            V[:,i] .*= d
+        end
+    else
+        d = spectral_diff_chebfft(M)
+        for i ∈ 1:N
+            V[i,:] .*= d
+        end
+    end
+    TensorField(v,chebyshevifft(V,U,i,size(v)...))
+end
+
+function gradient_chebyshevfft(v::AbstractArray{T,3} where T,i)
+    U = real.(chebyshevfft(v,i))
+    V = complex.(U)
+    N,M,R = size(v)
+    if isone(i)
+        d = spectral_diff_chebfft(N)
+        for i ∈ 1:M
+            for j ∈ 1:R
+                V[:,i,j] .*= d
+            end
+        end
+    elseif i==2
+        d = spectral_diff_chebfft(M)
+        for i ∈ 1:N
+            for j ∈ 1:R
+                V[i,:,j] .*= d
+            end
+        end
+    else
+        d = spectral_diff_chebfft(R)
+        for i ∈ 1:N
+            for j ∈ 1:M
+                V[i,j,:] .*= d
+            end
+        end
+    end
+    TensorField(v,chebyshevifft(V,U,i,size(v)...))
+end
+
+
+function gradient2_chebyshevfft(v::AbstractVector,d=spectral_diff_chebfft(v),d2=spectral_diff_chebfft2(v))
+    U = real.(chebyshevfft(v))
+    TensorField(v,chebyshevifft2(d.*U,d2.*U,U,length(v)))
+end
+
+function gradient2_chebyshevfft(v::AbstractMatrix,i)
+    U = real.(chebyshevfft(v,i))
+    V1,V2 = complex.(copy(U)),complex.(copy(U))
+    N,M = size(v)
+    if isone(i)
+        d = spectral_diff_chebfft(N)
+        d2 = spectral_diff_chebfft2(N)
+        for i ∈ 1:M
+            V1[:,i] .*= d
+            V2[:,i] .*= d2
+        end
+    else
+        d = spectral_diff_chebfft(M)
+        d2 = spectral_diff_chebfft2(M)
+        for i ∈ 1:N
+            V1[i,:] .*= d
+            V2[i,:] .*= d2
+        end
+    end
+    TensorField(v,chebyshevifft2(V1,V2,U,i,size(v)...))
+end
+
+function gradient2_chebyshevfft(v::AbstractArray{T,3} where T,i)
+    U = real.(chebyshevfft(v,i))
+    V1,V2 = complex.(copy(U)),complex.(copy(U))
+    N,M,R = size(v)
+    if isone(i)
+        d = spectral_diff_chebfft(N)
+        d2 = spectral_diff_chebfft2(N)
+        for i ∈ 1:M
+            for j ∈ 1:R
+                V1[:,i,j] .*= d
+                V2[:,i,j] .*= d2
+            end
+        end
+    elseif i==2
+        d = spectral_diff_chebfft(M)
+        d2 = spectral_diff_chebfft2(M)
+        for i ∈ 1:N
+            for j ∈ 1:R
+                V1[i,:,j] .*= d
+                V2[i,:,j] .*= d2
+            end
+        end
+    else
+        d = spectral_diff_chebfft(R)
+        d2 = spectral_diff_chebfft2(R)
+        for i ∈ 1:N
+            for j ∈ 1:M
+                V1[i,j,:] .*= d
+                V2[i,j,:] .*= d2
+            end
+        end
+    end
+    TensorField(v,chebyshevifft2(V1,V2,U,i,size(v)...))
+end
+
+
+for fun ∈ (:laplacian_chebyshevfft,:gradient,:gradient_fft,:gradient_rfft,:gradient_chebyshevfft,:gradient2_chebyshevfft)
+    @eval $fun(v::LocalTensor) = $fun(fiber(v))
+end
+laplacian_chebyshevfft(v::AbstractVector) = gradient2_chebyshevfft(v)
+laplacian_chebyshevfft(v::AbstractMatrix) = gradient2_chebyshevfft(v,1)+gradient2_chebyshevfft(v,2)
+laplacian_chebyshevfft(v::AbstractArray{T,3} where T) = gradient2_chebyshevfft(v,1)+gradient2_chebyshevfft(v,2)+gradient2_chebyshevfft(v,3)
+
+spectral_diff_chebfft(v::AbstractVector) = spectral_diff_chebfft(length(v))
+spectral_diff_chebfft(N::Int) = im*vcat(0:N-2,0,2-N:-1)
+
+spectral_diff_chebfft2(v::AbstractVector) = spectral_diff_chebfft2(length(v))
+spectral_diff_chebfft2(N::Int) = -vcat(0:N-2,0,2-N:-1).^2
+
+gradient_toeplitz(v,D=derivetoeplitz(v)) = D*v
+gradient2_toeplitz(v,D=derivetoeplitz2(v)) = D*v
+
+toeplitz1(N,h=2π/N) = vcat(0,0.5*(-1).^(1:N-1).*cot.((1:N-1)*h/2))
+toeplitz2(N,h=2π/N) = vcat(-π^2/(3*h^2)-1/6,0.5*(-1).^(2:N)./sin.((1:N-1)*h/2).^2)
+function derivetoeplitz end
+function derivetoeplitz2 end
+export derivetoeplitz, derivetoeplitz2
+
+export integrate_haar, GaussLegendre, laplacian_chebyshevfft
+export integrate_chebyshev, integrate_clenshawcurtis, integrate_gausslegendre
+export integral_chebyshev, integral_clenshawcurtis, integral_gausslegendre
+export gradient_chebyshev, gradient_chebyshevfft, clenshawcurtis, gausslegendre
+export gradient2_chebyshevfft, gradient2_toeplitz, gradient_toeplitz
+
+integral_weight(t,w) = TensorField(t,cumsum(w.*fiber(t)))
+integrate_weight(t,w) = w⋅fiber(t)
+
+function interval_scale(t)
+    x = points(t)
+    x[end]-x[1]
+end
+
+integral_chebyshev(t,w=ChebyshevVector(t)) = integral_weight(t,w)
+integral_clenshawcurtis(t,w=clenshawcurtis(t)) = integral_weight(t,w)
+integral_gausslegendre(t,w=gausslegendre(t)) = integral_weight(t,w)
+integrate_chebyshev(t,w=ChebyshevVector(t)) = integrate_weight(t,w)
+integrate_clenshawcurtis(t,w=clenshawcurtis(t)) = integrate_weight(t,w)
+integrate_gausslegendre(t,w=gausslegendre(t)) = integrate_weight(t,w)
+clenshawcurtis(t) = clenshawcurtis(length(t))*(interval_scale(t)/2)
+function clenshawcurtis(n::Int)
+    N = n-1
+    θ = π*(0:N)/N
+    #x = cos.(θ)
+    w = zeros(N+1)
+    ii = 2:N
+    v = ones(N-1)
+    if iszero(N%2)
+        w[1] = 1/(N^2+1)
+        w[N+1] = 0
+        for k ∈ 1:Int(N/2)-1
+            v .-= 2cos.(2k*θ[ii])/(4k^2-1)
+        end
+        v .-= cos.(N*θ[ii])/(N^2-1)
+    else
+        w[1] = 1/N^2
+        w[N+1] = 0
+        for k ∈ 1:Int((N-1)/2)
+            v .-= 2cos.(2k*θ[ii])/(4k^2-1)
+        end
+    end
+    w[ii] .= (2/N).*v
+    return reverse(w)
+end
+
+struct GaussLegendre{L,G} <: DenseVector{L}
+    v::Vector{L}
+    g::Vector{G}
+end
+
+function GaussLegendre(N::Int)
+    β = 0.5./sqrt.(1.0.-(2*(1:N-1)).^-2)
+    T = spdiagm(1=>β,-1=>β)
+    E,V = eigen(Matrix(T))
+    GaussLegendre(E,2V[1,:].^2)
+end
+function GaussLegendre(x::AbstractVector)
+    c = GaussLegendre(length(x))
+    scale = (x[end]-x[1])/2
+    E = (c.+1)*scale.+x[1]
+    GaussLegendre(E,gausslegendre(c)*scale)
+end
+
+Base.size(t::GaussLegendre) = size(points(t))
+Base.getindex(t::GaussLegendre,i::Integer) = points(t)[i]
+points(t::GaussLegendre) = t.v
+gausslegendre(t::TensorField) = gausslegendre(points(t))
+gausslegendre(t::GaussLegendre) = t.g
+
+function integrate_haar(f,z,θ=range(-pi,pi,70))
+    N = length(θ)
+    out = 0z
+    for i ∈ 1:N
+        out .+= f(fiber(θ)[i],z)
+    end
+    out/N
+end
+
+function integral_haar(f,z,θ=range(-pi,pi,70))
+    N = length(θ)
+    out = zeros(typeof(z),N)
+    out[1] = f(fiber(θ)[1],z)
+    for i ∈ 2:N
+        out[i] = out[i-1]+f(fiber(θ)[i],z)
+    end
+    TensorField(θ,out/N)
+end
+
+select_hat(p,t,i) = abs(p[i]-t) < abs(p[i+1]-t) ? i : i+1
+hat(x::Chain) = prod(hat.(value(x)))
+hat(x::T) where T<:Real = iszero(x) ? one(T) : zero(T)
+hat(x,t) = hat(x-t)
+hat(x::Chain,t::Chain) = hat(x-t)
+hat(x::Chain,t) = prod(hat.(value(x),t))
+hat(t::TensorField,x...) = hat(base(t),x...)
+hat(b::GridBundle,x::Chain) = hat(b,value(x)...)
+function hat(b::GridBundle{1},x=0)
     p = points(b)
     i,i0 = searchpoints(p,x)
     out = zeros(length(p))
     if !(i0||i==length(p))
-        out[select_spike(p,x,i)] = 1
+        out[select_hat(p,x,i)] = 1
     end
     return TensorField(b,out)
 end
-function spike(b::GridBundle{2},x=0,y=x)
+function hat(b::GridBundle{2},x=0,y=x)
     p = points(b)
     i,i0 = searchpoints(p.v[1],x)
     j,j0 = searchpoints(p.v[2],y)
     s = size(p)
     out = zeros(s)
     if !(i0||i==s[1]||j0||j==s[2])
-        out[select_spike(p.v[1],x,i),select_spike(p.v[2],y,j)] = 1
+        out[select_hat(p.v[1],x,i),select_hat(p.v[2],y,j)] = 1
     end
     return TensorField(b,out)
 end
-function spike(b::GridBundle{3},x=0,y=x,z=y)
+function hat(b::GridBundle{3},x=0,y=x,z=y)
     p = points(b)
     i,i0 = searchpoints(p.v[1],x)
     j,j0 = searchpoints(p.v[2],y)
@@ -559,11 +890,11 @@ function spike(b::GridBundle{3},x=0,y=x,z=y)
     s = size(p)
     out = zeros(s)
     if !(i0||i==s[1]||j0||j==s[2]||k0||k==s[3])
-        out[select_spike(p.v[1],x,i),select_spike(p.v[2],y,j),select_spike(p.v[3],z,k)] = 1
+        out[select_hat(p.v[1],x,i),select_hat(p.v[2],y,j),select_hat(p.v[3],z,k)] = 1
     end
     return TensorField(b,out)
 end
-function spike(b::GridBundle{4},x=0,y=x,z=y,w=z)
+function hat(b::GridBundle{4},x=0,y=x,z=y,w=z)
     p = points(b)
     i,i0 = searchpoints(p.v[1],x)
     j,j0 = searchpoints(p.v[2],y)
@@ -572,11 +903,11 @@ function spike(b::GridBundle{4},x=0,y=x,z=y,w=z)
     s = size(p)
     out = zeros(s)
     if !(i0||i==s[1]||j0||j==s[2]||k0||k==s[3]||m0||m==s[4])
-        out[select_spike(p.v[1],x,i),select_spike(p.v[2],y,j),select_spike(p.v[3],z,k),select_spike(p.v[4],w,m)] = 1
+        out[select_hat(p.v[1],x,i),select_hat(p.v[2],y,j),select_hat(p.v[3],z,k),select_hat(p.v[4],w,m)] = 1
     end
     return TensorField(b,out)
 end
-function spike(b::GridBundle{5},x=0,y=x,z=y,w=z,v=w)
+function hat(b::GridBundle{5},x=0,y=x,z=y,w=z,v=w)
     p = points(b)
     i,i0 = searchpoints(p.v[1],x)
     j,j0 = searchpoints(p.v[2],y)
@@ -586,9 +917,18 @@ function spike(b::GridBundle{5},x=0,y=x,z=y,w=z,v=w)
     s = size(p)
     out = zeros(s)
     if !(i0||i==s[1]||j0||j==s[2]||k0||k==s[3]||m0||m==s[4]||n0||n==s[5])
-        out[select_spike(p.v[1],x,i),select_spike(p.v[2],y,j),select_spike(p.v[3],z,k),select_spike(p.v[4],w,m),select_spike(p.v[5],v,n)] = 1
+        out[select_hat(p.v[1],x,i),select_hat(p.v[2],y,j),select_hat(p.v[3],z,k),select_hat(p.v[4],w,m),select_hat(p.v[5],v,n)] = 1
     end
     return TensorField(b,out)
+end
+const spike = hat
+
+hat(b::SimplexBundle) = hat(b,zero(pointtype(b)))
+hat(b::SimplexBundle,x...) = hat(b,Chain{Manifold(b)}(1,x...))
+function hat(b::SimplexBundle,x::Chain)
+    out = TensorField(b,0)
+    out[argmin(norm(TensorField(b)-x))] = 1
+    return out
 end
 
 heaviside(x::Chain) = prod(heaviside.(value(x)))

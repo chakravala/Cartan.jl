@@ -377,14 +377,14 @@ end
          Expr(:call,:Values,[j≠N ? :(@inbounds m.s[$j]) : :i for j ∈ list(1,N)]...))
 end
 
-resample(m::QuotientTopology{N,L,M,0},i::NTuple{N}) where {N,L,M} = QuotientTopology(m.p,m.q,m.r,Values(i))
-@generated function resample(m::QuotientTopology{N,L,O,O},i::NTuple{N}) where {N,L,O}
+resample(m::QuotientTopology{N,L,M,0},i::NTuple{N}=size(m)) where {N,L,M} = QuotientTopology(m.p,m.q,m.r,Values(i))
+@generated function resample(m::QuotientTopology{N,L,O,O},i::NTuple{N}=size(m)) where {N,L,O}
     Expr(:block,:(perms = $(reverse(Values{L}.(Values{N}(Grassmann.combo(N,L)))))),
         Expr(:call,:QuotientTopology,:(m.p),
             Expr(:call,:Values,Expr(:tuple,[:(@inbounds resample(m.q[$j],i[perms[$((j+1)÷2)]])) for j ∈ list(1,O)]...)),
             :(m.r),Expr(:call,:Values,:i)))
 end
-@generated function resample(m::QuotientTopology{N,L,M,O},i::NTuple{N}) where {N,L,M,O}
+@generated function resample(m::QuotientTopology{N,L,M,O},i::NTuple{N}=size(m)) where {N,L,M,O}
     Expr(:block,:(t = invert_q($(Val(O)),m.r)),
         :(perms = $(reverse(Values{L}.(Values{N}(Grassmann.combo(N,L)))))),
         Expr(:call,:QuotientTopology,:(m.p),
