@@ -12,6 +12,8 @@
 [![Build status](https://ci.appveyor.com/api/projects/status/klhdg493nvs0oi7h?svg=true)](https://ci.appveyor.com/project/chakravala/cartan-jl)
 [![PDF 2021](https://img.shields.io/badge/PDF-2021-blue.svg)](https://www.dropbox.com/sh/tphh6anw0qwija4/AAACiaXig5djrLVAKLPFmGV-a/Geometric-Algebra?preview=differential-geometric-algebra-2021.pdf)
 [![PDF 2025](https://img.shields.io/badge/PDF-2025-blue.svg)](https://www.dropbox.com/sh/tphh6anw0qwija4/AAACiaXig5djrLVAKLPFmGV-a/Geometric-Algebra?preview=grassmann-cartan-2025.pdf)
+[![Hardcover 2025](https://img.shields.io/badge/Hardcover-2025-blue.svg)](https://www.lulu.com/shop/michael-reed/principal-differential-geometric-algebra/hardcover/product-kv6n8j8.html)
+[![Paperback 2025](https://img.shields.io/badge/Paperback-2025-blue.svg)](https://www.lulu.com/shop/michael-reed/principal-differential-geometric-algebra/paperback/product-yvk7zqr.html)
 
 *Cartan.jl* introduces a pioneering unified numerical framework for comprehensive differential geometric algebra, purpose-built for the formulation and solution of partial differential equations on manifolds with non-trivial topological structure and [Grassmann.jl](https://github.com/chakravala/Grassmann.jl) algebra.
 Written in Julia, [Cartan.jl](https://github.com/chakravala/Cartan.jl) unifies differential geometry, geometric algebra, and tensor calculus with support for fiber product topology; enabling directly executable generalized treatment of geometric PDEs over grids, meshes, and simplicial decompositions.
@@ -200,12 +202,9 @@ Many of these methods can automatically generalize to higher dimensional manifol
 ## References
 
 * Michael Reed, [Differential geometric algebra with Leibniz and Grassmann](https://crucialflow.com/grassmann-juliacon-2019.pdf) (2019)
-* Michael Reed, [Foundatons of differential geometric algebra](https://vixra.org/abs/2304.0228) (2021)
+* Michael Reed, [Foundations of differential geometric algebra](https://vixra.org/abs/2304.0228) (2021)
 * Michael Reed, [Multilinear Lie bracket recursion formula](https://vixra.org/abs/2412.0034) (2024)
 * Michael Reed, [Differential geometric algebra: compute using Grassmann.jl and Cartan.jl](https://www.dropbox.com/sh/tphh6anw0qwija4/AAACiaXig5djrLVAKLPFmGV-a/Geometric-Algebra?preview=grassmann-cartan-2025.pdf) (2025)
-* Emil Artin, [Geometric Algebra](https://archive.org/details/geometricalgebra033556mbp) (1957)
-* John Browne, [Grassmann Algebra, Volume 1: Foundations](https://www.grassmannalgebra.com/) (2011)
-* C. Doran, D. Hestenes, F. Sommen, and N. Van Acker, [Lie groups as spin groups](http://geocalc.clas.asu.edu/pdf/LGasSG.pdf), J. Math Phys. (1993)
-* David Hestenes, [Tutorial on geometric calculus](http://geocalc.clas.asu.edu/pdf/Tutorial%20on%20Geometric%20Calculus.pdf). Advances in Applied Clifford Algebra (2013)
-* Vladimir and Tijana Ivancevic, [Undergraduate lecture notes in DeRahm-Hodge theory](https://arxiv.org/abs/0807.4991). arXiv (2011)
+* Michael Reed, [Principal Differential Geometric Algebra: compute using Grassmann.jl, Cartan.jl](https://www.lulu.com/shop/michael-reed/principal-differential-geometric-algebra/hardcover/product-kv6n8j8.html) (Hardcover, 2025)
+* Michael Reed, [Principal Differential Geometric Algebra: compute using Grassmann.jl, Cartan.jl](https://www.lulu.com/shop/michael-reed/principal-differential-geometric-algebra/paperback/product-yvk7zqr.html) (Paperback, 2025)
 
