@@ -419,8 +419,8 @@ For `GridBundle` initialization it is typical to invoke a combination of `Produc
 * `sectorintegrate` estimates the total value of `sectorintegral`
 * `area` cumulative ``\int |\star(\frac{\partial \gamma(x)}{\partial x_1}\wedge\cdots\wedge\frac{\partial \gamma(x)}{\partial x_n})|dx_1\cdots dx_n`` with ``n=2``
 * `surfacearea` estimates total value of the (surface) `area` integral
-* `surfacemetric` gets `GridBundle` with `firstform` as `metrictensor`
-* `surfacemetricdiag` gets `GridBundle` with `firstformdiag` metric
+* `intrinsicmetric` gets `GridBundle` with `firstform` as `metrictensor`
+* `intrinsicmetricdiag` gets `GridBundle` with `firstformdiag` metric
 * `surfaceframe` constructs intrinsic orthonormal surface frame
 * `frame` scaled Darboux style frame ``\left[\frac{\partial\gamma(x)}{\partial x_1},\star\left(N(x)\wedge\frac{\partial\gamma(x)}{\partial x_1}\right),N(x)\right] ``
 * `unitframe` is then ``\left[\frac{\partial\gamma(x)}{\partial x_1}/\left|\frac{\partial\gamma(x)}{\partial x_1}\right|,\star\left(\nu(x)\wedge\frac{\partial\gamma(x)}{\partial x_1}\right)/\left|\frac{\partial\gamma(x)}{\partial x_1}\right|,\nu(x)\right] ``
@@ -591,7 +591,7 @@ However, this is inefficient numerical integration, for example the ``58\times58
 
 **Theorem** (Hyper-area of hypersurface).
 Let ``\gamma:X\subset\mathbb R^n\rightarrow\mathbb R^{n+1}`` be parameterized hypersurface ``\partial(\Omega) = \gamma(X)``.
-Since the pullback ``\gamma^*(1)`` is ``\det d\gamma``,
+The pullback is ``\gamma^*(1)`` with ``\det d\gamma``,
 ```math
 	\int_{\partial(\Omega)} 1 = \int_{\gamma(X)} 1 = \int_X|\det d\gamma| = \int_X \left|\frac{\partial\gamma}{\partial x_1} \wedge \dots \wedge \frac{\partial\gamma}{\partial x_n}\right|
 ```
@@ -829,7 +829,7 @@ A,M = assemble(pt,1,1,0) # stiffness & mass matrix assembly
 using KrylovKit # provides general eigsolve
 yi,xi = geneigsolve((A,M),10,:SR;krylovdim=100) # maxiter=100
 amp = TensorField.(Ref(pt),xi./3) # solutions amplitude
-mode = TensorField.(graphbundle.(amp),xi) # make 3D surface
+mode = TensorField.(amp,xi) # make 3D surface
 mesh(mode[7]); wireframe!(pt) # figure modes are 4,5,7,8,6,9
 ```
 

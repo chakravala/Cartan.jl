@@ -23,7 +23,7 @@ vs = [-cos(x) * sin(y) for x in xs, y in ys]
 xy = TensorField(OpenParameter(xs,ys),Chain.(us,vs))
 strength = vec(fiber(norm(xy)))
 
-arrows!(xy, lengthscale = 0.2, color = strength)
+arrows2d!(xy, lengthscale = 0.2, color = strength)
 
 f
 ```
@@ -31,7 +31,7 @@ f
 using GLMakie
 ps = OpenParameter(-5:2:5,-5:2:5,-5:2:5)
 ns = map(p -> 0.1 * Chain(p[2], p[3], p[1]), ps)
-arrows(
+arrows3d(
     TensorField(ps, ns),
     shaftcolor = :gray, tipcolor = :black,
     align = :center, axis=(type=Axis3,)
@@ -39,7 +39,7 @@ arrows(
 ```
 ```julia
 lengths = vec(norm.(ns))
-arrows(
+arrows3d(
     TensorField(ps, ns), color = lengths, lengthscale = 1.5,
     align = :center, axis=(type=Axis3,)
 )
@@ -124,9 +124,68 @@ contour3d!(-xyz, levels=-(.025:0.05:.475), linewidth=2, color=:blue2)
 contour3d!(+xyz, levels=  .025:0.05:.475,  linewidth=2, color=:red2)
 ```
 
+```julia
+r = range(-pi, pi, length = 21)
+data2d = [cos(x) + cos(y) for x in r, y in r]
+data3d = [cos(x) + cos(y) + cos(z) for x in r, y in r, z in r]
+
+f = Figure(size = (700, 400))
+a1 = Axis3(f[1, 1], title = "3D contour()")
+
+rrr = OpenParameter(r,r,r)
+contour!(TensorField(rrr, data3d))
+```
+```julia
+a2 = Axis3(f[1, 2], title = "contour3d()")
+rr = OpenParameter(r,r)
+contour3d!(TensorField(rr,data2d), linewidth = 3, levels = 10)
+f
+```
+```julia
+f = Figure(size = (700, 300))
+a1 = Axis3(f[1, 1])
+contour!(TensorField(rrr,data3d), isorange = 0.04)
+
+# small alpha can be used to see into the contour plot
+a2 = Axis3(f[1, 2])
+contour!(TensorField(rrr,data3d), data3d, alpha = 0.05)
+f
+```
+
+### contourf
+
+[https://docs.makie.org/stable/reference/plots/contourf](https://docs.makie.org/stable/reference/plots/contourf)
+
+```julia
+# continued from curvilinear contour example
+f = Figure()
+
+ax1 = Axis(f[1, 1])
+ctrf1 = contourf!(TensorField(ProductSpace(x,y)), xyz;
+    levels = levels)
+
+ax2 = Axis(f[1, 2])
+ctrf2 = contourf!(xy,xyz; levels = levels)
+f
+```
+
 ### heatmap
 
 [https://docs.makie.org/stable/reference/plots/heatmap](https://docs.makie.org/stable/reference/plots/heatmap)
+
+```julia
+f = Figure()
+ax = Axis(f[1, 1])
+
+centers_x = [1, 2, 4, 7, 11]
+centers_y = [6, 7, 9, 12, 16]
+xy = ProductSpace(centers_x,centers_y)
+
+heatmap!(TensorField(xy,reshape(1:25, 5, 5)))
+scatter!(TensorField(xy,collect(xy)),
+    color=:white, strokecolor=:black, strokewidth=1)
+f
+```
 
 ```julia
 xs = range(0, 2π, length=100)
@@ -162,9 +221,39 @@ fig
 
 [https://docs.makie.org/stable/reference/plots/linesegments](https://docs.makie.org/stable/reference/plots/linesegments)
 
+```julia
+f = Figure()
+Axis(f[1, 1])
+
+xs = TensorField(1:0.2:10)
+ys = sin(xs)
+
+linesegments!(ys)
+linesegments!(ys - 1, linewidth = 5)
+linesegments!(ys - 2, linewidth = 5,
+    color = LinRange(1, 5, length(xs)))
+f
+```
+
 ### mesh
 
 [https://docs.makie.org/stable/reference/plots/mesh](https://docs.makie.org/stable/reference/plots/mesh)
+
+```julia
+rs = 1:10
+thetas = 0:10:360
+
+xs = rs .* cosd.(thetas')
+ys = rs .* sind.(thetas')
+zs = sin.(rs) .* cosd.(thetas')
+
+xyz = TensorField(ProductSpace(rs,thetas),Chain.(xs,ys,zs))
+mesh(xyz,TensorField(xyz,zs))
+```
+```julia
+xy = TensorField(ProductSpace(rs,thetas),Chain.(xs,ys))
+mesh(xy,TensorField(xy,zs))
+```
 
 ### poly
 
@@ -197,6 +286,31 @@ scatter(pts, color = 1:30, markersize = range(5, 30, length = 30),
 ### streamplot
 
 [https://docs.makie.org/stable/reference/plots/streamplot](https://docs.makie.org/stable/reference/plots/streamplot)
+
+```julia
+v(x::Point2{T}) where T = Point2f(x[2], 4*x[1])
+streamplot(v, -2..2, -2..2)
+```
+```julia
+struct FitzhughNagumo{T}
+    e::T
+    s::T
+    y::T
+    b::T
+end
+
+P = FitzhughNagumo(0.1, 0.0, 1.5, 0.8)
+fun(x) = fun(x, P)
+fun(x, P::FitzhughNagumo) = Chain(
+    (x[1]-x[2]-x[1]^3+P.s)/P.e,
+    P.y*x[1]-x[2] + P.b)
+
+xy = OpenParameter(-1.5:0.1:1.5,-1.5:0.1:1.5)
+fig, ax, pl = streamplot(fun.(xy), colormap = :magma)
+```
+```julia
+streamplot(fun.(xy), color=(p)-> RGBAf(p..., 0.0, 1))
+```
 
 ### surface
 
@@ -252,7 +366,7 @@ data = map([(x,y,z) for x in r, y in r, z in r]) do (x,y,z)
 end
 colormap = [:red, :transparent, :transparent, RGBAf(0,1,0,0.5), :transparent, :blue]
 rrr = OpenParameter(r,r,r)
-Makie.volume(TensorField(rrr,data), algorithm = :indexedabsorption, colormap = colormap,
+volume(TensorField(rrr,data), algorithm = :indexedabsorption, colormap = colormap,
     interpolate = false, absorption = 5)
 ```
 
@@ -296,8 +410,8 @@ f, a, p = voxels(chunk,
 using GLMakie
 x, y = collect(-8:0.5:8), collect(-8:0.5:8)
 z = [sinc(√(X^2 + Y^2) / π) for X ∈ x, Y ∈ y]
-xyz = TensorField(OpenParameter(x,y),z)
-wireframe(xyz, axis=(type=Axis3,), color=:black)
+xyz = TensorField(ProductSpace(x,y),z)
+wireframe(graph(xyz), axis=(type=Axis3,), color=:black)
 ```
 
 ## UnicodePlots.jl
