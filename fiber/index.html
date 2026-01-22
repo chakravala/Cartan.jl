@@ -1450,10 +1450,10 @@ style=
           <span>$n=2$</span></li>
           <li><code>surfacearea</code> estimates total value of the
           (surface) <code>area</code> integral</li>
-          <li><code>surfacemetric</code> gets
+          <li><code>intrinsicmetric</code> gets
           <code>GridBundle</code> with <code>firstform</code> as
           <code>metrictensor</code></li>
-          <li><code>surfacemetricdiag</code> gets
+          <li><code>intrinsicmetricdiag</code> gets
           <code>GridBundle</code> with <code>firstformdiag</code>
           metric</li>
           <li><code>surfaceframe</code> constructs intrinsic
@@ -1670,8 +1670,8 @@ ball = TensorField(cube, x-&gt;abs(x)&lt;1) # radius = 1
         <p><strong>Theorem</strong> (Hyper-area of hypersurface).
         Let <span>$\gamma:X\subset\mathbb R^n\rightarrow\mathbb
         R^{n+1}$</span> be parameterized hypersurface
-        <span>$\partial(\Omega) = \gamma(X)$</span>. Since the
-        pullback <span>$\gamma^*(1)$</span> is <span>$\det
+        <span>$\partial(\Omega) = \gamma(X)$</span>. The pullback
+        is <span>$\gamma^*(1)$</span> with <span>$\det
         d\gamma$</span>,</p>
         <p class="math-container">\[ \int_{\partial(\Omega)} 1 =
         \int_{\gamma(X)} 1 = \int_X|\det d\gamma| = \int_X
@@ -1918,7 +1918,7 @@ A,M = assemble(pt,1,1,0) # stiffness & mass matrix assembly
 using KrylovKit # provides general eigsolve
 yi,xi = geneigsolve((A,M),10,:SR;krylovdim=100) # maxiter=100
 amp = TensorField.(Ref(pt),xi./3) # solutions amplitude
-mode = TensorField.(graphbundle.(amp),xi) # make 3D surface
+mode = TensorField.(amp,xi) # make 3D surface
 mesh(mode[7]); wireframe!(pt) # figure modes are 4,5,7,8,6,9</code></pre>
         <p>To build on the <code>FiberBundle</code> functionality
         of <code>Cartan</code>, the numerical analysis package
@@ -2315,7 +2315,7 @@ integrate(f.(t),F) # alternate syntax</code></pre>
           <p>This document was generated with <a href=
           "https://github.com/JuliaDocs/Documenter.jl">Documenter.jl</a>
           version 1.16.1 on <span class="colophon-date" title=
-          "Thursday 8 January 2026 05:26">Thursday 8 January
+          "Wednesday 21 January 2026 20:50">Wednesday 21 January
           2026</span>. Using Julia version 1.12.1.</p>
         </section>
         <footer class="modal-card-foot"></footer>
