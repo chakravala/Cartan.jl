@@ -38,9 +38,10 @@ updatetopology(t::IntervalMap) = isclosed(t) ? TorusTopology(t) : t
 
 #(::Derivation)(t::TensorField) = getnabla(t)
 function getnabla(t::TensorField)
+    W = Manifold(t)
     n = ndims(t)
-    V = Submanifold(tangent(S"0",1,n))
-    Chain(Values{n,Any}(Λ(V).b[2:n+1]...))
+    V = tangent(Grassmann.supermanifold(W),1,n)(list(n+1,2n))
+    Chain{W}(Values{n,Any}(Λ(V).b[2:n+1]...))
 end
 
 export invd, cartan, firststructure, secondstructure

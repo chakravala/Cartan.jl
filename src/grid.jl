@@ -982,7 +982,11 @@ for fun ∈ (:_slow,:_fast)
     @eval begin
         $cdf(f,args...) = $cdg(GridBundle(PointArray(0,fiber(f)),immersion(f)),args...)
         $cdp(f,args...) = $cdg(GridBundle(PointArray(0,points(f)),immersion(f)),args...)
-        $cdp(f::TensorField{B,F,Nf,<:RealSpace{Nf,P,<:InducedMetric} where P} where {B,F,Nf},n::Val{N},args...) where N = $cd(points(f).v[N],subtopology(immersion(f),n),args...)
+        function $cdp(f::TensorField{B,F,Nf,<:RealSpace{Nf,P,<:InducedMetric} where P} where {B,F,Nf},n::Val{N},args...) where N
+            pts = points(f).v[N]
+            isone(length(pts)) && (return 0f)
+            $cd(pts,subtopology(immersion(f),n),args...)
+        end
         function $grad(f::IntervalMap,d::AbstractVector=$cdp(f))
             TensorField(base(f), $cdf(f,d))
         end
@@ -1003,7 +1007,8 @@ for fun ∈ (:_slow,:_fast)
             end end
             TensorField(base(f), $cdf(f,n,dg))
         end
-        function $grad(f::TensorField,n::Val,d::AbstractArray=$cdp(f,n))
+        function $grad(f::TensorField,n::Val{N},d::AbstractArray=$cdp(f,n)) where N
+            isone(length(points(f).v[N])) && (return 0f)
             TensorField(base(f), $cdf(f,n,d))
         end
         $grad(f::TensorField,n::Int,args...) = $grad(f,Val(n),args...)
