@@ -628,12 +628,12 @@ integral_impulse_line(t::TensorField) = TensorField(base(t),spectral_sum_impulse
 gradient_chebyshev(v,D=ChebyshevMatrix(v)) = D*v
 
 function gradient_chebyshevfft(v::AbstractVector,d=spectral_diff_chebfft(v))
-    U = real.(chebyshevfft(v))
+    U = -real.(chebyshevfft(v))
     TensorField(v,chebyshevifft(d.*U,U,length(v)))
 end
 
 function gradient_chebyshevfft(v::AbstractMatrix,i)
-    U = real.(chebyshevfft(v,i))
+    U = -real.(chebyshevfft(v,i))
     V = complex.(U)
     N,M = size(v)
     if isone(i)
@@ -651,7 +651,7 @@ function gradient_chebyshevfft(v::AbstractMatrix,i)
 end
 
 function gradient_chebyshevfft(v::AbstractArray{T,3} where T,i)
-    U = real.(chebyshevfft(v,i))
+    U = -real.(chebyshevfft(v,i))
     V = complex.(U)
     N,M,R = size(v)
     if isone(i)
