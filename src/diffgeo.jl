@@ -553,7 +553,7 @@ function localevolute(f::AbstractCurve,d=centraldiffpoints(f),t=centraldifffiber
     TensorField(base(f), (s./an2).*n)
 end
 evolute(f::AbstractCurve) = f+localevolute(f)
-involute(f::AbstractCurve) = f-unittangent(f)*arclength(f)
+Grassmann.involute(f::AbstractCurve) = f-unittangent(f)*arclength(f)
 function Grassmann.involute(f::AbstractCurve,l)
     s = arclength(f)
     f-unittangent(f)*(s-s(float(l)))
