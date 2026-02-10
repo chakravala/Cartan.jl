@@ -761,8 +761,8 @@ gradient2_toeplitz(v,D=derivetoeplitz2(v)) = D*v
 
 toeplitz1(N,h=2π/N) = vcat(0,0.5*(-1).^(1:N-1).*cot.((1:N-1)*h/2))
 toeplitz2(N,h=2π/N) = vcat(-π^2/(3*h^2)-1/6,0.5*(-1).^(2:N)./sin.((1:N-1)*h/2).^2)
-function derivetoeplitz end
-function derivetoeplitz2 end
+derivetoeplitz(v) = derivetoeplitz(length(v))
+derivetoeplitz2(v) = derivetoeplitz2(length(v))
 export derivetoeplitz, derivetoeplitz2
 
 export integrate_haar, GaussLegendre, laplacian_chebyshevfft

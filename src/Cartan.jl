@@ -843,6 +843,83 @@ function chebyshevifft2(V1::AbstractArray{T,3} where T,V2::AbstractArray{T,3} wh
     return u
 end
 
+function resample_sinc(v,n)
+    N = length(v)
+    x = points(v)
+    h = step(x)
+    xx = resample(x,n)
+    p = zeros(length(xx))
+    for i ∈ 1:N
+        p += (fiber(v)[i]/h)*sinc.(xx.-x[i])
+    end
+    return TensorField(xx,p)
+end
+
+export resample_sinc, resample_lagrange, resample_roots
+export LagrangeWeights, lagrangepoints, lagrangeweights
+export lagrangepolynomial, rootspolynomial
+
+struct LagrangeWeights{T,W,V<:AbstractVector{T}} <: AbstractVector{T}
+    v::V
+    w::Vector{W}
+end
+
+LagrangeWeights(v::LagrangeWeights) = v
+LagrangeWeights(v::AbstractVector) = LagrangeWeights(v,lagrangeweights(v))
+LagrangeWeights(v::ProductSpace) = ProductSpace(LagrangeWeights.(split(v)))
+LagrangeWeights(t::PointArray) = PointArray(LagrangeWeights(points(t)),metricextensor(t))
+LagrangeWeights(t::GridBundle) = GridBundle(LagrangeWeights(fullcoordinates(t)),immersion(t))
+LagrangeWeights(t::TensorField) = TensorField(LagrangeWeights(base(t)),fiber(t))
+
+lagrangepoints(v) = v
+lagrangepoints(v::LagrangeWeights) = v.v
+lagrangepoints(v::FiberBundle) = lagrangepoints(points(v))
+
+lagrangeweights(v::LagrangeWeights) = v.w
+lagrangeweights(v::LagrangeWeights,j) = lagrangeweights(v)[j]
+lagrangeweights(v::FiberBundle) = lagrangeweights(points(v))
+lagrangeweights(v::FiberBundle,j) = lagrangeweights(points(v),j)
+lagrangeweights(v) = [lagrangeweights(v,j) for j ∈ 1:length(v)]
+function lagrangeweights(v,j)
+    out = fiber(v)[j].-v
+    inv(prod(out[1:j-1])*prod(out[j+1:end]))
+end
+
+#=function lagrangeweights2(v)
+    N,h = length(v),step(v)
+    [inv(Float64(factorial(big(j-1))*factorial(big(N-j)))*(h^(j-1))*((-h)^(N-j))) for  j ∈ 1:N]
+end=#
+
+resample_lagrange(t,n) = lagrangepolynomial(LagrangeWeights(t),resample(lagrangepoints(t),n))
+function lagrangepolynomial(t::TensorField,x::AbstractVector)
+    out = lagrangepolynomial(LagrangeWeights(points(t)),fiber(t),x)
+    TensorField(x,[isnan(out[i]) ? t(x[i]) : out[i] for i ∈ 1:length(out)])
+end
+function lagrangepolynomial(t::TensorField,x::AbstractMatrix)
+    out = lagrangepolynomial(LagrangeWeights(points(t)),fiber(t),fiber(x))
+    n,m = size(x)
+    TensorField(x,[iszero(j) && isnan(out[i,j]) ? t(real(x[i,j])) : out[i] for i ∈ 1:n, j ∈ 1:m])
+end
+function lagrangepolynomial(t::TensorField,x::Number)
+    out = lagrangepolynomial(LagrangeWeights(points(t)),fiber(t),x)
+    isnan(out) ? t(x) : out
+end
+lagrangepolynomial(L::LagrangeWeights,y,x::AbstractArray) = lagrangepolynomial.(Ref(L.v),Ref(L.w.*y),x)
+lagrangepolynomial(L::LagrangeWeights,y,x::Number) = lagrangepolynomial(L.v,L.w.*y,x)
+function lagrangepolynomial(v,wy,x)
+    xv = x.-v
+    prod(xv)*sum(wy./xv)
+end
+
+resample_roots(t,n) = rootspolynomial(t,resample(lagrangepoints(t),n))
+rootspolynomial(t::TensorField,x::AbstractArray) = TensorField(x,rootspolynomial(lagrangepoints(t),fiber(x)))
+rootspolynomial(t::TensorField,x::Number) = rootspolynomial(lagrangepoints(t),x)
+rootspolynomial(v,x::AbstractArray) = rootspolynomial.(Ref(v),x)
+rootspolynomial(v,x::Number) = prod(x.-v)
+
+Base.size(m::LagrangeWeights) = (length(m.v),)
+Base.getindex(m::LagrangeWeights,i::Int) = getindex(m.v,i)
+
 export besseljzero
 besseljzero(n,m,x=(m+n/2-1/4)*pi) = x - (4n^2-1)/(8x) # + ...
 

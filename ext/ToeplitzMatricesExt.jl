@@ -16,7 +16,7 @@ module ToeplitzMatricesExt
 using Grassmann, Cartan
 isdefined(Cartan, :Requires) ? (import Cartan: ToeplitzMatrices) : (using ToeplitzMatrices)
 
-Cartan.derivetoeplitz(N,h=2pi/N,c=Cartan.toeplitz(N,h)) = ToeplitzMatrices.Toeplitz(c,-c)
-Cartan.derivetoeplitz2(N,h=2pi/N,c=Cartan.toeplitz2(N,h)) = ToeplitzMatrices.Toeplitz(c,c)
+Cartan.derivetoeplitz(N::Int,h=2pi/N,c=Cartan.toeplitz1(N,h)) = ToeplitzMatrices.Toeplitz(c,-c)
+Cartan.derivetoeplitz2(N::Int,h=2pi/N,c=Cartan.toeplitz2(N,h)) = ToeplitzMatrices.Toeplitz(c,c)
 
 end # module
