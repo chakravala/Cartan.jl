@@ -856,103 +856,48 @@ function resample_sinc(v::AbstractVector,n)
     return TensorField(xx,p)
 end
 
-resample_sinc(v::AbstractMatrix,n,m) = resample_sinc(resample_sinc(v,n,Val(1)),m,Val(2))
-function resample_sinc(v::AbstractMatrix,n,::Val{q}) where q
-    siz = size(v)
-    N,M = siz
-    n1,n2 = isone(q) ? n : N,isone(q) ? M : n
-    x = split(points(v))[q]
-    h = step(x)
-    xy = resample(points(v),n1,n2)
-    xh,xxh = x/h,split(xy)[q]/h
-    p = zeros(n1,n2)
-    for i ∈ 1:siz[q]
-        sx = sinc.(xxh.-xh[i])
-        for j ∈ 1:(isone(q) ? M : N)
-            if isone(q)
-                p[:,j] .+= fiber(v)[i,j].*sx
-            else
-                p[j,:] .+= fiber(v)[j,i].*sx
-            end
-        end
-    end
-    return TensorField(xy,p)
-end
-
+resample_sinc(v::AbstractMatrix,n,m::Int) = resample_sinc(resample_sinc(v,n,Val(1)),m,Val(2))
 resample_sinc(v::AbstractArray{T,3} where T,n,m,o) = resample_sinc(resample_sinc(resample_sinc(v,n,Val(1)),m,Val(2)),o,Val(3))
-function resample_sinc(v::AbstractArray{T,3} where T,n,::Val{q}) where q
-    siz = size(v)
-    N,M,O = siz
-    n1,n2,n3 = isone(q) ? n : N, q==2 ? n : M, q==3 ? n : O
-    x = split(points(v))[q]
-    h = step(x)
-    xy = resample(points(v),n1,n2,n3)
-    xh,xxh = x/h,split(xy)[q]/h
-    p = zeros(n1,n2,n3)
-    for i ∈ 1:siz[q]
-        sx = sinc.(xxh.-xh[i])
-        for j ∈ 1:(isone(q) ? M : N)
-            for k ∈ 1:(q==3 ? M : O)
-                if isone(q)
-                    p[:,j,k] .+= fiber(v)[i,j,k].*sx
-                elseif q==2
-                    p[j,:,k] .+= fiber(v)[j,i,k].*sx
-                else
-                    p[j,k,:] .+= fiber(v)[j,k,i].*sx
-                end
-            end
-        end
-    end
-    return TensorField(xy,p)
-end
-
 resample_sinc(v::AbstractArray{T,4} where T,n,m,o,p) = resample_sinc(resample_sinc(resample_sinc(resample_sinc(v,n,Val(1)),m,Val(2)),o,Val(3)),p,Val(4))
-function resample_sinc(v::AbstractArray{T,4} where T,n,::Val{q}) where q
-    siz = size(v)
-    N,M,O,P = siz
-    n1,n2,n3,n4 = isone(q) ? n : N, q==2 ? n : M, q==3 ? n : O, q==4 ? n : P
-    x = split(points(v))[q]
-    h = step(x)
-    xy = resample(points(v),n1,n2,n3,n4)
-    xh,xxh = x/h,split(xy)[q]/h
-    p = zeros(n1,n2,n3,n4)
-    for i ∈ 1:siz[q]
-        sx = sinc.(xxh.-xh[i])
-        for j ∈ 1:(isone(q) ? M : N)
-            for k ∈ 1:(q==3 ? M : O)
-                for l ∈ 1:(q==4 ? O : P)
-                    if isone(q)
-                        p[:,j,k,l] .+= fiber(v)[i,j,k,l].*sx
-                    elseif q==2
-                        p[j,:,k,l] .+= fiber(v)[j,i,k,l].*sx
-                    elseif q==3
-                        p[j,k,:,l] .+= fiber(v)[j,k,i,l].*sx
-                    else
-                        p[j,k,l,:] .+= fiber(v)[j,k,l,i].*sx
-                    end
-                end
-            end
-        end
-    end
-    return TensorField(xy,p)
-end
-
 resample_sinc(v::AbstractArray{T,5} where T,n,m,o,p,q) = resample_sinc(resample_sinc(resample_sinc(resample_sinc(resample_sinc(v,n,Val(1)),m,Val(2)),o,Val(3)),p,Val(4)),q,Val(5))
-function resample_sinc(v::AbstractArray{T,5} where T,n,::Val{q}) where q
-    siz = size(v)
-    N,M,O,P,Q = siz
-    n1,n1,n2,n3,n4,n5 = q==1 ? n : N,q==2 ? n : M,q==3 ? n : O,q==4 ? n : P,q==5 ? n : Q
+function resample_sinc(v::AbstractArray{T,N} where T,n,Q::Val{q}) where {N,q}
+    M = size(v)
+    M2 = size_new(Q,n,M...)
     x = split(points(v))[q]
     h = step(x)
-    xy = resample(points(v),n1,n2,n3,n4,n5)
+    xy = resample(points(v),M2)
     xh,xxh = x/h,split(xy)[q]/h
-    p = zeros(n1,n2,n3,n4,n5)
-    for i ∈ 1:siz[q]
+    p = zeros(M2...)
+    for i ∈ 1:M[q]
         sx = sinc.(xxh.-xh[i])
-        for j ∈ 1:(isone(q) ? M : N)
-            for k ∈ 1:(q==3 ? M : O)
-                for l ∈ 1:(q==4 ? O : P)
-                    for m ∈ 1:(q==5 ? P : Q)
+        for j ∈ 1:M[isone(q) ? 2 : 1]
+            if N==2
+                if isone(q)
+                    p[:,j] .+= fiber(v)[i,j].*sx
+                else
+                    p[j,:] .+= fiber(v)[j,i].*sx
+                end
+            else for k ∈ 1:M[q==3 ? 2 : 3]
+                if N==3
+                    if isone(q)
+                        p[:,j,k] .+= fiber(v)[i,j,k].*sx
+                    elseif q==2
+                        p[j,:,k] .+= fiber(v)[j,i,k].*sx
+                    else
+                        p[j,k,:] .+= fiber(v)[j,k,i].*sx
+                    end
+                else for l ∈ 1:M[q==4 ? 3 : 4]
+                    if N==4
+                        if isone(q)
+                            p[:,j,k,l] .+= fiber(v)[i,j,k,l].*sx
+                        elseif q==2
+                            p[j,:,k,l] .+= fiber(v)[j,i,k,l].*sx
+                        elseif q==3
+                            p[j,k,:,l] .+= fiber(v)[j,k,i,l].*sx
+                        else
+                            p[j,k,l,:] .+= fiber(v)[j,k,l,i].*sx
+                        end
+                    else for m ∈ 1:M[q==5 ? 4 : 5]
                         if isone(q)
                             p[:,j,k,l,m] .+= fiber(v)[i,j,k,l,m].*sx
                         elseif q==2
@@ -964,9 +909,9 @@ function resample_sinc(v::AbstractArray{T,5} where T,n,::Val{q}) where q
                         else
                             p[j,k,l,m,:] .+= fiber(v)[j,k,l.m,i].*sx
                         end
-                    end
-                end
-            end
+                    end end
+                end end
+            end end
         end
     end
     return TensorField(xy,p)
@@ -1009,7 +954,6 @@ end=#
 
 resample(v::LagrangeWeights,n::Int) = length(v)==n ? v : resample(lagrangepoints(v),n)
 
-resample_lagrange(t::AbstractVector,n) = lagrangepolynomial(LagrangeWeights(t),resample(lagrangepoints(t),n))
 function lagrangepolynomial(t::TensorField,x::AbstractVector)
     out = lagrangepolynomial(LagrangeWeights(points(t)),fiber(t),x)
     TensorField(x,[isnan(out[i]) ? t(x[i]) : out[i] for i ∈ 1:length(out)])
@@ -1030,134 +974,88 @@ function lagrangepolynomial(v,wy,x)
     prod(xv)*sum(wy./xv)
 end
 
-resample_lagrange(v::AbstractMatrix,n,m) = resample_lagrange(resample_lagrange(LagrangeWeights(v),n,Val(1)),m,Val(2))
-function resample_lagrange(v::AbstractMatrix,n,::Val{q}) where q
-    N,M = size(v)
-    x,y = split(points(v))
-    xy = resample(points(v),isone(q) ? n : N,isone(q) ? M : n)
-    xx = split(xy)[q]
-    p = zeros(size(xy)...)
-    xh = split(points(v))[q]
-    w = lagrangeweights(xh)
-    for i ∈ 1:n
-        xv = xx[i].-xh
-        wxv = prod(xv).*(w./xv)
-        for j ∈ 1:(isone(q) ? M : N)
-            if isone(q)
-                pij = wxv⋅view(fiber(v),:,j)
-                p[i,j] = isnan(pij) ? v(xx[i],y[j]) : pij
-            else
-                pji = wxv⋅view(fiber(v),j,:)
-                p[j,i] = isnan(pji) ? v(x[j],xx[i]) : pji
-            end
-        end
-    end
-    return TensorField(xy,p)
-end
+#=lagrangepolynomial(L::LagrangeWeights,y,x::Number) = lagrangepolynomial(L.v,L.w,x)⋅y
+function lagrangepolynomial(v,w,x)
+    xv = x.-v
+    prod(xv)*(w./xv)
+end=#
 
+size_new(v::Val{q},n,N) where q = (isone(q) ? n : N,)
+size_new(v::Val{q},n,args...) where q = (size_new(v,n,args[1:end-1]...)...,q==length(args) ? n : args[end])
+
+resample_lagrange(t::AbstractVector,n) = lagrangepolynomial(LagrangeWeights(t),resample(lagrangepoints(t),n))
+resample_lagrange(v::AbstractMatrix,n,m::Int) = resample_lagrange(resample_lagrange(LagrangeWeights(v),n,Val(1)),m,Val(2))
 resample_lagrange(v::AbstractArray{T,3} where T,n,m,o) = resample_lagrange(resample_lagrange(resample_lagrange(LagrangeWeights(v),n,Val(1)),m,Val(2)),o,Val(3))
-function resample_lagrange(v::AbstractArray{T,3} where T,n,::Val{q}) where q
-    N,M,O = size(v)
-    n1,n2,n3 = isone(q) ? n : N, q==2 ? n : M, q==3 ? n : O
-    x,y,z = split(points(v))
-    xyz = resample(points(v),n1,n2,n3)
-    xx = split(xyz)[q]
-    p = zeros(size(xyz)...)
-    xh = split(points(v))[q]
-    w = lagrangeweights(xh)
-    for i ∈ 1:n
-        xv = xx[i].-xh
-        wxv = prod(xv).*(w./xv)
-        for j ∈ 1:(isone(q) ? M : N)
-            for k ∈ 1:(q==3 ? M : O)
-                if isone(q)
-                    pijk = wxv⋅view(fiber(v),:,j,k)
-                    p[i,j,k] = isnan(pijk) ? v(xx[i],y[j],z[k]) : pijk
-                elseif q==2
-                    pjik = wxv⋅view(fiber(v),j,:,k)
-                    p[j,i,k] = isnan(pjik) ? v(x[j],xx[i],z[k]) : pjik
-                else
-                    pjki = wxv⋅view(fiber(v),j,k,:)
-                    p[j,k,i] = isnan(pjki) ? v(x[j],y[k],xx[i]) : pjki
-                end
-            end
-        end
-    end
-    return TensorField(xyz,p)
-end
-
 resample_lagrange(v::AbstractArray{T,4} where T,n,m,o,p) = resample_lagrange(resample_lagrange(resample_lagrange(resample_lagrange(LagrangeWeights(v),n,Val(1)),m,Val(2)),o,Val(3)),p,Val(4))
-function resample_lagrange(v::AbstractArray{T,4} where T,n,::Val{q}) where q
-    N,M,O,P = size(v)
-    n1,n2,n3,n4 = isone(q) ? n : N, q==2 ? n : M, q==3 ? n : O, q==4 ? n : P
-    x,y,z,a = split(points(v))
-    xyz = resample(points(v),n1,n2,n3,n4)
-    xx = split(xyz)[q]
-    p = zeros(size(xyz)...)
-    xh = split(points(v))[q]
-    w = lagrangeweights(xh)
-    for i ∈ 1:n
-        xv = xx[i].-xh
-        wxv = prod(xv).*(w./xv)
-        for j ∈ 1:(isone(q) ? M : N)
-            for k ∈ 1:(q==3 ? M : O)
-                for l ∈ 1:(q==4 ? O : P)
-                    if isone(q)
-                        pijkl = wxv⋅view(fiber(v),:,j,k,l)
-                        p[i,j,k,l] = isnan(pijkl) ? v(xx[i],y[j],z[k],a[l]) : pijkl
-                    elseif q==2
-                        pjikl = wxv⋅view(fiber(v),j,:,k,l)
-                        p[j,i,k,l] = isnan(pjikl) ? v(x[j],xx[i],z[k],a[l]) : pjikl
-                    elseif q==3
-                        pjkil = wxv⋅view(fiber(v),j,k,:,l)
-                        p[j,k,i,l] = isnan(pjkil) ? v(x[j],y[k],xx[i],a[l]) : pjkil
-                    else
-                        pjkli = wxv⋅view(fiber(v),j,k,l,:)
-                        p[j,k,l,i] = isnan(pjkli) ? v(x[j],y[k],a[l],xx[i]) : pjkli
-                    end
-                end
-            end
-        end
-    end
-    return TensorField(xyz,p)
-end
-
 resample_lagrange(v::AbstractArray{T,5} where T,n,m,o,p,q) = resample_lagrange(resample_lagrange(resample_lagrange(resample_lagrange(resample_lagrange(LagrangeWeights(v),n,Val(1)),m,Val(2)),o,Val(3)),p,Val(4)),q,Val(5))
-function resample_lagrange(v::AbstractArray{T,5} where T,n,::Val{q}) where q
-    N,M,O,P,Q = size(v)
-    n1,n2,n3,n4,n5 = q==1 ? n : N,q==2 ? n : M,q==3 ? n : O,q==4 ? n : P,q==5 ? n : Q
-    x,y,z,a,b = split(points(v))
-    xyz = resample(points(v),n1,n2,n3,n4,n5)
-    xx = split(xyz)[q]
-    p = zeros(size(xyz)...)
+function resample_lagrange(v::AbstractArray{T,N} where T,n,Q::Val{q}) where {N,q}
+    M = size(v)
+    M[q] == n && (return v)
+    X = split(points(v))
+    xyz = resample(points(v),size_new(Q,n,M...))
+    xx,p = split(xyz)[q],zeros(size(xyz)...)
     xh = split(points(v))[q]
     w = lagrangeweights(xh)
     for i ∈ 1:n
-        xv = xx[i].-xh
+        xi = xx[i]
+        xv = xi.-xh
         wxv = prod(xv).*(w./xv)
-        for j ∈ 1:(isone(q) ? M : N)
-            for k ∈ 1:(q==3 ? M : O)
-                for l ∈ 1:(q==4 ? O : P)
-                    for m ∈ 1:(q==5 ? P : Q)
-                        if isone(q)
-                            pijklm = wxv⋅view(fiber(v),:,j,k,l,m)
-                            p[i,j,k,l,m] = isnan(pijklm) ? v(xx[i],y[j],z[k],a[l],b[m]) : pijklm
-                        elseif q==2
-                            pjiklm = wxv⋅view(fiber(v),j,:,k,l,m)
-                            p[j,i,k,l,m] = isnan(pjiklm) ? v(x[j],xx[i],z[k],a[l],b[m]) : pjiklm
-                        elseif q==3
-                            pjkilm = wxv⋅view(fiber(v),j,k,:,l,m)
-                            p[j,k,i,l,m] = isnan(pjkilm) ? v(x[j],y[k],xx[i],a[l],b[m]) : pjkilm
-                        elseif q==4
-                            pjklim = wxv⋅view(fiber(v),j,k,l,:,m)
-                            p[j,k,l,i,m] = isnan(pjklim) ? v(x[j],y[k],a[l],xx[i],b[m]) : pjklim
-                        else
-                            pjklmi = wxv⋅view(fiber(v),j,k,l,m,:)
-                            p[j,k,l,m,i] = isnan(pjklmi) ? v(x[j],y[k],a[l],b[m],xx[i]) : pjklmi
-                        end
-                    end
+        for j ∈ 1:M[isone(q) ? 2 : 1]
+            if N==2
+                if isone(q)
+                    u = wxv⋅view(fiber(v),:,j)
+                    p[i,j] = isnan(u) ? v(xi,X[2][j]) : u
+                else
+                    u = wxv⋅view(fiber(v),j,:)
+                    p[j,i] = isnan(u) ? v(X[1][j],xi) : u
                 end
-            end
+            else for k ∈ 1:M[q==3 ? 2 : 3]
+                if N==3
+                    if isone(q)
+                        u = wxv⋅view(fiber(v),:,j,k)
+                        p[i,j,k] = isnan(u) ? v(xi,X[2][j],X[3][k]) : u
+                    elseif q==2
+                        u = wxv⋅view(fiber(v),j,:,k)
+                        p[j,i,k] = isnan(u) ? v(X[1][j],xi,X[3][k]) : u
+                    else
+                        u = wxv⋅view(fiber(v),j,k,:)
+                        p[j,k,i] = isnan(u) ? v(X[1][j],X[2][k],xi) : u
+                    end
+                else for l ∈ 1:M[q==4 ? 3 : 4]
+                    if N==4
+                        if isone(q)
+                            u = wxv⋅view(fiber(v),:,j,k,l)
+                            p[i,j,k,l] = isnan(u) ? v(xi,X[2][j],X[3][k],X[4][l]) : u
+                        elseif q==2
+                            u = wxv⋅view(fiber(v),j,:,k,l)
+                            p[j,i,k,l] = isnan(u) ? v(X[1][j],xi,X[3][k],X[4][l]) : u
+                        elseif q==3
+                            u = wxv⋅view(fiber(v),j,k,:,l)
+                            p[j,k,i,l] = isnan(u) ? v(X[1][j],X[2][k],xi,X[4][l]) : u
+                        else
+                            u = wxv⋅view(fiber(v),j,k,l,:)
+                            p[j,k,l,i] = isnan(u) ? v(X[1][j],X[2][k],X[3][l],xi) : u
+                        end
+                    else for m ∈ 1:M[q==5 ? 4 : 5]
+                        if isone(q)
+                            u = wxv⋅view(fiber(v),:,j,k,l,m)
+                            p[i,j,k,l,m] = isnan(u) ? v(xi,X[2][j],X[3][k],X[4][l],X[5][m]) : u
+                        elseif q==2
+                            u = wxv⋅view(fiber(v),j,:,k,l,m)
+                            p[j,i,k,l,m] = isnan(u) ? v(X[1][j],xi,X[3][k],X[4][l],X[5][m]) : u
+                        elseif q==3
+                            u = wxv⋅view(fiber(v),j,k,:,l,m)
+                            p[j,k,i,l,m] = isnan(u) ? v(X[1][j],X[2][k],xi,X[4][l],X[5][m]) : u
+                        elseif q==4
+                            u = wxv⋅view(fiber(v),j,k,l,:,m)
+                            p[j,k,l,i,m] = isnan(u) ? v(X[1][j],X[2][k],X[3][l],xi,X[5][m]) : u
+                        else
+                            u = wxv⋅view(fiber(v),j,k,l,m,:)
+                            p[j,k,l,m,i] = isnan(u) ? v(X[1][j],X[2][k],X[3][l],X[4][m],xi) : u
+                        end
+                    end end
+                end end
+            end end
         end
     end
     return TensorField(xyz,p)
