@@ -506,6 +506,10 @@ Base.getindex(f::FourierSpace,i::Int) = f.f[i]
 invdim(f::FourierSpace,dims=1) = length(f.v)
 invdim(f::ProductSpace,dims=1) = invdim(f.v[dims])
 invdim(f::AbstractVector,dims=1) = length(f)
+isfourier(x::FourierSpace) = true
+isfourier(x::ProductSpace) = prod(isfourier.(split(x)))
+isfourier(x::FiberBundle) = isfourier(points(x))
+isfourier(x) = false
 
 export fftspace, rfftspace, r2rspace
 import AbstractFFTs: fftfreq, rfftfreq, fftshift, ifftshift
@@ -545,7 +549,7 @@ function r2rspace(N::Real,kind::Int,fs=1)
     out = r2rspace(N,1/fs)
     kind ∈ (9,6,10) ? out .+ out[2] : out
 end
-r2rspace(x::AbstractRange,kind) = FourierSpace(r2rspace(length(x),kind,π/(x[end]-x[1])),x)
+r2rspace(x::AbstractRange,kind) = FourierSpace(r2rspace(length(x),kind,(x[end]-x[1])/π),x)
 r2rspace(x::FourierSpace,kind) = x.v
 r2rspace(x::Frequencies,kind) = Base.OneTo(length(x))
 
@@ -632,6 +636,169 @@ function irflt(f::TensorField)
         out[i,:] = exp.(fiber(σ)[i]*fiber(t)).*irfft(view(fiber(f),i,:),id)
     end
     return TensorField(base(t),vec(sum(out;dims=1))/length(σ))
+end
+
+export fgt, bfgt, rfgt, brfgt
+for fun ∈ (:fgt, :bfgt, :rfgt, :brfgt)
+    @eval $fun(f::TensorField,σ::Int,g) = $fun(f,resample(points(f),σ),g)
+end
+function fgt(f::TensorField,σ::AbstractVector,g)
+    t = TensorField(base(f))
+    out = Matrix{Complex{Float64}}(undef,length(σ),length(t))
+    for i ∈ 1:length(σ)
+        out[i,:] = fiber(fft(g(t-fiber(σ)[i])*f))
+    end
+    return TensorField(σ⊕fftspace(base(f)),out)
+end
+function bfgt(f::TensorField,σ::AbstractVector,g)
+    t = TensorField(base(f))
+    out = Matrix{Complex{Float64}}(undef,length(σ),length(t))
+    for i ∈ 1:length(σ)
+        out[i,:] = fiber(bfft(g(t-fiber(σ)[i])*f))
+    end
+    return TensorField(σ⊕fftspace(base(f)),out)
+end
+function rfgt(f::TensorField,σ::AbstractVector,g)
+    t = TensorField(base(f))
+    out = Matrix{Complex{Float64}}(undef,length(σ),length(t))
+    for i ∈ 1:length(σ)
+        out[i,:] = fiber(rfft(g(t-fiber(σ)[i])*f))
+    end
+    return TensorField(σ⊕rfftspace(base(f)),out)
+end
+function brfgt(f::TensorField,σ::AbstractVector,g)
+    t = TensorField(base(f))
+    id = length(t)
+    out = Matrix{Complex{Float64}}(undef,length(σ),id)
+    for i ∈ 1:length(σ)
+        out[i,:] = fiber(brfft(g(t-fiber(σ)[i])*f,id))
+    end
+    return TensorField(σ⊕rfftspace(base(f)),out)
+end
+
+export OrthogonalTransform, seriestransform
+export FourierCosine, FourierSine, ChebyshevFirst, ChebyshevSecond
+
+struct OrthogonalTransform{F,T}
+    f::F
+    a::T
+    b::T
+end
+
+const FourierCosine = OrthogonalTransform((n,x)->cos(n*x),0.0,float(π))
+const FourierSine = OrthogonalTransform((n,x)->sin((n+1)*x),0.0,float(π))
+const ChebyshevFirst = OrthogonalTransform((n,x)->cos(n*acos(x)),-1.0,1.0)
+const ChebyshevSecond = OrthogonalTransform((n,x)->(θ=acos(x);iszero(θ) ? one(θ) : sin((n+1)*θ)/sin(θ)),-1.0,1.0)
+
+(ot::OrthogonalTransform)(n::Int,x) = ot.f(n,x)
+(ot::OrthogonalTransform)(g,args...) = seriestransform(g,ot.f,ot.a,ot.b,args...)
+
+function seriestransform(g::AbstractVector,f,a,b,N=length(g)-1,m=0) # first N coefficients of g
+    if isfourier(points(g)) # restore
+        x = TensorField(fftspace(base(g)))
+        ωx = ((b-a)/fiber(x[end]-x[1]))*x + a
+        out = fiber(g)[1]*f(m,ωx)
+        for n ∈ 2:N-m+1
+            out += fiber(g)[n]*f(n+m-1,ωx)
+        end
+        return out
+    else # transform to series coefficients
+        x = TensorField(base(g))
+        L = fiber(x[end]-x[1]) # T/2
+        ω = FourierSpace(((b-a)/L)*(m:N),points(x))
+        ωx = ((b-a)/L)*x + a
+        TensorField(ω,[(2/L)*integrate(g*f(n,ωx)) for n in m:N])
+    end
+end
+
+function seriestransform(g::AbstractMatrix,f,a,b,N=size(g)[1]-1,M=size(g)[2]-1,m=0)
+    isf = isfourier(points(g))
+    XY = TensorField(isf ? fftspace(base(g)) : base(g))
+    X,Y = split(XY)
+    x,y = split(points(XY))
+    L1,L2 = x[end]-x[1],y[end]-y[1] # T1/2, T2/2
+    ωx,ωy = ((b-a)/L1)*X + a, ((b-a)/L2)*Y + a
+    if isf # restore
+        out = 0*ωx
+        for i ∈ 1:N-m+1, j ∈ 1:M-m+1
+            out += fiber(g)[i,j]*f(i+m-1,ωx)*f(j+m-1,ωy)
+        end
+        return out
+    else # transform to series coefficients
+        ω1 = FourierSpace(((b-a)/L1)*(m:N),x)
+        ω2 = FourierSpace(((b-a)/L2)*(m:M),y)
+        TensorField(ProductSpace{Manifold(XY)}(ω1,ω2),[(4/(L1*L2))*
+        integrate(g*f(i,ωx)*f(j,ωy)) for i in m:N, j in m:M])
+    end
+end
+
+function seriestransform(g::AbstractArray{T,3} where T,f,a,b,N=size(g)[1]-1,M=size(g)[2]-1,A=size(g)[3]-1,m=0)
+    isf = isfourier(points(g))
+    XYZ = TensorField(isf ? fftspace(base(g)) : base(g))
+    X,Y,Z = split(XYZ)
+    x,y,z = split(points(XYZ))
+    L1,L2,L3 = x[end]-x[1],y[end]-y[1],z[end]-z[1]
+    ωx,ωy,ωz = ((b-a)/L1)*X + a, ((b-a)/L2)*Y + a, ((b-a)/L3)*Z + a
+    if isf # restore
+        out = 0*ωx
+        for i ∈ 1:N-m+1, j ∈ 1:M-m+1, k ∈ 1:A-m+1
+            out += fiber(g)[i,j,k]*f(i+m-1,ωx)*f(j+m-1,ωy)*f(k+m-1,ωz)
+        end
+        return out
+    else # transform to series coefficients
+        ω1 = FourierSpace(((b-a)/L1)*(m:N),x)
+        ω2 = FourierSpace(((b-a)/L2)*(m:M),y)
+        ω3 = FourierSpace(((b-a)/L3)*(m:A),z)
+        TensorField(ProductSpace{Manifold(XYZ)}(ω1,ω2,ω3),[(8/(L1*L2*L3))*
+        integrate(g*f(i,ωx)*f(j,ωy)*f(k,ωz)) for i in m:N, j in m:M, k ∈ m:A])
+    end
+end
+
+function seriestransform(g::AbstractArray{T,4} where T,f,a,b,N=size(g)[1]-1,M=size(g)[2]-1,A=size(g)[3]-1,B=size(g)[4],m=0)
+    isf = isfourier(points(g))
+    XYZ = TensorField(isf ? fftspace(base(g)) : base(g))
+    X,Y,Z,U = split(XYZ)
+    x,y,z,u = split(points(XYZ))
+    L1,L2,L3,L4 = x[end]-x[1],y[end]-y[1],z[end]-z[1],u[end]-u[1]
+    ωx,ωy,ωz,ωu = ((b-a)/L1)*X + a, ((b-a)/L2)*Y + a, ((b-a)/L3)*Z + a, ((b-a)/L4)*U +a
+    if isf # restore
+        out = 0*ωx
+        for i ∈ 1:N-m+1, j ∈ 1:M-m+1, k ∈ 1:A-m+1, l ∈ 1:B-m+1
+            out += fiber(g)[i,j,k]*f(i+m-1,ωx)*f(j+m-1,ωy)*f(k+m-1,ωz)*f(l+m-1,ωu)
+        end
+        return out
+    else # transform to series coefficients
+        ω1 = FourierSpace(((b-a)/L1)*(m:N),x)
+        ω2 = FourierSpace(((b-a)/L2)*(m:M),y)
+        ω3 = FourierSpace(((b-a)/L3)*(m:A),z)
+        ω4 = FourierSpace(((b-a)/L4)*(m:B),u)
+        TensorField(ProductSpace{Manifold(XYZ)}(ω1,ω2,ω3,ω4),[(8/(L1*L2*L3*L4))*
+        integrate(g*f(i,ωx)*f(j,ωy)*f(k,ωz)*f(l,ωu)) for i in m:N, j in m:M, k ∈ m:A, l ∈ m:B])
+    end
+end
+
+function seriestransform(g::AbstractArray{T,5} where T,f,a,b,N=size(g)[1]-1,M=size(g)[2]-1,A=size(g)[3]-1,B=size(g)[4],C=size(g)[5],m=0)
+    isf = isfourier(points(g))
+    XYZ = TensorField(isf ? fftspace(base(g)) : base(g))
+    X,Y,Z,U,W = split(XYZ)
+    x,y,z,u,w = split(points(XYZ))
+    L1,L2,L3,L4,L5 = x[end]-x[1],y[end]-y[1],z[end]-z[1],u[end]-u[1]
+    ωx,ωy,ωz,ωu,ωw = ((b-a)/L1)*X + a, ((b-a)/L2)*Y + a, ((b-a)/L3)*Z + a, ((b-a)/L4)*U + a, ((b-a)/L5)*W + a
+    if isf # restore
+        out = 0*ωx
+        for i ∈ 1:N-m+1, j ∈ 1:M-m+1, k ∈ 1:A-m+1, l ∈ 1:B-m+1, o ∈ 1:C-m+1
+            out += fiber(g)[i,j,k]*f(i+m-1,ωx)*f(j+m-1,ωy)*f(k+m-1,ωz)*f(l+m-1,ωu)*f(o+m-1,ωw)
+        end
+        return out
+    else # transform to series coefficients
+        ω1 = FourierSpace(((b-a)/L1)*(m:N),x)
+        ω2 = FourierSpace(((b-a)/L2)*(m:M),y)
+        ω3 = FourierSpace(((b-a)/L3)*(m:A),z)
+        ω4 = FourierSpace(((b-a)/L4)*(m:B),u)
+        ω5 = FourierSpace(((b-a)/L5)*(m:C),w)
+        TensorField(ProductSpace{Manifold(XYZ)}(ω1,ω2,ω3,ω4),[(8/(L1*L2*L3*L4))*
+        integrate(g*f(i,ωx)*f(j,ωy)*f(k,ωz)*f(l,ωu)*f(o,ωw)) for i in m:N, j in m:M, k ∈ m:A, l ∈ m:B, o ∈ m:C])
+    end
 end
 
 export Chebyshev, ChebyshevMatrix, ChebyshevVector, chebyshevfft, chebyshevifft, unitpoints
@@ -862,6 +1029,7 @@ resample_sinc(v::AbstractArray{T,4} where T,n,m,o,p) = resample_sinc(resample_si
 resample_sinc(v::AbstractArray{T,5} where T,n,m,o,p,q) = resample_sinc(resample_sinc(resample_sinc(resample_sinc(resample_sinc(v,n,Val(1)),m,Val(2)),o,Val(3)),p,Val(4)),q,Val(5))
 function resample_sinc(v::AbstractArray{T,N} where T,n,Q::Val{q}) where {N,q}
     M = size(v)
+    M[q] == n && (return v)
     M2 = size_new(Q,n,M...)
     x = split(points(v))[q]
     h = step(x)
