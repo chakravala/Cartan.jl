@@ -19,6 +19,7 @@ export gradient_fft, gradient_rfft, integral_fft, integral_rfft
 export gradient_impulse, gradient_impulse_fft, gradient_impulse_rfft
 export integral_impulse, integral_impulse_fft, integral_impulse_rfft
 export integral, integrate, ∫, convolve, hat, spike, heaviside
+export integral_riesz, integrate_riesz, metricvolume, metricfiber
 
 function _product(f::AbstractVector,g::AbstractVector,fun::Function)
     [fun(fiber(f)[i],fiber(g)[j]) for i ∈ OneTo(length(f)), j ∈ OneTo(length(g))]
@@ -451,49 +452,6 @@ function quintlinterp(m,t::Chain{V,G,T,5} where {G,T}) where V
         f[i,j,k+1,l,o+1],f[i+1,j,k+1,l,o+1],f[i,j+1,k+1,l,o+1],f[i+1,j+1,k+1,l,o+1],
         f[i,j,k,l+1,o+1],f[i+1,j,k,l+1,o+1],f[i,j+1,k,l+1,o+1],f[i+1,j+1,k,l+1,o+1],
         f[i,j,k+1,l+1,o+1],f[i+1,j,k+1,l+1,o+1],f[i,j+1,k+1,l+1,o+1],f[i+1,j+1,k+1,l+1,o+1])
-end
-
-struct GaussLegendre{L,G} <: DenseVector{L}
-    v::Vector{L}
-    g::Vector{G}
-end
-
-function GaussLegendre(N::Int)
-    β = 0.5./sqrt.(1.0.-(2*(1:N-1)).^-2)
-    T = spdiagm(1=>β,-1=>β)
-    E,V = eigen(Matrix(T))
-    GaussLegendre(E,2V[1,:].^2)
-end
-function GaussLegendre(x::AbstractVector)
-    c = GaussLegendre(length(x))
-    scale = (x[end]-x[1])/2
-    E = (c.+1)*scale.+x[1]
-    GaussLegendre(E,gausslegendre(c)*scale)
-end
-
-Base.size(t::GaussLegendre) = size(points(t))
-Base.getindex(t::GaussLegendre,i::Integer) = points(t)[i]
-points(t::GaussLegendre) = t.v
-gausslegendre(t::TensorField) = gausslegendre(points(t))
-gausslegendre(t::GaussLegendre) = t.g
-
-function integrate_haar(f,z,θ=range(-pi,pi,70))
-    N = length(θ)
-    out = 0z
-    for i ∈ 1:N
-        out .+= f(fiber(θ)[i],z)
-    end
-    out/N
-end
-
-function integral_haar(f,z,θ=range(-pi,pi,70))
-    N = length(θ)
-    out = zeros(typeof(z),N)
-    out[1] = f(fiber(θ)[1],z)
-    for i ∈ 2:N
-        out[i] = out[i-1]+f(fiber(θ)[i],z)
-    end
-    TensorField(θ,out/N)
 end
 
 select_hat(p,t,i) = abs(p[i]-t) < abs(p[i+1]-t) ? i : i+1
@@ -953,6 +911,159 @@ end
 
 # trapezoid # ⎎, ∇
 
+export RieszQuadrature, rieszweights, ChebyshevQuadrature, ClenshawCurtis
+export TrapezoidQuadrature, integral_trapz, integrate_trapz
+export integrate_haar, GaussLegendre, clenshawcurtis, gausslegendre
+export integrate_chebyshev, integrate_clenshawcurtis, integrate_gausslegendre
+export integral_chebyshev, integral_clenshawcurtis, integral_gausslegendre
+
+struct RieszQuadrature{L,G,T<:AbstractVector{L}} <: DenseVector{L}
+    v::T
+    g::Vector{G}
+end
+
+Base.size(t::RieszQuadrature) = size(points(t))
+Base.getindex(t::RieszQuadrature,i::Integer) = points(t)[i]
+points(t::RieszQuadrature) = t.v
+rieszweights(t::FiberBundle) = rieszweights(points(t))
+rieszweights(t::ProductSpace) = rieszweights.(split(t))
+rieszweights(t::RieszQuadrature) = t.g
+rieszweights(t::AbstractVector) = trapzweights(t)
+
+gausslegendre(t::AbstractVector) = rieszweights(GaussLegendre(t))
+gausslegendre(t::RieszQuadrature) = rieszweights(t)
+gausslegendre(t::FiberBundle) = gausslegendre(points(t))
+gausslegendre(t::ProductSpace) = gausslegendre.(split(t))
+#GaussLegendre(t::FiberBundle) = GaussLegendre(points(t))
+GaussLegendre(t::ProductSpace{V}) where V = ProductSpace{V}(GaussLegendre.(split(t)))
+GaussLegendre(t::RieszQuadrature) = t
+function GaussLegendre(N::Int)
+    β = 0.5./sqrt.(1.0.-(2*(1:N-1)).^-2)
+    T = spdiagm(1=>β,-1=>β)
+    E,V = eigen(Matrix(T))
+    RieszQuadrature(E,2V[1,:].^2)
+end
+function GaussLegendre(x::AbstractVector)
+    c = GaussLegendre(length(x))
+    scale = (x[end]-x[1])/2
+    E = (c.+1)*scale.+x[1]
+    RieszQuadrature(E,rieszweights(c)*scale)
+end
+
+ChebyshevQuadrature(t::ProductSpace{V}) where V = ProductSpace{V}(ChebyshevQuadrature.(split(t)))
+ChebyshevQuadrature(t::RieszQuadrature) = t
+ChebyshevQuadrature(t::AbstractVector) = RieszQuadrature(t,ChebyshevVector(t))
+ChebyshevVector(t::RieszQuadrature) = rieszweights(t)
+
+#ClenshawCurtis(t::FiberBundle) = ClenshawCurtis(points(t))
+ClenshawCurtis(t::ProductSpace{V}) where V = ProductSpace{V}(ClenshawCurtis.(split(t)))
+ClenshawCurtis(t::RieszQuadrature) = t
+ClenshawCurtis(t::AbstractVector) = RieszQuadrature(t,clenshawcurtis(t))
+clenshawcurtis(t::RieszQuadrature) = rieszweights(t)
+
+#TrapezoidQuadrature(t::FiberBundle) = TrapezoidQuadrature(points(t))
+TrapezoidQuadrature(t::ProductSpace{V}) where V = ProductSpace{V}(TrapezoidQuadrature.(split(t)))
+TrapezoidQuadrature(t::RieszQuadrature) = t
+TrapezoidQuadrature(t::AbstractVector) = RieszQuadrature(t,trapzweights(t))
+
+trapzweights(t::FiberBundle) = trapzweights(points(t))
+trapzweights(t::ProductSpace) = trapzweights.(split(t))
+trapzweights(t::AbstractRange) = trapzweights(length(t),step(t))
+function trapzweights(n::Int,h::Real)
+    w = h*ones(n)
+    w[1] /= 2
+    w[end] /= 2
+    return w
+end
+function trapzweights(f::AbstractVector)
+    d = diff(points(f))/2
+    pushfirst!(d,0)
+    d[1:end-1] += d[2:end]
+    return d
+end
+
+metricvolume(f) = principalnorm(base(f))
+metricvolume(f,j::Int) = metricvolume(f,Val(j))
+metricvolume(f,::Val{J}) where J = sqrt.(abs.(getindex.(metrictensor(f),J,J)))
+metricfiber(f) = fiber(principalaction(f))
+metricfiber(f,j::Int) = metricfiber(f,Val(j))
+metricfiber(f,::Val{J}) where J = fiber(f).*sqrt.(abs.(getindex.(metrictensor(f),J,J)))
+
+for (fun,Fun) ∈ ((:trapz,:trapzweights),(:chebyshev,:ChebyshevVector),(:clenshawcurtis,:clenshawcurtis),(:gausslegendre,:gausslegendre))
+    @eval begin
+        $(Symbol(:integral_,fun))(t,w::AbstractVector=$Fun(t)) = integral_riesz(t,w)
+        $(Symbol(:integrate_,fun))(t,w::AbstractVector=$Fun(t)) = integrate_riesz(t,w)
+        $(Symbol(:integral_,fun))(t,j::Int,w::AbstractVector=$Fun(t)) = integral_riesz(t,j,w)
+        $(Symbol(:integrate_,fun))(t,j::Int,w::AbstractVector=$Fun(t)) = integrate_riesz(t,j,w)
+        $(Symbol(:integral_,fun))(t,j::Val,w::AbstractVector=$Fun(t)) = integral_riesz(t,j,w)
+        $(Symbol(:integrate_,fun))(t,j::Val,w::AbstractVector=$Fun(t)) = integrate_riesz(t,j,w)
+    end
+end
+
+integrate_riesz(f::IntervalMap,d::AbstractVector=rieszweights(f)) = d⋅fiber(f)
+integrate_riesz(f::IntervalMap,j::Int,d::AbstractVector=rieszweights(f)) = integrate_riesz(f,Val(j),d)
+integrate_riesz(f::IntervalMap,j::Val{1},d::AbstractVector=rieszweights(f)) = integrate_riesz(f,d)
+integrate_riesz(f::ParametricMap,j::Int,d::AbstractVector=rieszweights(split(points(f))[j])) = integrate_riesz(f,Val(j),d)
+function integrate_riesz(f::ParametricMap,j::Val{J},d::AbstractVector=rieszweights(split(points(f))[J])) where J
+    met = isinduced(f)&&!isextrinsic(f) ? copy(fiber(f)) : metricfiber(f,j)
+    remove(base(f),j) → integrate_riesz2(met,j,d)
+end
+function genweights2(n,j,f=:f,d=:(d[$j]))
+    quote
+        for k ∈ 1:s[$j]
+            $(select1(n,j,:k)) *= $d[k]
+        end
+        f = $(select1(n,j,1,:(sum(f,dims=$j))))
+    end
+end
+for N ∈ list(2,5)
+    @eval function integrate_riesz(m::ParametricMap{B,F,$N,T} where {B,F,T},d::AbstractVector=rieszweights(m))
+        s = size(m)
+        f = isinduced(m)&&!isextrinsic(m) ? copy(fiber(m)) : metricfiber(m)
+        $(Expr(:block,vcat([genweights2(j,j).args for j ∈ N:-1:1]...)...))
+    end
+    for J ∈ list(1,N)
+        @eval function integrate_riesz2(f::AbstractArray{T,$N} where T,j::Val{$J},d)
+            s = size(c)
+            $(genweights2(N,J,:f,:d))
+        end
+    end
+end
+
+integral_riesz(f::IntervalMap,d::AbstractVector=rieszweights(f)) = TensorField(f,cumsum(d.*fiber(f)))
+integral_riesz(f::IntervalMap,j::Int,d::AbstractVector=rieszweights(f)) = integral_riesz(f,Val(j),d)
+integral_riesz(f::IntervalMap,j::Val{1},d::AbstractVector=rieszweights(f)) = integral_riesz(f,d)
+integral_riesz(f::ParametricMap,j::Int,d::AbstractVector=rieszweights(split(points(f))[j])) = integral_riesz(f,Val(j),d)
+function integral_riesz(f::ParametricMap,j::Val{J},d::AbstractVector=rieszweights(split(points(f))[J])) where J
+    met = isinduced(f)&&!isextrinsic(f) ? copy(fiber(f)) : metricfiber(f,j)
+    TensorField(base(f), integral_riesz2(met,j,d))
+end
+selectzeros(n,j) = :(zeros(T,$([i≠j ? :(s[$i]) : 1 for i ∈ 1:n]...)))
+selectzeros2(n,j) = :(zeros(T,$([i≠j ? i<j ? :(s[$i]) : :(s[$i]-1) : 1 for i ∈ 1:n]...)))
+function gencumweights2(n,j,d=:(d[$j]),f=j≠1 ? :i : :f)
+    quote
+        @threads for k ∈ 1:s[$j]
+            $(select1(n,j,:k,f)) .*= $d[k]
+        end
+        i = cumsum($f,dims=$j)
+    end
+end
+for N ∈ 2:5
+    @eval function integral_riesz(m::ParametricMap{B,T,$N} where {B,F},d::AbstractVector=rieszweights(m)) where T
+        f = isinduced(m)&&!isextrinsic(m) ? copy(fiber(m)) : metricfiber(m)
+        s = size(f)
+        $(Expr(:block,vcat([gencumweights2(N,j,:(d[$j])).args for j ∈ 1:N]...)...))
+        TensorField(base(m), i)
+    end
+    for J ∈ 1:N
+        @eval function integral_riesz2(f::AbstractArray{T,$N},::Val{$J},d) where T
+            s = size(f)
+            $(gencumweights2(N,J,:d,:f))
+            return i
+        end
+    end
+end
+
 integrate(args...) = trapz(args...)
 
 arclength(f::DenseVector) = sum(value.(abs.(diff(f))))
@@ -961,13 +1072,19 @@ trapz1(f::DenseVector,h::Real) = h*((f[1]+f[end])/2+sum(f[2:end-1]))
 trapz(f::IntervalMap,j::Int) = trapz(f,Val(j))
 trapz(f::IntervalMap,j::Val{1}) = trapz(f)
 trapz(f::ParametricMap,j::Int) = trapz(f,Val(j))
-trapz(f::ParametricMap,j::Val{J}) where J = remove(base(f),j) → trapz2(fiber(f),j,diff(points(f).v[J]))
-trapz(f::ParametricMap{B,F,N,<:AlignedSpace} where {B,F,N},j::Val{J}) where J = remove(base(f),j) → trapz1(fiber(f),j,step(points(f).v[J]))
+function trapz(f::ParametricMap,j::Val{J}) where J
+    met = isinduced(f)&&!isextrinsic(f) ? copy(fiber(f)) : metricfiber(f,j)
+    remove(base(f),j) → trapz2(met,j,diff(points(f).v[J]))
+end
+function trapz(f::ParametricMap{B,F,N,<:AlignedSpace} where {B,F,N},j::Val{J}) where J
+    met = isinduced(f)&&!isextrinsic(f) ? fiber(f) : metricfiber(f,j)
+    remove(base(f),j) → trapz1(met,j,step(points(f).v[J]))
+end
 gentrapz1(n,j,h=:h,f=:f) = :($h*(($(select1(n,j,1,f))+$(select1(n,j,:(size(f)[$j]),f)))/2+$(select1(n,j,1,:(sum($(select1(n,j,:(2:$(:end)-1),f)),dims=$j))))))
-@generated function trapz1(f::DenseArray{T,N} where T,::Val{J},h::Real,s::Tuple=size(f)) where {N,J}
+@generated function trapz1(f::AbstractArray{T,N} where T,::Val{J},h::Real,s::Tuple=size(f)) where {N,J}
     gentrapz1(N,J)
 end
-@generated function trapz1(f::DenseArray{T,N} where T,h::D...) where {N,D<:Real}
+@generated function trapz1(f::AbstractArray{T,N} where T,h::D...) where {N,D<:Real}
     Expr(:block,:(s=size(f)),
          [:(i = $(gentrapz1(j,j,:(h[$j]),j≠N ? :i : :f,))) for j ∈ N:-1:1]...)
 end
@@ -986,15 +1103,16 @@ function trapz(f::IntervalMap{B,F,<:IntervalRange} where {B<:AbstractReal,F})
 end
 for N ∈ list(2,5)
     @eval function trapz(f::ParametricMap{B,F,$N,<:AlignedSpace{$N}} where {B,F})
-        trapz1(fiber(f),$([:(step(points(f).v[$j])) for j ∈ 1:N]...))
+        met = isinduced(f)&&!isextrinsic(f) ? fiber(f) : metricfiber(f,j)
+        trapz1(met,$([:(step(points(f).v[$j])) for j ∈ 1:N]...))
     end
     @eval function trapz(m::ParametricMap{B,F,$N,T} where {B,F,T},D::AbstractVector=diff.(points(m).v))
-        c = fiber(m)
+        c = isinduced(m)&&!isextrinsic(m) ? fiber(m) : metricfiber(m)
         f,s,d = similar(c),size(c),D./2
         $(Expr(:block,vcat([gentrapz2(j,j,j≠N ? :f : :c).args for j ∈ N:-1:1]...)...))
     end
     for J ∈ list(1,N)
-        @eval function trapz2(c::DenseArray{T,$N} where T,j::Val{$J},D)
+        @eval function trapz2(c::AbstractArray{T,$N} where T,j::Val{$J},D)
             f,s,d = similar(c),size(c),D/2
             $(gentrapz2(N,J,:c,:d))
         end
@@ -1046,26 +1164,31 @@ end
 cumtrapz(f::IntervalMap,j::Int) = cumtrapz(f,Val(j))
 cumtrapz(f::IntervalMap,j::Val{1}) = cumtrapz(f)
 cumtrapz(f::ParametricMap,j::Int) = cumtrapz(f,Val(j))
-cumtrapz(f::ParametricMap,j::Val{J}) where J = TensorField(base(f), cumtrapz2(fiber(f),j,diff(points(f).v[J])))
-cumtrapz(f::ParametricMap{B,F,N,<:AlignedSpace{N}} where {B,F,N},j::Val{J}) where J = TensorField(base(f), cumtrapz1(fiber(f),j,step(points(f).v[J])))
-selectzeros(n,j) = :(zeros(T,$([i≠j ? :(s[$i]) : 1 for i ∈ 1:n]...)))
-selectzeros2(n,j) = :(zeros(T,$([i≠j ? i<j ? :(s[$i]) : :(s[$i]-1) : 1 for i ∈ 1:n]...)))
+function cumtrapz(f::ParametricMap,j::Val{J}) where J
+    met = isinduced(f)&&!isextrinsic(f) ? copy(fiber(f)) : metricfiber(f,j)
+    TensorField(base(f), cumtrapz2(met,j,diff(points(f).v[J])))
+end
+function cumtrapz(f::ParametricMap{B,F,N,<:AlignedSpace{N}} where {B,F,N},j::Val{J}) where J
+    met = isinduced(f)&&!isextrinsic(f) ? fiber(f) : metricfiber(f,j)
+    TensorField(base(f), cumtrapz1(met,j,step(points(f).v[J])))
+end
 gencat(n,j=n,cat=n≠2 ? :cat : j≠2 ? :vcat : :hcat) = :($cat($(selectzeros2(n,j)),$(j≠1 ? gencat(n,j-1) : :i);$((cat≠:cat ? () : (Expr(:kw,:dims,j),))...)))
 gencumtrapz1(n,j,h=:h,f=:f) = :(($h/2)*cumsum($(select1(n,j,:(2:$(:end)),f)).+$(select1(n,j,:(1:$(:end)-1),f)),dims=$j))
-@generated function cumtrapz1(f::DenseArray{T,N},::Val{J},h::Real,s::Tuple=size(f)) where {T,N,J}
+@generated function cumtrapz1(f::AbstractArray{T,N},::Val{J},h::Real,s::Tuple=size(f)) where {T,N,J}
     :(cat($(selectzeros(N,J)),$(gencumtrapz1(N,J)),dims=$J))
 end
-@generated function cumtrapz1(f::DenseArray{T,N},h::D...) where {T,N,D<:Real}
+@generated function cumtrapz1(f::AbstractArray{T,N},h::D...) where {T,N,D<:Real}
     Expr(:block,:(s=size(f)),
          [:(i = $(gencumtrapz1(N,j,:(h[$j]),j≠1 ? :i : :f,))) for j ∈ 1:N]...,
         gencat(N))
 end
 function gencumtrapz2(n,j,d=:(d[$j]),f=j≠1 ? :i : :f)
     quote
-        i = cumsum($(select1(n,j,:(2:$(:end)),f)).+$(select1(n,j,:(1:$(:end)-1),f)),dims=$j)
+        i = $(select1(n,j,:(2:$(:end)),f)).+$(select1(n,j,:(1:$(:end)-1),f))
         @threads for k ∈ 1:s[$j]-1
             $(select1(n,j,:k,:i)) .*= $d[k]
         end
+        i = cumsum(i,dims=$j)
     end
 end
 function cumtrapz(f::IntervalMap{B,F,<:IntervalRange} where {B<:AbstractReal,F})
@@ -1073,16 +1196,17 @@ function cumtrapz(f::IntervalMap{B,F,<:IntervalRange} where {B<:AbstractReal,F})
 end
 for N ∈ 2:5
     @eval function cumtrapz(f::ParametricMap{B,F,$N,<:AlignedSpace{$N}} where {B,F})
-        TensorField(base(f), cumtrapz1(fiber(f),$([:(step(points(f).v[$j])) for j ∈ 1:N]...)))
+        met = isinduced(f)&&!isextrinsic(f) ? fiber(f) : metricfiber(f,j)
+        TensorField(base(f), cumtrapz1(met,$([:(step(points(f).v[$j])) for j ∈ 1:N]...)))
     end
-    @eval function cumtrapz(m::ParametricMap{B,F,$N,T} where {B,F},D::AbstractVector=diff.(points(m).v)) where T
-        f = fiber(m)
+    @eval function cumtrapz(m::ParametricMap{B,T,$N} where {B,F},D::AbstractVector=diff.(points(m).v)) where T
+        f = isinduced(m)&&!isextrinsic(m) ? fiber(m) : metricfiber(m)
         s,d = size(f),D./2
         $(Expr(:block,vcat([gencumtrapz2(N,j,:(d[$j])).args for j ∈ 1:N]...)...))
         TensorField(base(m), $(gencat(N)))
     end
     for J ∈ 1:N
-        @eval function cumtrapz2(c::DenseArray{T,$N},::Val{$J}) where T
+        @eval function cumtrapz2(c::AbstractArray{T,$N},::Val{$J}) where T
             s,d = size(f),D/2
             $(gencumtrapz2(N,J,:d,:f))
             cat($(selectzeros(N,J)),i,dims=$J)
@@ -1091,5 +1215,26 @@ for N ∈ 2:5
 end
 function linecumtrapz(γ::IntervalMap,f::Function)
     cumtrapz(TensorField(base(γ),f.(fiber(γ)).⋅fiber(gradient(γ))))
+end
+
+# Haar
+
+function integrate_haar(f,z,θ=range(-pi,pi,70))
+    N = length(θ)
+    out = 0z
+    for i ∈ 1:N
+        out .+= f(fiber(θ)[i],z)
+    end
+    out/N
+end
+
+function integral_haar(f,z,θ=range(-pi,pi,70))
+    N = length(θ)
+    out = zeros(typeof(z),N)
+    out[1] = f(fiber(θ)[1],z)
+    for i ∈ 2:N
+        out[i] = out[i-1]+f(fiber(θ)[i],z)
+    end
+    TensorField(θ,out/N)
 end
 

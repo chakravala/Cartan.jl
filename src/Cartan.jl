@@ -62,7 +62,7 @@ export GlobalFrame, DiagonalField, EndomorphismField, OutermorphismField
 export ParametricMap, RectangleMap, HyperrectangleMap, AbstractCurve
 export metrictensorfield, metricextensorfield, polarize, complexify, vectorize, findroot
 export leaf, alteration, variation, modification, alteration!, variation!, modification!
-export graylines, graylines!
+export graylines, graylines!, isextrinsic
 
 # TensorField
 
@@ -92,10 +92,10 @@ there are explicit techniques to construct a `TensorField` as well as implicit m
 Additional packages such as `Adapode` build on the `TensorField` concept by generating them from differential equations.
 Many of these methods can automatically generalize to higher dimensional manifolds and are compatible with discrete differential geometry.
 """
-struct TensorField{B,F,N,M<:FrameBundle{B,N},A<:AbstractArray{F,N}} <: FiberBundle{LocalTensor{B,F},N}
+struct TensorField{B,F,N,M<:FiberBundle{B,N},A<:AbstractArray{F,N}} <: FiberBundle{LocalTensor{B,F},N}
     dom::M
     cod::A
-    function TensorField(dom::M,cod::A) where {B,F,N,M<:FrameBundle{B,N},A<:AbstractArray{F,N}}
+    function TensorField(dom::M,cod::A) where {B,F,N,M<:FiberBundle{B,N},A<:AbstractArray{F,N}}
         new{B,F,N,M,A}(dom,cod)
     end
 end
@@ -187,6 +187,9 @@ basetype(::PrincipalFiber{M}) where M = M
 basetype(::Type{<:PrincipalFiber{M}}) where M = M
 fibertype(::PrincipalFiber{M,G} where M) where G = G
 fibertype(::Type{<:PrincipalFiber{M,G} where M}) where G = G
+isextrinsic(f::TensorField) = isextrinsic(base(f))
+isextrinsic(f::FrameBundle) = false
+isextrinsic(f::PrincipalFiber) = true
 
 for fun ∈ (:points,:metricextensor,:coordinates,:immersion,:vertices,:fullcoordinates,:metricextensorfield,:metrictensorfield)
     @eval begin

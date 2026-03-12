@@ -270,6 +270,17 @@ principalaction(P::PrincipalFiber,f::Real) = select_action(P,f)
 principalaction(P::PrincipalFiber,f::Complex) = select_action(P,f)
 principalaction(P::PrincipalFiber,f::TensorAlgebra) = select_action(P,f)
 principalaction(P::PrincipalFiber) = principal(P)
+principalaction(P::FrameBundle) = principal(P)
+function principalaction(P::FrameBundle,g)
+    f = pre_action2(P,g)
+    if isinduced(P)
+        f
+    else
+        p = principal(P)
+        TensorField(base(f),fiber(f).*sqrt.(abs.(Real.(det.(fiber(p))))))
+    end
+end
+principalaction(t::TensorField) = isextrinsic(t)||!isinduced(t) ? principalaction(base(t),TensorField(principalbundle(t),fiber(t))) : t
 
 principalaction(t,d,f) = principalaction(PrincipalFiber(t,_outermorphism(d)),f)
 principalaction(t,d,f::Real) = principalaction(PrincipalFiber(t,d),f)
@@ -288,14 +299,27 @@ select_action(P,f::Complex) = principalnorm(P)*f
 select_action(P,f::TensorGraded{0}) = principalnorm(P)*f
 select_action(P,f::ScalarField) = principalnorm(P)*f
 pre_action(P,f) = coordinates(f) == coordinates(P) ? f : f.(base(P))
+pre_action2(P,f) = points(f) == points(P) ? f : f.(base(P))
 
 principal(P::PrincipalFiber) = fiber(P)
-principalnorm(P::PrincipalFiber) = Real(abs(det(principal(P))))
+principal(P::FrameBundle) = metrictensorfield(P)
+function principalnorm(P::PrincipalFiber)
+    p = principal(P)
+    TensorField(base(p),Real.(abs.(det.(fiber(p)))))
+end
+function principalnorm(P::FrameBundle)
+    p = principal(P)
+    TensorField(base(p),sqrt.(abs.(Real.(det.(fiber(p))))))
+end
 principalbundle(P::PrincipalFiber) = base(base(P))
+principalbundle(P::FrameBundle) = P#GridBundle(PointArray(0,points(P)),immersion(P))
+principalbundle(P::TensorField) = principalbundle(base(P))
 principalbase(P::PrincipalFiber) = fiber(base(P))
 principalfiber(P::PrincipalFiber) = fiber(principal(P))
+principalfiber(P::FrameBundle) = fiber(principal(P))
 principalbasetype(P::PrincipalFiber) = fibertype(base(P))
 principalfibertype(P::PrincipalFiber) = fibertype(principal(P))
+principalfibertype(P::FrameBundle) = fibertype(principal(P))
 localfiber(P::PrincipalFiber,x::GradedVector) = PrincipalFiber(base(P)(x),fiber(P)(x))
 
 Base.inv(P::PrincipalFiber) = PrincipalFiber(base(P),inv(principal(P)))

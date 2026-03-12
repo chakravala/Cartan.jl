@@ -342,7 +342,9 @@ resample(m::Chebyshev,i::Int=length(m)) = LinRange(m[1],m[end],i)
 #ChebyshevVector(x::Chebyshev,N=length(x)) = vcat(0,reverse(inv(ChebyshevMatrix(-unitpoints(x))[1:N-1,1:N-1])[1,:]))*(interval_scale(x)/2)
 #ChebyshevVector(N::Int) = vcat(0,reverse(inv(ChebyshevMatrix(N)[1:N-1,1:N-1])[1,:]))
 
-ChebyshevVector(x,N=length(x)) = vcat(0,reverse(inv(ChebyshevMatrix(x)[1:N-1,1:N-1])[1,:]))
+ChebyshevVector(x::FiberBundle) = ChebyshevVector(points(x))
+ChebyshevVector(x::ProductSpace{V}) where V = ChebyshevVector.(split(x))
+ChebyshevVector(x::AbstractVector,N=length(x)) = vcat(0,reverse(inv(ChebyshevMatrix(x)[1:N-1,1:N-1])[1,:]))
 ChebyshevVector(N::Int) = vcat(0,reverse(inv(ChebyshevMatrix(N)[1:N-1,1:N-1])[1,:]))
 ChebyshevMatrix(x::TensorField) = ChebyshevMatrix(points(x))
 ChebyshevMatrix(x::Chebyshev) = ChebyshevMatrix(-points(x))
@@ -1053,22 +1055,12 @@ derivetoeplitz(v) = derivetoeplitz(length(v))
 derivetoeplitz2(v) = derivetoeplitz2(length(v))
 export derivetoeplitz, derivetoeplitz2
 
-export integrate_haar, GaussLegendre, laplacian_chebyshevfft
-export integrate_chebyshev, integrate_clenshawcurtis, integrate_gausslegendre
-export integral_chebyshev, integral_clenshawcurtis, integral_gausslegendre
-export gradient_chebyshev, gradient_chebyshevfft, clenshawcurtis, gausslegendre
+export gradient_chebyshev, gradient_chebyshevfft, laplacian_chebyshevfft
 export gradient2_chebyshevfft, gradient2_toeplitz, gradient_toeplitz
 
-integral_weight(t,w) = TensorField(t,cumsum(w.*fiber(t)))
-integrate_weight(t,w) = w⋅fiber(t)
-
-integral_chebyshev(t,w=ChebyshevVector(t)) = integral_weight(t,w)
-integral_clenshawcurtis(t,w=clenshawcurtis(t)) = integral_weight(t,w)
-integral_gausslegendre(t,w=gausslegendre(t)) = integral_weight(t,w)
-integrate_chebyshev(t,w=ChebyshevVector(t)) = integrate_weight(t,w)
-integrate_clenshawcurtis(t,w=clenshawcurtis(t)) = integrate_weight(t,w)
-integrate_gausslegendre(t,w=gausslegendre(t)) = integrate_weight(t,w)
-clenshawcurtis(t) = clenshawcurtis(length(t))*(interval_scale(t)/2)
+clenshawcurtis(t::AbstractVector) = clenshawcurtis(length(t))*(interval_scale(t)/2)
+clenshawcurtis(t::FiberBundle) = clenshawcurtis(points(t))
+clenshawcurtis(t::ProductSpace) = clenshawcurtis.(split(t))
 function clenshawcurtis(n::Int)
     N = n-1
     θ = π*(0:N)/N
