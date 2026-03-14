@@ -567,6 +567,8 @@ end
 ⊕(a::AbstractVector{<:Real},b::PointArray) = PointArray(a⊕points(b))
 cross(a::PointArray,b::PointArray) = a⊕b
 cross(a::PointArray,b::AbstractVector{<:Real}) = a⊕b
+remove(a::PointArray{P,<:InducedMetric} where P,j) = PointArray(remove(points(a),j))
+remove(a::PointArray{P,<:InducedMetric,2} where P,j) = remove(points(a),j)
 
 Base.size(m::PointArray) = size(points(m))
 Base.broadcast(f,t::PointArray) = PointArray(f.(points(t)),f.(metricextensor(t)))
@@ -755,6 +757,7 @@ cross(a::GridBundle,b::GridBundle) = a⊕b
 cross(a::GridBundle,b::AbstractVector{<:Real}) = a⊕b
 cross_sphere(a::GridBundle,b::GridBundle) = GridBundle(coordinates(a)⊕coordinates(b),cross_sphere(immersion(a),immersion(b)))
 cross_sector(a::GridBundle,b::GridBundle) = GridBundle(coordinates(a)⊕coordinates(b),cross_sector(immersion(a),immersion(b)))
+remove(a::GridBundle,j) = GridBundle(remove(coordinates(a),j))#,remove(immersion(a,j)))
 
 fullcoordinates(m::GridBundle) = m.p
 coordinates(m::GridBundle) = m.p

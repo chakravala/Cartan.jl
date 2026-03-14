@@ -144,6 +144,7 @@ const TrivectorField = GradedField{3}
 
 TensorField(dom::FrameBundle{B,N},fun::BitArray{N}) where {B,N} = TensorField(dom, Float64.(fun))
 TensorField(dom,fun::TensorField) = TensorField(dom, fiber(fun))
+TensorField(dom::FrameBundle,fun::TensorField) = TensorField(dom, fiber(fun))
 TensorField(dom::TensorField,fun::AbstractArray) = TensorField(base(dom), fun)
 TensorField(dom::TensorField,fun::Function) = TensorField(base(dom), fun)
 TensorField(dom::TensorField,fun::Number) = TensorField(base(dom), fun)
@@ -190,6 +191,7 @@ fibertype(::Type{<:PrincipalFiber{M,G} where M}) where G = G
 isextrinsic(f::TensorField) = isextrinsic(base(f))
 isextrinsic(f::FrameBundle) = false
 isextrinsic(f::PrincipalFiber) = true
+TensorField(dom::PrincipalFiber,fun::TensorField) = TensorField(dom, fiber(fun))
 
 for fun ∈ (:points,:metricextensor,:coordinates,:immersion,:vertices,:fullcoordinates,:metricextensorfield,:metrictensorfield)
     @eval begin
