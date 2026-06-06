@@ -93,6 +93,12 @@ for fun ∈ (:irfft,:brfft)
     end
 end
 
+export dst, dst!, idst, idst!
+function dst end
+function dst! end
+function idst end
+function idst! end
+
 flt(f::TensorField,σ::Number) = fft(exp((-σ)*TensorField(base(f)))*f)
 bflt(f::TensorField,σ::Number) = bfft(exp((-σ)*TensorField(base(f)))*f)
 rflt(f::TensorField,σ::Number) = rfft(exp((-σ)*TensorField(base(f)))*f)
@@ -1033,7 +1039,7 @@ function gradient2_chebyshevfft(v::AbstractArray{T,3} where T,i)
     TensorField(v,chebyshevifft2(V1,V2,U,i,size(v)...))
 end
 
-for fun ∈ (:laplacian_chebyshevfft,:gradient,:gradient_fft,:gradient_rfft,:gradient_chebyshevfft,:gradient2_chebyshevfft)
+for fun ∈ (:laplacian_chebyshevfft,:gradient,:gradient_fft,:gradient_rfft,:gradient_chebyshevfft,:gradient2_chebyshevfft,:gradient_slow,:gradient_fast,:gradient_forw,:gradient_back)
     @eval $fun(v::LocalTensor) = $fun(fiber(v))
 end
 laplacian_chebyshevfft(v::AbstractVector) = gradient2_chebyshevfft(v)

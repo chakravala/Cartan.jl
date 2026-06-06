@@ -23,4 +23,9 @@ for fun ∈ (:r2r,:r2r!)
     @eval FFTW.$fun(t::TensorField,kind,args...) = TensorField(r2rspace(base(t),kind),FFTW.$fun(fiber(t),kind,args...))
 end
 
+Cartan.dst(t::TensorField,args...) = FFTW.r2r(t,FFTW.RODFT10,args...)/prod(2.0.*size(t))
+Cartan.dst!(t::TensorField,args...) = FFTW.r2r!(t,FFTW.RODFT10,args...)/prod(2.0.*size(t))
+Cartan.idst(t::TensorField,args...) = FFTW.r2r(t,FFTW.RODFT01,args...)
+Cartan.idst!(t::TensorField,args...) = FFTW.r2r!(t,FFTW.RODFT01,args...)
+
 end # module

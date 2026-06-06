@@ -15,6 +15,7 @@
 export fiberproduct, fibersphere, fibersector
 export centraldiff, centraldiff_slow, centraldiff_fast
 export gradient, gradient_slow, gradient_fast, unitgradient
+export gradient_back, gradient_forw, centraldiff_back, centraldiff_forw
 export gradient_fft, gradient_rfft, integral_fft, integral_rfft
 export gradient_impulse, gradient_impulse_fft, gradient_impulse_rfft
 export integral_impulse, integral_impulse_fft, integral_impulse_rfft
@@ -546,6 +547,13 @@ heaviside(x::TensorField,t...) = heaviside(x,Values(t))
 
 # centraldiff
 
+abstract type AbstractOperator end
+abstract type AbstractDifference <: AbstractOperator end
+struct CentralDifference{N,M} end
+const ZeroDifference{N} = CentralDifference{N,0}
+const FirstDifference{N} = CentralDifference{N,1}
+const SecondDifference{N} = CentralDifference{N,2}
+
 centraldiffdiff(f,dt,l) = centraldiff(centraldiff(f,dt,l),dt,l)
 centraldiffdiff(f,dt) = centraldiffdiff(f,dt,size(f))
 centraldiff(f::AbstractVector,args...) = centraldiff_slow(f,args...)
@@ -576,7 +584,7 @@ function _nthreads(N::Int, itersym::Symbol, rangeexpr::Expr, args::Expr...)
     Expr(:block,ex.args[1],Expr(:macrocall,Symbol("@threads"),nothing,ex.args[2]))
 end
 
-for fun ∈ (:_slow,:_fast)
+for fun ∈ (:_slow,:_fast,:_forw,:_back)
     cd,grad = Symbol(:centraldiff,fun),Symbol(:gradient,fun)
     cdg,cdp,cdf = Symbol(cd,:_calc),Symbol(cd,:_points),Symbol(cd,:_fiber) 
     @eval begin
@@ -614,31 +622,6 @@ for fun ∈ (:_slow,:_fast)
         $grad(f::TensorField,n::Int,args...) = $grad(f,Val(n),args...)
         $cd(f::AbstractArray,args...) = $cdg(GridBundle(PointArray(0,f)),args...)
         $cd(f::AbstractArray,q::QuotientTopology,args...) = $cdg(GridBundle(PointArray(0,f),q),args...)
-        function $cdg(f::GridBundle{1},dt::Real,s::Tuple=size(f))
-            d = similar(points(f))
-            @threads for i ∈ OneTo(s[1])
-                d[i] = $cdg(f,s,i)/$cdg(i,dt,l)
-            end
-            return d
-        end
-        function $cdg(f::GridBundle{1},dt::DenseVector,s::Tuple=size(f))
-            d = similar(points(f))
-            @threads for i ∈ OneTo(s[1])
-                d[i] = $cdg(f,s,i)/dt[i]
-            end
-            return d
-        end
-        function $cdg(f::GridBundle{1},s::Tuple=size(f))
-            d = similar(points(f))
-            @threads for i ∈ OneTo(s[1])
-                d[i] = $cdg(f,s,i)
-            end
-            return d
-        end
-        $cdg(f::GridBundle{1},s::Tuple,i::Int) = $cdg(f,s[1],Val(1),i)
-        @generated function $cdg(f::GridBundle{N},s::Tuple,i::Vararg{Int}) where N
-            :(Chain($([:($$cdg(f,s[$n],Val($n),i...)) for n ∈ list(1,N)]...)))
-        end
         $cd(f::RealRegion) = ProductSpace($cd.(f.v))
         $cd(f::GridBundle{N,Coordinate{P,G},<:PointArray{P,G,N,<:RealRegion,<:Global{N,<:InducedMetric}},<:ProductTopology}) where {N,P,G} = ProductSpace($cd.(points(f).v))
         $cd(f::GridBundle{N,Coordinate{P,G},<:PointArray{P,G,N,<:RealRegion,<:Global{N,<:InducedMetric}},<:OpenTopology}) where {N,P,G} = ProductSpace($cd.(points(f).v))
@@ -667,6 +650,31 @@ for fun ∈ (:_slow,:_fast)
                 d[i] = $cdg(i,dt,s[1])
             end
             return d
+        end
+        function $cdg(f::GridBundle{1},dt::Real,s::Tuple=size(f))
+            d = similar(points(f))
+            @threads for i ∈ OneTo(s[1])
+                d[i] = $cdg(f,s,i)/$cdg(i,dt,l)
+            end
+            return d
+        end
+        function $cdg(f::GridBundle{1},dt::DenseVector,s::Tuple=size(f))
+            d = similar(points(f))
+            @threads for i ∈ OneTo(s[1])
+                d[i] = $cdg(f,s,i)/dt[i]
+            end
+            return d
+        end
+        function $cdg(f::GridBundle{1},s::Tuple=size(f))
+            d = similar(points(f))
+            @threads for i ∈ OneTo(s[1])
+                d[i] = $cdg(f,s,i)
+            end
+            return d
+        end
+        $cdg(f::GridBundle{1},s::Tuple,i::Int) = $cdg(f,s[1],Val(1),i)
+        @generated function $cdg(f::GridBundle{N},s::Tuple,i::Vararg{Int}) where N
+            :(Chain($([:($$cdg(f,s[$n],Val($n),i...)) for n ∈ list(1,N)]...)))
         end
     end
     for N ∈ list(2,5)
@@ -723,6 +731,13 @@ applymetric(f::Chain{V,G},g::Endomorphism{W,<:Simplex} where W) where {V,G} = ap
     Expr(:call,:(Chain{V}),[:(x[$k]/sqrt(g[$k,$k])) for k ∈ list(1,N)]...)
 end
 
+function centraldiff_calc(::FirstDifference{3},f::GridBundle,l::Int,n::Val{N},i::Vararg{Int}) where N #l=size(f)[N]
+    centraldiff_slow_calc(f,l,n,i...)
+end
+function centraldiff_calc(::FirstDifference{3},i::Int,dt::Real,d1::Real,d2::Real,l::Int)
+    centraldiff_slow_calc(i,dt,d1,d2,l)
+end
+
 function centraldiff_slow_calc(f::GridBundle{M,T,PA,<:OpenTopology} where {M,T,PA},l::Int,n::Val{N},i::Vararg{Int}) where N #l=size(f)[N]
     if isone(i[N])
         18f[1,n,i...]-9f[2,n,i...]+2f[3,n,i...]-11points(f)[i...]
@@ -736,7 +751,7 @@ function centraldiff_slow_calc(f::GridBundle{M,T,PA,<:OpenTopology} where {M,T,P
         f[-2,n,i...]+8(f[1,n,i...]-f[-1,n,i...])-f[2,n,i...]
     end
 end
-function Cartan.centraldiff_slow_calc(f::GridBundle,l::Int,n::Val{N},i::Vararg{Int}) where N #l=size(f)[N]
+function centraldiff_slow_calc(f::GridBundle,l::Int,n::Val{N},i::Vararg{Int}) where N #l=size(f)[N]
     if isone(i[N])
         r = immersion(f).r[2N-1]
         if iszero(r)
@@ -832,6 +847,108 @@ function centraldiff_slow_calc(i::Int,q::QuotientTopology,dt::Real,l::Int)
     end
 end
 
+function centraldiff_calc(::FirstDifference{2},f::GridBundle,l::Int,n::Val{N},i::Vararg{Int}) where N
+    centraldiff_fast_calc(f,l,n,i...)
+end
+centraldiff_calc(::FirstDifference{2},i::Int,dt::Real,d1::Real,d2::Real,l::Int) = centraldiff_fast_calc(i,dt,d1,d2,l)
+centraldiff_calc(::FirstDifference{2},val::Val,i::Int,d1::Real,d2::Real,l::Int) = centraldiff_fast_calc(val,i,d1,d2,l)
+centraldiff_calc(::FirstDifference{2},i::Int,dt::Real,l::Int) = centraldiff_fast_calc(i,dt,l)
+function centraldiff_calc(::FirstDifference{2},i::Int,q::QuotientTopology,dt::Real,l::Int)
+    centraldiff_fast_calc(i,q,dt,l)
+end
+
+function centraldiff_back_calc(f::GridBundle{M,T,PA,<:OpenTopology} where {M,T,PA},l::Int,n::Val{N},i::Vararg{Int}) where N #l=size(f)[N]
+    if isone(i[N])
+        18f[1,n,i...]-9f[2,n,i...]+2f[3,n,i...]-11points(f)[i...]
+    elseif i[N]==l
+        11points(f)[i...]-18f[-1,n,i...]+9f[-2,n,i...]-2f[-3,n,i...]
+    else
+        points(f)[i...]-f[-1,n,i...]
+    end
+end
+function centraldiff_back_calc(f::GridBundle,l::Int,n::Val{N},i::Vararg{Int}) where N
+    if isone(i[N])
+        r = immersion(f).r[2N-1]
+        if iszero(r)
+            18f[1,n,i...]-9f[2,n,i...]+2f[3,n,i...]-11points(f)[i...]
+        elseif immersion(f).p[r]≠2N-1
+            f[0,n,i...]-f[-1,n,i...]
+        else # mirror
+            points(f)[i...]-f[1,n,i...]
+        end
+    elseif i[N]==l
+        r = immersion(f).r[2N]
+        if iszero(r)
+            11points(f)[i...]-18f[-1,n,i...]+9f[-2,n,i...]-2f[-3,n,i...]
+        elseif immersion(f).p[r]≠2N
+            points(f)[i...]-f[-1,n,i...]
+        else # mirror
+            points(f)[i...]-f[-1,n,i...]
+        end
+    else
+        points(f)[i...]-getpoint(f,-1,n,i...)
+    end
+end
+
+centraldiff_back_calc(i::Int,dt::Real,d1::Real,d2::Real,l::Int) = isone(i) ? dt+d1 : i==l ? dt+d2 : dt
+centraldiff_back_calc(::Val{1},i::Int,d1::Real,d2::Real,l::Int) = isone(i) ? d1+d2 : dt
+centraldiff_back_calc(::Val{2},i::Int,d1::Real,d2::Real,l::Int) = i==l ? d1+d2 : dt
+centraldiff_back_calc(i::Int,dt::Real,l::Int) = i∈(1,l) ? 6dt : dt
+#centraldiff_back_calc(i::Int,dt::Real,l::Int) = dt
+function centraldiff_back_calc(i::Int,q::QuotientTopology,dt::Real,l::Int)
+    if (isone(i) && iszero(q.r[1])) || (i==l && iszero(q.r[2]))
+        6dt
+    else
+        dt
+    end
+end
+
+function centraldiff_forw_calc(f::GridBundle{M,T,PA,<:OpenTopology} where {M,T,PA},l::Int,n::Val{N},i::Vararg{Int}) where N #l=size(f)[N]
+    if isone(i[N])
+        18f[1,n,i...]-9f[2,n,i...]+2f[3,n,i...]-11points(f)[i...]
+    elseif i[N]==l
+        11points(f)[i...]-18f[-1,n,i...]+9f[-2,n,i...]-2f[-3,n,i...]
+    else
+        f[1,n,i...]-points(f)[i...]
+    end
+end
+function centraldiff_forw_calc(f::GridBundle,l::Int,n::Val{N},i::Vararg{Int}) where N
+    if isone(i[N])
+        r = immersion(f).r[2N-1]
+        if iszero(r)
+            18f[1,n,i...]-9f[2,n,i...]+2f[3,n,i...]-11points(f)[i...]
+        elseif immersion(f).p[r]≠2N-1
+            f[1,n,i...]-points(f)[i...]
+        else # mirror
+            f[1,n,i...]-points(f)[i...]
+        end
+    elseif i[N]==l
+        r = immersion(f).r[2N]
+        if iszero(r)
+            11points(f)[i...]-18f[-1,n,i...]+9f[-2,n,i...]-2f[-3,n,i...]
+        elseif immersion(f).p[r]≠2N
+            f[1,n,i...]-f[0,n,i...]
+        else # mirror
+            f[-1,n,i...]-points(f)[i...]
+        end
+    else
+        getpoint(f,1,n,i...)-points(f)[i...]
+    end
+end
+
+centraldiff_forw_calc(i::Int,dt::Real,d1::Real,d2::Real,l::Int) = isone(i) ? dt+d1 : i==l ? dt+d2 : dt
+centraldiff_forw_calc(::Val{1},i::Int,d1::Real,d2::Real,l::Int) = isone(i) ? d1+d2 : dt
+centraldiff_forw_calc(::Val{2},i::Int,d1::Real,d2::Real,l::Int) = i==l ? d1+d2 : dt
+centraldiff_forw_calc(i::Int,dt::Real,l::Int) = i∈(1,l) ? 6dt : dt
+#centraldiff_forw_calc(i::Int,dt::Real,l::Int) = dt
+function centraldiff_forw_calc(i::Int,q::QuotientTopology,dt::Real,l::Int)
+    if (isone(i) && iszero(q.r[1])) || (i==l && iszero(q.r[2]))
+        6dt
+    else
+        dt
+    end
+end
+
 function centraldiff_fast_calc(f::GridBundle{M,T,PA,<:OpenTopology} where {M,T,PA},l::Int,n::Val{N},i::Vararg{Int}) where N
     if isone(i[N]) # 4f[1,k,i...]-f[2,k,i...]-3f.v[i...]
         18f[1,n,i...]-9f[2,n,i...]+2f[3,n,i...]-11points(f)[i...]
@@ -841,7 +958,7 @@ function centraldiff_fast_calc(f::GridBundle{M,T,PA,<:OpenTopology} where {M,T,P
         f[1,n,i...]-f[-1,n,i...]
     end
 end
-function Cartan.centraldiff_fast_calc(f::GridBundle,l::Int,n::Val{N},i::Vararg{Int}) where N
+function centraldiff_fast_calc(f::GridBundle,l::Int,n::Val{N},i::Vararg{Int}) where N
     if isone(i[N])
         r = immersion(f).r[2N-1]
         if iszero(r)
