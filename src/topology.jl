@@ -81,6 +81,8 @@ resample(m::AbstractRange) = m
 resample(m::AbstractRange,i::NTuple{1,Int}) = resample(m,i...)
 resample(m::AbstractArray{T,0},::Tuple{}=size(m)) where T = m
 resample(m::ProductSpace,i::NTuple=size(m)) = ProductSpace(resample.(split(m),i))
+resample(m::AbstractVector,i::NTuple{1,Int}) = resample(m,i...)
+resample(m::AbstractVector,i::Int=length(m)) = LinRange(m[1],m[end],i)
 
 isrange(m::AbstractRange) = true
 isrange(m::AbstractVector) = false

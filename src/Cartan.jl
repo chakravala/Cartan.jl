@@ -381,8 +381,9 @@ Grassmann.eigpolys(t::TensorField,G::Val) = TensorField(base(t), eigpolys.(fiber
 Base.:<(a::TensorField{R},b::TensorField{R}) where R = TensorField(base(a),Grassmann.contraction_metric.(fiber(b),fiber(a),refmetric(base(a))))
 Base.:<(a::Number,b::TensorField) = TensorField(base(b), Grassmann.contraction.(fiber(b),a))
 Base.:<(a::TensorField,b::Number) = TensorField(base(a), Grassmann.contraction.(b,fiber(a)))
-for (op,mop) ∈ ((:*,:wedgedot_metric),(:wedgedot,:wedgedot_metric),(:veedot,:veedot_metric),(:⋅,:contraction_metric),(:contraction,:contraction_metric),(:>,:contraction_metric),(:⊘,:⊘),(:>>>,:>>>),(:/,:/),(:^,:^))
-    let bop = op ∈ (:*,:>,:>>>,:/,:^) ? :(Base.$op) : :(Grassmann.$op)
+Base.:^(a::TensorField,b::Real) = TensorField(base(a), Grassmann.:^.(fiber(a),b,refmetric(base(a))))
+for (op,mop) ∈ ((:*,:wedgedot_metric),(:wedgedot,:wedgedot_metric),(:veedot,:veedot_metric),(:⋅,:contraction_metric),(:contraction,:contraction_metric),(:>,:contraction_metric),(:⊘,:⊘),(:>>>,:>>>),(:/,:/),(:\,:\),(:^,:^))
+    let bop = op ∈ (:*,:>,:>>>,:/,:\,:^) ? :(Base.$op) : :(Grassmann.$op)
     @eval begin
         $bop(a::TensorField{R},b::TensorField{R}) where R = TensorField(base(a),Grassmann.$mop.(fiber(a),fiber(b),refmetric(base(a))))
         $bop(a::Number,b::TensorField) = TensorField(base(b), Grassmann.$op.(a,fiber(b)))
@@ -395,7 +396,7 @@ end
 for fun ∈ (:exp,:exp2,:exp10,:log2,:log10,:sinh,:cosh,:abs,:sqrt,:cbrt,:cos,:sin,:tan,:cot,:sec,:csc,:asec,:acsc,:sech,:csch,:acsch,:asech,:tanh,:coth,:asinh,:acosh,:atanh,:acoth,:asin,:acos,:atan,:acot,:sinc,:cosc,:cis,:abs2,:inv)
     @eval Base.$fun(t::TensorField) = TensorField(base(t), $fun.(fiber(t),ref(metricextensor(t))))
 end
-for fun ∈ (:reverse,:clifford,:even,:odd,:scalar,:vector,:bivector,:trivector,:pseudoscalar,:value,:complementleft,:realvalue,:imagvalue,:outermorphism,:Outermorphism,:DiagonalOperator,:TensorOperator,:eigen,:eigvecs,:eigvals,:eigvalsreal,:eigvalscomplex,:eigvecsreal,:eigvecscomplex,:eigpolys,:pfaffian,:∧,:↑,:↓,:vectorize,:discriminant,:discriminantreal,:discriminantcomplex,:vandermonde,:vandermondereal,:vandermondecomplex)
+for fun ∈ (:reverse,:clifford,:even,:odd,:scalar,:vector,:bivector,:trivector,:pseudoscalar,:value,:complementleft,:realvalue,:imagvalue,:outermorphism,:Outermorphism,:DiagonalOperator,:TensorOperator,:eigen,:eigvecs,:eigvals,:eigvalsreal,:eigvalscomplex,:eigvecsreal,:eigvecscomplex,:eigpolys,:pfaffian,:∧,:↑,:↓,:vectorize,:discriminant,:discriminantreal,:discriminantcomplex,:vandermonde,:vandermondereal,:vandermondecomplex,:adjugate,:cofactor)
     @eval Grassmann.$fun(t::TensorField) = TensorField(base(t), $fun.(fiber(t)))
 end
 for fun ∈ (:⋆,:angle,:radius,:complementlefthodge,:pseudoabs,:pseudoabs2,:pseudoexp,:pseudolog,:pseudoinv,:pseudosqrt,:pseudocbrt,:pseudocos,:pseudosin,:pseudotan,:pseudocosh,:pseudosinh,:pseudotanh,:metric,:unit,:complexify,:polarize,:amplitude,:phase)
@@ -413,6 +414,7 @@ Base.:-(m::TensorField,t::LocalTensor) = LocalTensor(base(t),m-fiber(t))
 Base.:+(t::LocalTensor,m::TensorField) = LocalTensor(base(t),fiber(t)+m)
 Base.:-(t::LocalTensor,m::TensorField) = LocalTensor(base(t),fiber(t)-m)
 
+Base.:*(m::Tridiagonal,t::LocalTensor) = LocalTensor(base(t),m*fiber(t))
 Base.:*(m::AbstractMatrix,t::LocalTensor) = LocalTensor(base(t),m*fiber(t))
 Base.:\(m::AbstractMatrix,t::LocalTensor) = LocalTensor(base(t),m\fiber(t))
 Base.:*(t::LocalTensor,m::AbstractMatrix) = LocalTensor(base(t),fiber(t)*m)

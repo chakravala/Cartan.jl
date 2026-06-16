@@ -341,9 +341,6 @@ Base.angle(t::Chebyshev) = t.a
 Base.getindex(t::Chebyshev,i::Integer) = getindex(points(t),i)
 Base.size(t::Chebyshev) = size(points(t))
 
-resample(m::Chebyshev,i::NTuple{1,Int}) = resample(m,i...)
-resample(m::Chebyshev,i::Int=length(m)) = LinRange(m[1],m[end],i)
-
 #ChebyshevVector(x::TensorField) = ChebyshevVector(points(x))
 #ChebyshevVector(x::Chebyshev,N=length(x)) = vcat(0,reverse(inv(ChebyshevMatrix(-unitpoints(x))[1:N-1,1:N-1])[1,:]))*(interval_scale(x)/2)
 #ChebyshevVector(N::Int) = vcat(0,reverse(inv(ChebyshevMatrix(N)[1:N-1,1:N-1])[1,:]))
@@ -535,6 +532,20 @@ function resample_sinc(v::AbstractVector,n)
     end
     return TensorField(xx,p)
 end
+
+#=function resample_sincsinc(v::AbstractMatrix,nm...)
+    N,M = size(v)
+    x,y = split(points(v))
+    hx,hy = step(x),step(y)
+    xy = resample(points(v),nm...)
+    xx,yy = fiber.(split(TensorField(xy)))
+    xh,yh,xxh,yyh = x/h,y/h,xx/h,hh/y
+    p = zeros(size(xy)...)
+    for i ∈ 1:N, j ∈ 1:M
+        p += fiber(v)[i,j]*(sinc.(xxh.-xh[i]).*sinc.(yyh.-yh[j]))
+    end
+    return TensorField(xy,p)
+end=#
 
 resample_sinc(v::AbstractMatrix,n,m::Int) = resample_sinc(resample_sinc(v,n,Val(1)),m,Val(2))
 resample_sinc(v::AbstractArray{T,3} where T,n,m,o) = resample_sinc(resample_sinc(resample_sinc(v,n,Val(1)),m,Val(2)),o,Val(3))

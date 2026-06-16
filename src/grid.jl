@@ -553,6 +553,36 @@ struct CentralDifference{N,M} end
 const ZeroDifference{N} = CentralDifference{N,0}
 const FirstDifference{N} = CentralDifference{N,1}
 const SecondDifference{N} = CentralDifference{N,2}
+export AbstractDifference, CentralDifference
+export ZeroDifference, FirstDifference, SecondDifference
+
+LinearAlgebra.Diagonal(x,::Type{<:ZeroDifference}) = I(length(x))
+LinearAlgebra.Tridiagonal(x,T::Type{<:ZeroDifference}) = Tridiagonal(Diagonal(x,T))
+function LinearAlgebra.Tridiagonal(x,::Type{FirstDifference{-1}})
+    dx = inv.(diff(points(x)))
+    ndx = -dx
+    Tridiagonal(ndx,pushfirst!(dx,-dx[1]),pushfirst!(zeros(length(x)-2),-ndx[1]))
+end
+function LinearAlgebra.Tridiagonal(x,::Type{FirstDifference{0}})
+    dx = inv.(diff(points(x)))
+    Tridiagonal(push!(zeros(length(x)-2),-dx[end]),push!(-dx,dx[end]),dx)
+end
+function LinearAlgebra.Tridiagonal(x,::Type{FirstDifference{1}})
+    b = inv.(centraldiff_fast_points(x)[2:end-1])
+    bc1 = inv(points(x)[2]-points(x)[1])
+    bc2 = inv(points(x)[end]-points(x)[end-1])
+    c = pushfirst!(copy(b),bc1)
+    Tridiagonal(-push!(b,bc2),pushfirst!(push!(zeros(length(x)-2),bc2),-bc1),c)
+end
+
+function LinearAlgebra.Tridiagonal(x,::Type{SecondDifference{1}})
+    dx = diff(points(x))
+    dax = [2/(dx[i-1]+dx[i]) for i ∈ 2:length(dx)]
+    C,B = dax./dx[1:end-1],dax./dx[2:end]
+    dx1,dx2 = inv(dx[1]*dx[2]),inv(dx[end-1]*dx[end])
+    CB = pushfirst!(push!(-(C+B),dx2),dx1)
+    Tridiagonal(push!(C,-dx2),CB,pushfirst!(B,-dx1))
+end
 
 centraldiffdiff(f,dt,l) = centraldiff(centraldiff(f,dt,l),dt,l)
 centraldiffdiff(f,dt) = centraldiffdiff(f,dt,size(f))

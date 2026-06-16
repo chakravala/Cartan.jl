@@ -521,6 +521,8 @@ function makietransform(M,pl,::Val{N}) where N
     return pl
 end
 
+to_interval(x) = Makie.ClosedInterval(x[1],x[end])
+
 for fun ∈ (:streamplot,:streamplot!)
     @eval begin
         #Makie.$fun(f::Function,t::Rectangle;args...) = Makie.$fun(f,t.v...;args...)
@@ -528,7 +530,13 @@ for fun ∈ (:streamplot,:streamplot!)
         Makie.$fun(m::ScalarField{<:Coordinate{<:Chain},<:AbstractReal,N,<:RealSpace} where N;args...) = Makie.$fun(gradient_fast(m);args...)
         Makie.$fun(m::ScalarMap,dims...;args...) = Makie.$fun(gradient_fast(m),dims...;args...)
         Makie.$fun(m::VectorField{R,F,1,<:SimplexBundle} where {R,F},dims::Union{<:Makie.ClosedInterval,<:AbstractRange}...;args...) = Makie.$fun(p->Makie.Point(m(Chain(one(eltype(p)),p.data...))),dims...;args...)
-        Makie.$fun(m::VectorField{<:Coordinate{<:Chain},F,N,<:RealSpace} where {F,N};args...) = Makie.$fun(m,points(m).v...;args...)
+        function Makie.$fun(m::VectorField{<:Coordinate{<:Chain},F,N,<:RealSpace} where {F,N};args...)
+            if Cartan.isrange(m)
+                Makie.$fun(m,points(m).v...;args...)
+            else
+                Makie.$fun(p->Makie.Point(m(Chain(p.data...))),to_interval.(split(points(m)))...;streamargs(m,args)...)
+            end
+        end
         Makie.$fun(m::VectorField{<:Coordinate{<:Chain},F,N,<:RealSpace} where {F,N},dims::Union{<:Makie.ClosedInterval,<:AbstractRange}...;args...) = Makie.$fun(p->Makie.Point(m(Chain(p.data...))),dims...;streamargs(m,args)...)
         Makie.$fun(t::TensorField{B,<:AbstractReal,2,<:FiberProductBundle} where B;args...) = Makie.$fun(TensorField(GridBundle(base(t)),fiber(t));args...)
         function Makie.$fun(M::VectorField,m::VectorField{<:Coordinate{<:Chain{V}},<:Chain,2,<:RealSpace{2}};args...) where V
