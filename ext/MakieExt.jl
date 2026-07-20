@@ -27,6 +27,7 @@ import Cartan: arrowsbundle, arrowsbundle!, scaledarrows, scaledarrows!
 import Cartan: scaledfield, scaledfield!, scaledbundle, scaledbundle!
 import Cartan: scaledplanes, scaledplanes!, scaledspaces, scaledspaces!
 import Cartan: planes, planes!, spaces, spaces!, linegraph, graylines, graylines!
+import Cartan: Limit
 
 function Cartan.graylines(x,lw::Int=3;args...)
     fig = Makie.lines(x;colormap=:grays,linewidth=lw,args...)
@@ -56,39 +57,28 @@ function Cartan.graylines!(x,f::TensorField,lw::Int=3;args...)
     Makie.lines!(x,f;color=:black,linestyle=:dash,args...)
 end
 
-for fun ∈ (:linegraph,:scaledarrows,:planes,:scaledplanes,:spaces,:scaledspaces,:scaledfield,:scaledbundle,:arrowsbundle,:planesbundle,:spacesbundle,:tangentbundle,:normalbundle)
-    @eval begin
-        function Cartan.$fun(t::Components;args...)
-            out = Makie.$fun(t[1];args...)
-            display(out)
-            for i ∈ 2:length(t)
-                Makie.$(Symbol(fun,:!))(t[i];args...)
+for (mod,funlist) ∈ ((:Cartan,(:linegraph,:scaledarrows,:planes,:scaledplanes,:spaces,:scaledspaces,:scaledfield,:scaledbundle,:arrowsbundle,:planesbundle,:spacesbundle,:tangentbundle,:normalbundle)),
+        (:Makie,(:wireframe,:mesh,:lines,:linesegments,:streamplot,:volume,:contour,:contourf,:contour3d,:heatmap,:voxels,:volumeslices,:surface,:scatter,:text,:arrows,:arrows2d,:arrows3d)))
+    for fun ∈ funlist
+        @eval begin
+            function $mod.$fun(t::Components;args...)
+                out = Makie.$fun(t[1];args...)
+                display(out)
+                for i ∈ 2:length(t)
+                    Makie.$(Symbol(fun,:!))(t[i];args...)
+                end
+                return out
             end
-            return out
-        end
-        function Cartan.$(Symbol(fun,:!))(t::Components;args...)
-            Makie.$(Symbol(fun,:!))(t[1];args...)
-            for i ∈ 2:length(t)
-                Makie.$(Symbol(fun,:!))(t[i];args...)
+            function $mod.$(Symbol(fun,:!))(t::Components;args...)
+                Makie.$(Symbol(fun,:!))(t[1];args...)
+                for i ∈ 2:length(t)
+                    Makie.$(Symbol(fun,:!))(t[i];args...)
+                end
             end
-        end
-    end
-end
-for fun ∈ (:wireframe,:mesh,:lines,:linesegments,:streamplot,:volume,:contour,:contourf,:contour3d,:heatmap,:voxels,:volumeslices,:surface,:scatter,:text,:arrows,:arrows2d,:arrows3d)
-    @eval begin
-        function Makie.$fun(t::Components;args...)
-            out = Makie.$fun(t[1];args...)
-            display(out)
-            for i ∈ 2:length(t)
-                Makie.$(Symbol(fun,:!))(t[i];args...)
-            end
-            return out
-        end
-        function Makie.$(Symbol(fun,:!))(t::Components;args...)
-            Makie.$(Symbol(fun,:!))(t[1];args...)
-            for i ∈ 2:length(t)
-                Makie.$(Symbol(fun,:!))(t[i];args...)
-            end
+            $mod.$fun(t::Limit;args...) = Makie.$fun(last(t);args...)
+            $mod.$(Symbol(fun,:!))(t::Limit;args...) = Makie.$(Symbol(fun,:!))(last(t);args...)
+            $mod.$fun(t::LocalTensor;args...) = Makie.$fun(fiber(t);args...)
+            $mod.$(Symbol(fun,:!))(t::LocalTensor;args...) = Makie.$(Symbol(fun,:!))(fiber(t);args...)
         end
     end
 end
@@ -108,6 +98,10 @@ for fun ∈ (:mesh,:lines)
                 Makie.$(Symbol(fun,:!))(t[i],f;args...)
             end
         end
+        Makie.$fun(t::Limit,f;args...) = Makie.$fun(last(t);args...)
+        Makie.$(Symbol(fun,:!))(t::Limit,f;args...) = Makie.$(Symbol(fun,:!))(last(t);args...)
+        Makie.$fun(t::LocalTensor,f;args...) = Makie.$fun(fiber(t);args...)
+        Makie.$(Symbol(fun,:!))(t::LocalTensor,f;args...) = Makie.$(Symbol(fun,:!))(fiber(t);args...)
     end
 end
 for fun ∈ (:(Makie.scatter),:(Makie.scatter!),:(Makie.wireframe),:(Makie.wireframe!))

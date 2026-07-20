@@ -1383,3 +1383,22 @@ function integral_haar(f,z,θ=range(-pi,pi,70))
     TensorField(θ,out/N)
 end
 
+# Lebesgue
+
+function minmax(f)
+    lo,hi = f[1],f[1]
+    for fi ∈ f
+        (fi < lo) && (lo = fi)
+        (fi > hi) && (hi = fi)
+    end
+    return (lo,hi)
+end
+
+export layercake
+
+cakelayer(f,y) = integrate(y<0 ? -(f.≤y) : f.≥y)
+function layercake(f,n::Int=length(f))
+    y = range(minmax(fiber(f))...,length(f))
+    TensorField(y,cakelayer.(Ref(f),y))
+end
+

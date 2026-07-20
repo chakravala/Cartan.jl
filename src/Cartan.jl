@@ -33,9 +33,14 @@ import Grassmann: complexify, polarize, vectorize, gradient
 import Base: @pure, OneTo, getindex
 import LinearAlgebra: cross
 import ElasticArrays: resize_lastdim!
+import AbstractAnalysis
+import AbstractAnalysis: orbit, orbithold, Limit, orbiterror
+import AbstractAnalysis: supnorm, infnorm, maxabs, minabs, residual, residuals, lipschitz
+import AbstractAnalysis: CountableVector, CountableArray, SequenceArray, FixedCycle
 
 export Values, Derivation, differential, codifferential, boundary
 export initmesh, pdegrad, det, graphbundle, divergence, grad, nabla
+export Limit, orbit, orbithold, orbiterror, supnorm, extract, assign!
 
 macro elastic(itr)
     :(elastic($(itr.args[1]),$(itr.args[2])))
@@ -221,6 +226,7 @@ end
 @pure Base.eltype(::Type{<:TensorField{B,F}}) where {B,F} = LocalTensor{B,F}
 Base.getindex(m::TensorField,i::Vararg{Int}) = LocalTensor(getindex(base(m),i...), getindex(fiber(m),i...))
 Base.getindex(m::TensorField,i::Vararg{Union{Int,Colon}}) = TensorField(base(m)(i...), getindex(fiber(m),i...))
+Base.view(m::TensorField,i::Vararg{Union{Int,Colon}}) = TensorField(base(m)(i...), view(fiber(m),i...))
 #Base.setindex!(m::TensorField{B,F,1,<:Interval},s::LocalTensor,i::Vararg{Int}) where {B,F} = setindex!(fiber(m),fiber(s),i...)
 Base.setindex!(m::TensorField{B,Fm} where Fm,s::F,i::Vararg{Int}) where {B,F} = setindex!(fiber(m),s,i...)
 Base.setindex!(m::TensorField{B,Fm} where Fm,s::TensorField,::Colon,i::Int) where B = setindex!(fiber(m),fiber(s),:,i)
@@ -241,17 +247,13 @@ function Base.setindex!(m::TensorField,s::LocalTensor,i::Vararg{Int})
     return s
 end
 
-extract(x::AbstractVector,i) = (@inbounds x[i])
-extract(x::AbstractMatrix,i) = (@inbounds LocalTensor(points(x).v[end][i],x[:,i]))
-extract(x::AbstractArray{T,3} where T,i) = (@inbounds LocalTensor(points(x).v[end][i],x[:,:,i]))
-extract(x::AbstractArray{T,4} where T,i) = (@inbounds LocalTensor(points(x).v[end][i],x[:,:,:,i]))
-extract(x::AbstractArray{T,5} where T,i) = (@inbounds LocalTensor(points(x).v[end][i],x[:,:,:,:,i]))
+import AbstractAnalysis: extract, assign!
 
-assign!(x::AbstractVector,i,s) = (@inbounds x[i] = s)
-assign!(x::AbstractMatrix,i,s) = (@inbounds x[:,i] = s)
-assign!(x::AbstractArray{T,3} where T,i,s) = (@inbounds x[:,:,i] .= s)
-assign!(x::AbstractArray{T,4} where T,i,s) = (@inbounds x[:,:,:,i] = s)
-assign!(x::AbstractArray{T,5} where T,i,s) = (@inbounds x[:,:,:,:,i] = s)
+#extract(x::TensorField{B,F,1},i) = (@inbounds LocalTensor(points(x)[i],x[i]))
+extract(x::TensorField{B,F,2} where {B,F},i) = LocalTensor(points(x).v[end][i],view(x,:,i))
+extract(x::TensorField{B,F,3} where {B,F},i) = LocalTensor(points(x).v[end][i],view(x,:,:,i))
+extract(x::TensorField{B,F,4} where {B,F},i) = LocalTensor(points(x).v[end][i],view(x,:,:,:,i))
+extract(x::TensorField{B,F,5} where {B,F},i) = LocalTensor(points(x).v[end][i],view(x,:,:,:,:,i))
 
 Base.collect(x::TensorField) = TensorField(x,collect(fiber(x)))
 Base.broadcastable(x::TensorField{B,F,N,P,<:AbstractRange} where {B,F,N,P}) = collect(x)
@@ -476,6 +478,19 @@ function interval_scale(t::AbstractVector)
     x[end]-x[1]
 end
 
+function splitline(x)
+    d = Cartan.centraldiffpoints(x)
+    ddx = gradient(gradient(x,d),d)
+    af = abs.(fiber(ddx))
+    m = findmax(af)
+    if m[1]/(Cartan.mean(af)-m[1]/length(x)) > 10
+        [splitline(TensorField(points(x)[1:m[2]],fiber(x)[1:m[2]])),
+         splitline(TensorField(points(x)[m[2]:end],fiber(x)[m[2]:end]))]
+    else
+        return x
+    end
+end
+
 checkdomain(a::FiberBundle,b::FiberBundle) = base(a)≠base(b) ? error("GlobalFiber base not equal") : true
 
 _aff(x::Chain{V,1,T,2}) where {V,T} = Chain{varmanifold(3)}(one(T),x[1],x[2])
@@ -494,6 +509,77 @@ function SimplexBundle(t::EndomorphismField)
 end
 SimplexBundle(M::TensorField,t::EndomorphismField,n::Int...) = SimplexBundle(resample(M,n...),resample(t,n...))
 SimplexBundle(t::EndomorphismField,n::Int...) = SimplexBundle(resample(t,n...))
+
+AbstractAnalysis.supnorm(x::TensorField) = maximum(norm,fiber(x))
+AbstractAnalysis.infnorm(x::TensorField) = minimum(norm,fiber(x))
+
+function orbit(f,x::TensorField,n::AbstractVector{<:AbstractFloat})
+    xs = ElasticArray{fibertype(localfiber(x)),ndims(x)+1}(undef,size(x)...,length(n))
+    xi = x
+    assign!(xs,1,fiber(localfiber(xi)))
+    for i ∈ 2:length(n)
+        xi = f(xi)
+        assign!(xs,i,fiber(localfiber(xi)))
+    end
+    return TensorField(base(x)⊕n,SequenceArray(xs,(u,k) -> f(extract(u,k-1))))
+end
+
+Base.collect(x::Limit{<:TensorField},b::Number) = collect(x,0,b)
+Base.collect(x::Limit{<:TensorField},a::Number,b::Number) = collect(x,range(a,b,length(x)))
+function Base.collect(x::Limit{<:TensorField},n::AbstractRange=1:length(x))
+    val = ElasticArray(reshape(fiber(first(x)),size(first(x))...,1))
+    out = SequenceArray(val,(u,k) -> AbstractAnalysis.counter(x)(extract(u,k-1)))
+    ElasticArrays.resize_lastdim!(TensorField(base(first(x))⊕n,out),length(x))
+end
+
+fiber(x::TensorField{B,F,N,M,<:SequenceArray}) where {B,F,N,M} = x.cod.v
+function Base.resize!(x::TensorField{B,Q,1,M,<:SequenceArray{T,1} where T} where{B,Q,M},n::Int)
+    c = x.cod
+    m = length(c)
+    resize!(c.v,n)
+    y = TensorField(extend(base(x),n),c.v)
+    F = AbstractAnalysis.counter(c)
+    n > m && for k ∈ m+1:n
+        assign!(y,k,fiber(localfiber(F(y,k))))
+    end
+    return TensorField(base(y),c)
+end
+function ElasticArrays.resize_lastdim!(x::TensorField{B,Q,N,M,<:SequenceArray{T,N} where T} where{B,Q,M},n::Int) where N
+    c = x.cod
+    m = size(c)[end]
+    ElasticArrays.resize_lastdim!(c.v,n)
+    y = TensorField(extend(base(x),n),c.v)
+    F = AbstractAnalysis.counter(c)
+    n > m && for k ∈ m+1:n
+        assign!(y,k,fiber(localfiber(F(y,k))))
+    end
+    return TensorField(base(y),c)
+end
+
+extend(x::AbstractRange,i) = x[1]:step(x):x[end]+step(x)*(i-length(x))
+extend(x::ProductSpace{V},i) where V = ProductSpace{V}(x.v[1:end-1]...,extend(x.v[end],i))
+extend(x::PointArray,i) = PointArray(0,extend(points(x),i))
+extend(x::GridBundle,i) = GridBundle(extend(coordinates(x),i))
+
+function residuals(x::TensorField{B,Q,N,M,T} where {B,Q,N,M},d=distance) where T
+    out = _residuals(x,d)
+    !(T<:SequenceArray) && (return out)
+    TensorField(1:size(x)[end]-1,SequenceArray(fiber(out),(u,k) -> d(localfiber(extract(x,k)),localfiber(extract(x,k+1)))))
+end
+function _residuals(x::TensorField,d=distance)
+    x0 = localfiber(extract(x,1))
+    xi = x0
+    out = Vector{Float64}(undef,size(x)[end]-1)
+    for i ∈ 2:size(x)[end]
+        x0 = xi
+        xi = localfiber(extract(x,i))
+        out[i] = d(x0,xi)
+    end
+    return TensorField(1:length(out),out)
+end
+function residuals(x::TensorField{B,Q,N,M,<:CountableVector} where{B,Q,N,M},d=distance)
+    TensorField(1:size(x)[end]-1,residuals(x.cod,d))
+end
 
 findroot(t::TensorField) = minimum(norm(t))
 findroot(t::TensorField,x) = minimum(norm(t-x))

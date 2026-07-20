@@ -143,7 +143,7 @@ remove(t::ProductSpace{V,T,2} where {V,T},::Val{2}) = (@inbounds t.v[1])
 (m::ProductSpace)(i::Int,j::Int,k::Int,c::Colon,l::Int...) = m.v[4]
 (m::ProductSpace)(i::Int,j::Int,k::Int,l::Int,c::Colon,o::Int...) = m.v[5]
 
-# 2 - 0
+#= 2 - 0
 (m::ProductSpace)(c::Colon,::Colon,i::Int...) = ProductSpace(m.v[Values(1,2)])
 (m::ProductSpace)(c::Colon,i::Int,::Colon,j::Int...) = ProductSpace(m.v[Values(1,3)])
 (m::ProductSpace)(c::Colon,i::Int,j::Int,::Colon,k::Int...) = ProductSpace(m.v[Values(1,4)])
@@ -179,7 +179,21 @@ remove(t::ProductSpace{V,T,2} where {V,T},::Val{2}) = (@inbounds t.v[1])
 (m::ProductSpace)(c::Colon,::Colon,::Colon,i::Int,::Colon,j::Int...) = ProductSpace(m.v[Values(1,2,3,5)])
 (m::ProductSpace)(c::Colon,::Colon,i::Int,::Colon,::Colon,j::Int...) = ProductSpace(m.v[Values(1,2,4,5)])
 (m::ProductSpace)(c::Colon,i::Int,::Colon,::Colon,::Colon,j::Int...) = ProductSpace(m.v[Values(1,3,4,5)])
-(m::ProductSpace)(i::Int,c::Colon,::Colon,::Colon,::Colon,j::Int...) = ProductSpace(m.v[Values(2,3,4,5)])
+(m::ProductSpace)(i::Int,c::Colon,::Colon,::Colon,::Colon,j::Int...) = ProductSpace(m.v[Values(2,3,4,5)])=#
+
+iscolon(a::Type{Colon},b::T) where T = Values{1,T}(b)
+iscolon(a::Type{Int},b::T) where T = Values{0,T}()
+iscolon(a::Colon,b::T) where T = Values{1,T}(b)
+iscolon(a::Int,b::T) where T = Values{0,T}()
+colon_permutation(args...) = vcat(iscolon.(Values(args),Cartan.list(1,length(args)))...)
+@generated function (m::ProductSpace)(args::Union{Int,Colon}...)
+    perm = colon_permutation(args...)
+    if isone(length(perm))
+        isone(perm[1]) ? :(@inbounds m.v[$(perm[1])]) : :(m.v[$(perm[1])])
+    else
+        :(ProductSpace(m.v[$perm]))
+    end
+end
 
 export CrossRange
 struct CrossRange <: AbstractVector{Int}
