@@ -908,7 +908,7 @@ _orientedplane(p,v1,v2) = p.+[zero(v1) v1+v2; v1 v2]
 unorientedplane(p,v1,v2) = TensorField(base(OpenParameter(2,2)),_unorientedplane(p,v1,v2))
 orientedplane(p,v1,v2) = TensorField(base(OpenParameter(2,2)),_orientedplane(p,v1,v2))
 
-for fun ∈ (:unorientedpoly,:orientedpoly,:makietransform,:graylines,:graylines!)
+for fun ∈ (:unorientedpoly,:orientedpoly,:makietransform,:graylines,:graylines!,:raster)
     @eval function $fun end
 end
 for fun ∈ (:linegraph,:tangentbundle,:normalbundle,:planesbundle,:arrowsbundle,:spacesbundle,:scaledbundle,:scaledfield,:scaledarrows,:scaledplanes,:scaledspaces,:planes,:spaces)
@@ -991,6 +991,7 @@ function __init__()
     @require UnicodePlots="b8865327-cd53-5732-bb35-84acbb429228" include("../ext/UnicodePlotsExt.jl")
     @require Meshes = "eacbb407-ea5a-433e-ab97-5258b1ca43fa" include("../ext/MeshesExt.jl")
     @require GeometryBasics = "5c1252a2-5f33-56bf-86c9-59e7332b4326" include("../ext/GeometryBasicsExt.jl")
+    @require ColorTypes = "3da002f7-5984-5a60-b8a6-cbb66c0b333f" include("../ext/ColorTypesExt.jl")
     @require Delaunay="07eb4e4e-0c6d-46ef-bc4e-83d5e5d860a9" include("../ext/DelaunayExt.jl")
     @require QHull="a8468747-bd6f-53ef-9e5c-744dbc5c59e7" include("../ext/QHullExt.jl")
     @require MiniQhull="978d7f02-9e05-4691-894f-ae31a51d76ca" include("../ext/MiniQhullExt.jl")

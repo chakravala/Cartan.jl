@@ -1402,3 +1402,47 @@ function layercake(f,n::Int=length(f))
     TensorField(y,cakelayer.(Ref(f),y))
 end
 
+export ArrayFunction
+
+struct ArrayFunction{T,N,F} <: DenseArray{T,N}
+    f::F
+    v::Array{T,N}
+end
+
+ArrayFunction(v::Array,f) = ArrayFunction(f,f.(v))
+
+Base.getindex(x::ArrayFunction,n::Int) = getindex(x.v,n)
+Base.getindex(x::ArrayFunction,n::Int...) = getindex(x.v,n...)
+Base.size(x::ArrayFunction) = size(x.v)
+Base.length(x::ArrayFunction) = length(x.v)
+
+indefstep(F,h) = Fix1(Fix1(indefstep,F),h)
+indefstep(F,h,i) = (h/2)*(F(i-1)+F(i))
+
+countindef(F,h) = Fix1(Fix1(countindef,F),h)
+countindef(F,h,x) = (first(x)+1) => (last(x) + indefstep(F,h,first(x)+1))
+
+countindef2(F,h,n) = Fix1(Fix1(Fix1(countindef2,F),h),n)
+function countindef2(F,h,n,x)
+    k = first(x)+1
+    k => (last(x) + indefstep(F,h,k) + indefstep(F,h,n+2-k))
+end
+
+function indefintegrate(f)
+    i = integrate(f)
+    h,n = step(points(f)),length(f)
+    cv = CountableVector(points(f))
+    F = fiber(f).f∘AbstractAnalysis.counter(cv)
+    G = countindef(F,h)
+    Limit(1=>zero(typeof(i)),n=>i,n,supnorm(indefstep(F,h,n)),G)
+end
+
+function indefintegrate2(f)
+    i = integrate(f)
+    h,n = step(points(f)),length(f)
+    cv = CountableVector(points(f))
+    F = fiber(f).f∘AbstractAnalysis.counter(cv)
+    G = countindef2(F,h,n)
+    Limit(n=>i,n=>i,n,supnorm(indefstep(F,h,n)+indefstep(F,h,1)),G)
+end
+
