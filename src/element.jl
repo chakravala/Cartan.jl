@@ -12,17 +12,13 @@
 #   https://github.com/chakravala
 #   https://crucialflow.com
 
-export assemble, assembleglobal, assemblestiffness, assembleconvection, assembleSD
-export assemblemass, assemblefunction, assemblemassfunction, assembledivergence
-export assemblemassincidence, asssemblemassnodes, assemblenodes
-export assembleload, assemblemassload, assemblerobin, edges, edgesindices, neighbors
-export solvepoisson, solvetransportdiffusion, solvetransport, solvedirichlet, adaptpoisson
-export gradienthat, gradientCR, gradient, interp, nedelec, nedelecmean, jumps
+export assembleload, edges, edgesindices, neighbors
+export gradienthat, gradientCR, gradient, interp
 export submesh, detsimplex, iterable, callable, value, edgelengths, laplacian, weights
 export boundary, interior, trilength, trinormals, incidence, degrees, edges, faces, facets
 export adjacency, antiadjacency, facetsigns,refinemesh, refinemesh!, select, rms, unbundle
 export initmeshes, totalmesh, totalmeshes
-import Grassmann: norm, column, columns, points
+import Grassmann: norm, column, points
 using Base.Threads
 
 @inline iterpts(t,f) = iterable(fullpoints(t),f)
@@ -160,44 +156,29 @@ function refinemesh!(::AbstractRange,pt::SimplexBundle,pe,η,_=nothing)
     return (pt,pe)
 end
 
-Grassmann.columns(t::ImmersedTopology{N},i=1) where N = columns(topology(t))
-Grassmann.columns(t::AbstractVector{<:Values{N}},i=1) where N = column.(Ref(t),list(i,N))
+import MeshTopology: columns, reducedcolumns
 
 reducedcolumns(m::FrameBundle) = reducedcolumns(immersion(m))
-reducedcolumns(m::SimplexTopology) = iscover(m) ? columns(m) : columns(subtopology(m))
 
-vertices(e::ImmersedTopology{1,1}) = column(e)
-const pointset = vertices
-function vertices(e::ImmersedTopology{N,1}) where N
-    out = Int[]
-    mx = 0
-    for i ∈ e
-        for k ∈ i
-            if k ∉ out
-                k > mx && (mx = k)
-                push!(out,k)
-            end
-        end
-    end
-    n = length(out)
-    mx≠n ? out : Base.OneTo(n)
-end
+import MeshTopology: vertices, pointset, antiadjacency, adjacency
 
-antiadjacency(t,cols=reducedcolumns(t),n=nodes(t)) = (A = sparse(t,cols,n); A-transpose(A))
-adjacency(t,cols=reducedcolumns(t),n=nodes(t)) = (A = sparse(t,cols,n); A+transpose(A))
+#antiadjacency(t,cols=reducedcolumns(t),n=nodes(t)) = (A = sparse(t,cols,n); A-transpose(A))
+#adjacency(t,cols=reducedcolumns(t),n=nodes(t)) = (A = sparse(t,cols,n); A+transpose(A))
 SparseArrays.sparse(t::FrameBundle,cols=reducedcolumns(t),np::Int=nodes(t)) = sparse(immersion(t),cols,np)
-function SparseArrays.sparse(t::SimplexTopology,cols::Values{N}=reducedcolumns(t),np::Int=nodes(t)) where N
+#=function SparseArrays.sparse(t::SimplexTopology,cols::Values{N}=reducedcolumns(t),np::Int=nodes(t)) where N
     A = spzeros(Int,np,np)
     for c ∈ Grassmann.combo(N,2)
         A += @inbounds sparse(cols[c[1]],cols[c[2]],1,np,np)
     end
     return A
-end
+end=#
 
-edges(t,cols::Values,np=totalnodes(t)) = edges(t,adjacency(t,cols,np))
+import MeshTopology: edges, edgetopology, facetsinterior, facets, faces
+
+#edges(t,cols::Values,np=totalnodes(t)) = edges(t,adjacency(t,cols,np))
 edges(t::ElementBundle) = t(edges(immersion(t)))
 edges(t::ElementBundle,adj::AbstractMatrix) = t(edges(immersion(t),adj))
-edges(t::SimplexTopology{2}) = t
+#=edges(t::SimplexTopology{2}) = t
 edges(t::SimplexTopology{2},cols::Values) = t
 edges(t::SimplexTopology{2},adj::AbstractMatrix) = t
 function edges(t::SimplexTopology,adj::AbstractMatrix=adjacency(t,columns(t),totalnodes(t)))
@@ -219,9 +200,9 @@ function edges(t::DiscontinuousTopology{3},args...)
         out[n+3] = Values(ti[3],ti[1])
     end
     return SimplexTopology(0,out,OneTo(3nt),3nt)
-end
+end=#
 
-function facetsinterior(t::SimplexTopology{M}) where M
+#=function facetsinterior(t::SimplexTopology{M}) where M
     N = M-1
     #N == 0 && (return [list(2,1)],Int[])
     out = Values{N,Int}[]
@@ -237,10 +218,10 @@ end
 facets(t) = faces(t,Val(sdims(t)-1))
 facets(t,h) = faces(t,h,Val(sdims(t)-1))
 faces(t::Tuple,v,g=identity) = faces(t[1],t[2],v,g)
-faces(t,N::Int) = faces(t,Val(N))
+faces(t,N::Int) = faces(t,Val(N))=#
 faces(t::ElementBundle,v::Val) = t(faces(immersion(t),v))
 faces(t::ElementBundle,h,v::Val,g=identity) = faces(immersion(t),h,v,g)
-function faces(t::SimplexTopology{M},::Val{N}) where {N,M}
+#=function faces(t::SimplexTopology{M},::Val{N}) where {N,M}
     ver = vertices(t)
     N == M && (return t)
     N == 2 && (return edges(t))
@@ -305,7 +286,7 @@ function faces(t::SimplexTopology{M},h,::Val{N},g=identity) where {N,M}
         end
     end
     return SimplexTopology(0,out,refnodes(t)),bnd
-end
+end=#
 
 #∂(t::Values{N,<:Tuple}) where N = ∂.(t)
 #∂(t::Values{N,<:Vector}) where N = ∂.(t)
@@ -330,28 +311,15 @@ end
     f[1][findall((!)∘iszero,f[2])]
 end=#
 
-Grassmann.complement(t::ElementBundle) = t(complement(immersion(t)))
-function Grassmann.complement(t::SimplexTopology)
-    fullimmersion(t)[setdiff(1:totalelements(t),subelements(t))]
-end
+Grassmann.complement(t::ElementBundle) = t(Grassmann.complement(immersion(t)))
 
 import Grassmann: Leibniz
+import MeshTopology: skeleton
 skeleton(t::SimplexBundle) = skeleton(immersion(t))
-@generated skeleton(t::SimplexTopology{N}) where N = :(faces.(Ref(t),Ref(ones(Int,elements(t))),$(Val.(list(1,N+1))),abs))
+#@generated skeleton(t::SimplexTopology{N}) where N = :(faces.(Ref(t),Ref(ones(Int,elements(t))),$(Val.(list(1,N+1))),abs))
 #@generated skeleton(t::SimplexTopology{N}) where N = :(faces.(Ref(t),$(Val.(list(1,N+1)))))
 
-isedge(e) = t -> isedge(e,t)
-isedge(e,t) = prod(e .∈ Ref(t))
-function discontinuousboundary(dt,e)
-    t = SimplexTopology(dt)
-    out = copy(topology(e))
-    for i ∈ OneTo(elements(e))
-        ei = e[i]
-        j = findfirst(isedge(ei),topology(t))
-        out[i] = dt[j][invmap.(Ref(topology(t)[j]),ei)]
-    end
-    SimplexTopology(out,totalnodes(dt))
-end
+import MeshTopology: isedge, discontinuousboundary
 
 const array_cache = (Array{T,2} where T)[]
 const array_top_cache = (Array{T,2} where T)[]
@@ -532,44 +500,31 @@ function gradient_2(t::ElementBundle,u::AbstractVector{<:Chain},m=volumes(t),g=g
     TensorField(pt,[fiber(g)[k]⋅transpose(TensorOperator(Chain{V}(fiber(u)[T[k]]))) for k ∈ 1:length(T)])
 end
 
-for T ∈ (:Values,:Variables)
-    @eval function assemblelocal!(M,mat,m,tk::$T{N}) where N
-        l = list(1,N)
-        for i ∈ l, j ∈ l
-            M[tk[i],tk[j]] += mat[i,j]*m
-        end
-    end
-    @eval function assemblelocal!(M,mat,tk::$T{N}) where N
-        l = list(1,N)
-        for i ∈ l, j ∈ l
-            M[tk[i],tk[j]] += mat[i,j]
-        end
-    end
-end
+import MeshTopology:  assemblelocal!, weights, degrees, assembleincidence, incidence
 
 (::Laplacian)(t::SimplexTopology) = _laplacian(t)
 _laplacian(t::SimplexTopology) = Diagonal(degrees(t)) - adjacency(t)
 weights(t::FrameBundle) = inv(degrees(t))
 weights(t::FrameBundle,B::SparseMatrixCSC) = inv(degrees(t,B))
-weights(t::SimplexTopology) = inv.(degrees(t))
-weights(t::SimplexTopology,B::SparseMatrixCSC) = inv.(degrees(t,B))
-degrees(t::SimplexTopology,B::SparseMatrixCSC) = B*ones(Int,totalnodes(t)) #B=incidence(t)
+#weights(t::SimplexTopology) = inv.(degrees(t))
+#weights(t::SimplexTopology,B::SparseMatrixCSC) = inv.(degrees(t,B))
+#degrees(t::SimplexTopology,B::SparseMatrixCSC) = B*ones(Int,totalnodes(t)) #B=incidence(t)
 degrees(t::FaceBundle,f=nothing) = degrees(SimplexBundle(t),f)
 degrees(t::SimplexBundle,f=nothing) = TensorField(t,degrees(immersion(t),f))
-function degrees(t::SimplexTopology,f=nothing)
+#=function degrees(t::SimplexTopology,f=nothing)
     b = zeros(Int,totalnodes(t))
     for tk ∈ topology(t)
         b[tk] .+= 1
     end
     return b
-end
+end=#
 
 assembleincidence(t,f,B::SparseMatrixCSC) = Diagonal(iterpts(t,f))*B
 assembleincidence(t,f,m=volumes(t),v::Val=Val(false)) = assembleincidence(t,iterpts(t,f),iterable(t,m))
 function assembleincidence(X::FrameBundle,f,m,v::Val=Val(false))
     assembleincidence(immersion(X),f,m,v)
 end
-function assembleincidence(t::ImmersedTopology,f::AbstractVector,m::AbstractVector,::Val{T}=Val{false}()) where T
+#=function assembleincidence(t::ImmersedTopology,f::AbstractVector,m::AbstractVector,::Val{T}=Val{false}()) where T
     typ = fibertype(T ? m : f)
     b = zeros(typ<:Int ? Float64 : typ,totalnodes(t))
     for k ∈ 1:elements(t)
@@ -577,28 +532,30 @@ function assembleincidence(t::ImmersedTopology,f::AbstractVector,m::AbstractVect
         b[tk] .+= fiber(f)[tk].*fiber(m)[k]
     end
     return b
-end
+end=#
 incidence(t::FrameBundle) = incidence(subimmersion(t),cols)
-function incidence(t::ImmersedTopology,cols::Values{N}=columns(t)) where N
+#=function incidence(t::ImmersedTopology,cols::Values{N}=columns(t)) where N
     np,nt = totalnodes(t),elements(t)
     A = spzeros(Int,np,nt)
     for i ∈ list(1,N)
         A += sparse(cols[i],1:nt,1,np,nt)
     end
     return A
-end # node-element incidence, A[i,j]=1 -> i∈t[j]
+end # node-element incidence, A[i,j]=1 -> i∈t[j] =#
 
 assembleload(t,f=1,m=volumes(t)) = assembleincidence(t,iterpts(t,f)/sdims(t),m,Val(true))
 
+import MeshTopology: interp, pretni
+
 interp(t::FaceMap) = TensorField(SimplexBundle(base(t)),interp(subimmersion(t),fiber(t)))
-interp(t,B::SparseMatrixCSC=incidence(t)) = Diagonal(weights(t,B))*B
+#interp(t,B::SparseMatrixCSC=incidence(t)) = Diagonal(weights(t,B))*B
 interp(t::FaceBundle,args...) = interp(subimmersion(t),args...)
-interp(t::DiscontinuousTopology,b,w) = interp(t,b)
-interp(t::DiscontinuousTopology,b) = view(b,discontinuousvertices(t))
-interp(t::SimplexTopology,b,w=weights(t)) = assembleincidence(t,w,b,Val(true))
+#interp(t::DiscontinuousTopology,b,w) = interp(t,b)
+#interp(t::DiscontinuousTopology,b) = view(b,discontinuousvertices(t))
+#interp(t::SimplexTopology,b,w=weights(t)) = assembleincidence(t,w,b,Val(true))
 pretni(t::SimplexMap) = means(t)
-pretni(t,B::SparseMatrixCSC=incidence(t)) = interp(t,sparse(B'))
-pretni(t,ut) = means(t,ut) #interp(t,ut,B::SparseMatrixCSC) = B*ut
+#pretni(t,B::SparseMatrixCSC=incidence(t)) = interp(t,sparse(B'))
+#pretni(t,ut) = means(t,ut) #interp(t,ut,B::SparseMatrixCSC) = B*ut
 
 export interpCR
 function interpCR(pt,crfun::Function)
@@ -627,13 +584,15 @@ function interpCR(pt,dt::DiscontinuousTopology,ed,m::TensorField)
     TensorField(SimplexBundle(fullcoordinates(pt),dt),b)
 end
 
-invmap(t::Values{3,Int},n::Int) = n == t[1] ? 1 : n == t[2] ? 2 : 3
+import MeshTopology: invmap, findmissing, interior, facesindices, edgesindices, localedge
+
+#=invmap(t::Values{3,Int},n::Int) = n == t[1] ? 1 : n == t[2] ? 2 : 3
 findmissing(n::Values{2,Int}) = 1 ∉ n ? 1 : 2 ∉ n ? 2 : 3
 
 interior(e) = interior(totalnodes(e),vertices(e))
 interior(fixed,neq) = sort!(setdiff(1:neq,fixed))
 
-facesindices(t) = sdims(t) == 3 ? edgesindices(t) : throw(error())
+facesindices(t) = sdims(t) == 3 ? edgesindices(t) : throw(error())=#
 
 edgesindices(t::SimplexBundle) = edgesindices(t,edges(t))
 function edgesindices(t::SimplexBundle,ed::SimplexBundle)
@@ -644,7 +603,7 @@ function edgesindices(t::SimplexBundle,e::FaceBundle)
     met = isinduced(e) ? metricextensor(e) : means(et,fullmetricextensor(e))
     PointCloud(0,means(et,fullpoints(e)),met)(edgesindices(immersion(t),et))
 end
-function edgesindices(t::SimplexTopology,et::SimplexTopology{2}=edges(t))
+#=function edgesindices(t::SimplexTopology,et::SimplexTopology{2}=edges(t))
     np,nt,ne = nodes(t),elements(t),totalelements(et)
     A = sparse(columns(et)...,OneTo(ne),np,np); A += A'
     ei = [localedge(A,t[n]) for n ∈ 1:nt]
@@ -666,9 +625,11 @@ function localedge(A,v::Values{5})
     v1,v2,v3,v4,v5 = @inbounds (v[1],v[2],v[3],v[4],v[5])
     Values(A[v1,v2],A[v1,v3],A[v1,v4],A[v1,v5],
         A[v2,v3],A[v2,v4],A[v2,v5],A[v3,v4],A[v3,v5],A[v4,v5])
-end
+end=#
 
-function neighbor(k::Int,ab...)::Int
+import MeshTopology: neighbor, neighbors, facetsign, facetsigns, edgesigns, facets
+
+#=function neighbor(k::Int,ab...)::Int
     n = setdiff(intersect(ab...),k)
     isempty(n) ? 0 : n[1]
 end
@@ -681,10 +642,10 @@ end
     b = Values{N}([Expr(:call,:neighbor,:k,x[setdiff(N1,i)]...) for i ∈ N1])
     Expr(:block,Expr(:(=),Expr(:tuple,x...),Expr(:tuple,f...)),
         Expr(:call,:Values,b...))
-end
+end=#
 
 neighbors(t::ElementBundle,args...) = neighbors(immersion(t),args...)
-neighbors(t::DiscontinuousTopology) = neighbors(SimplexTopology(t))
+#=neighbors(t::DiscontinuousTopology) = neighbors(SimplexTopology(t))
 neighbors(t::DiscontinuousTopology,n2e) = neighbors(SimplexTopology(t),n2e)
 function neighbors(t::SimplexTopology{N},n2e=incidence(t)) where N
     A = sparse(n2e')
@@ -694,14 +655,14 @@ function neighbors(t::SimplexTopology{N},n2e=incidence(t)) where N
         n[k] = neighbors(A,t[k],k)
     end
     return n
-end
+end=#
 
-facetsign(i::Int,ni) = i<ni ? 1 : -1
+#=facetsign(i::Int,ni) = i<ni ? 1 : -1
 facetsigns(i::Values,ni) = facetsign.(i,ni)
-facetsigns(t::SimplexTopology,nbrs=neighbors(t)) = facetsigns.(nbrs,OneTo(elements(t)))
+facetsigns(t::SimplexTopology,nbrs=neighbors(t)) = facetsigns.(nbrs,OneTo(elements(t)))=#
 facetsigns(t::SimplexBundle,args...) = facetsigns(immersion(t),args...)
 
-edgesigns(i::Values{2,Int}) = @inbounds i[1] < i[2] ? 1 : -1
+#=edgesigns(i::Values{2,Int}) = @inbounds i[1] < i[2] ? 1 : -1
 edgesigns(i::Values{3,Int}) = @inbounds Values(i[2]<i[3] ? 1 : -1,i[3]<i[1] ? 1 : -1,i[1]<i[2] ? 1 : -1)
 edgesigns(i::Values{4,Int}) = @inbounds Values(i[1]<i[2] ? 1 : -1,i[1]<i[3] ? 1 : -1,i[1]<i[4] ? 1 : -1,i[2]<i[3] ? 1 : -1,i[2]<i[4] ? 1 : -1,i[3]<i[4] ? 1 : -1)
 edgesigns(i::Values{5,Int}) = @inbounds Values(i[1]<i[2] ? 1 : -1,i[1]<i[3] ? 1 : -1,i[1]<i[4] ? 1 : -1,i[1]<i[5] ? 1 : -1,i[2]<i[3] ? 1 : -1,i[2]<i[4] ? 1 : -1,i[2]<i[5] ? 1 : -1,i[3]<i[4] ? 1 : -1,i[3]<i[5] ? 1 : -1,i[4]<i[5] ? 1 : -1)
@@ -709,7 +670,7 @@ edgesigns(i::Values{5,Int}) = @inbounds Values(i[1]<i[2] ? 1 : -1,i[1]<i[3] ? 1 
 facets(i::Values{2,Int}) = @inbounds Values(Values(i[2]),Values(i[1]))
 facets(i::Values{3,Int}) = @inbounds Values(Values(i[2],i[3]),Values(i[3],i[1]),Values(i[1],i[2]))
 facets(i::Values{4,Int}) = @inbounds Values(Values(i[2],i[3],i[4]),Values(i[4],i[3],i[1]),Values(i[1],i[2],i[4]),Values(i[3],i[2],i[1]))
-facets(i::Values{5,Int}) = @inbounds Values(Values(i[2],i[3],i[4],i[5]),Values(i[5],i[3],i[2],i[1]),Values(i[1],i[2],i[4],i[5]),Values(i[5],i[4],i[3],i[1]),Values(i[1],i[2],i[3],i[4],i[5]))
+facets(i::Values{5,Int}) = @inbounds Values(Values(i[2],i[3],i[4],i[5]),Values(i[5],i[3],i[2],i[1]),Values(i[1],i[2],i[4],i[5]),Values(i[5],i[4],i[3],i[1]),Values(i[1],i[2],i[3],i[4],i[5]))=#
 
 # LagrangeBundle
 
@@ -889,146 +850,6 @@ function printlagrange(::Val{4},::Val{M}) where M
     end
 end=#
 
-# refinement
-
-refinement(t::LagrangeTriangles{1}) = cornertopology(t)
-function refinement(t::LagrangeTriangles)
-    out = reduce(vcat,refinetriangle.(topology(t)))
-    SimplexTopology(0,out,vertices(t),nodes(t))
-end
-
-refinetriangle(t::Values{3}) = [t]
-function refinetriangle(t::Values{6})
-    [Values(t[1],t[6],t[5]),
-     Values(t[2],t[4],t[6]),
-     Values(t[3],t[5],t[4]),
-     Values(t[4],t[5],t[6])]
-end
-
-function refinetriangle(t::Values{10})
-    [Values(t[1],t[8],t[7]),
-     Values(t[2],t[4],t[9]),
-     Values(t[3],t[6],t[5]),
-     Values(t[8],t[9],t[10]),
-     Values(t[9],t[4],t[10]),
-     Values(t[4],t[5],t[10]),
-     Values(t[5],t[6],t[10]),
-     Values(t[6],t[7],t[10]),
-     Values(t[7],t[8],t[10])]
-end
-function refinetriangle(t::Values{15})
-    [Values(t[1],t[10],t[9]),
-     Values(t[2],t[4],t[12]),
-     Values(t[3],t[7],t[6]),
-     Values(t[11],t[12],t[15]),
-     Values(t[12],t[4],t[15]),
-     Values(t[4],t[5],t[15]),
-     Values(t[5],t[6],t[14]),
-     Values(t[6],t[7],t[14]),
-     Values(t[7],t[8],t[14]),
-     Values(t[8],t[9],t[13]),
-     Values(t[9],t[10],t[13]),
-     Values(t[10],t[11],t[13]),
-     Values(t[11],t[15],t[13]),
-     Values(t[5],t[14],t[15]),
-     Values(t[8],t[13],t[14]),
-     Values(t[13],t[15],t[14])]
-end
-
-# refine tetrahedron
-
-refinement(t::LagrangeTetrahedra{1}) = cornertopology(t)
-function refinement(t::LagrangeTetrahedra)
-    out = reduce(vcat,refinetetrahedron.(topology(t)))
-    SimplexTopology(0,out,vertices(t),nodes(t))
-end
-
-refinetetrahedron(t::Values{4}) = [t]
-
-#= simplex permutations
-
-_sortperm(v::Values) = _sortperm(v...)
-_sortperm(a,b) = a < b ? Values(1,2) : Values(2,1)
-function _sortperm(a,b,c)
-    if a < b
-        if a < c
-            b < c ? Values(1,2,3) : Values(1,3,2)
-        else # c < a
-            Values(2,3,1)
-        end
-    else # b < a
-        if b < c
-            a < c ? Values(2,1,3) : Values(3,1,2)
-        else # c < b
-            Values(3,2,1)
-        end
-    end
-end
-function _sortperm(a,b,c,d)
-    if a > b
-        if b > c
-            if d > b
-                d > a ? Values(3,2,1,4) : Values(4,2,1,3)
-            else
-                d > c ? Values(4,3,1,2) : Values(4,3,2,1)
-            end
-        else
-            if a > c
-                if d > c
-                    d > a ? Values(3,1,2,4) : Values(4,1,2,3)
-                else
-                    d > b ? Values(4,1,3,2) : Values(4,2,3,1)
-                end
-            else
-                if d > a
-                    d > c ? Values(2,1,3,4) : Values(2,1,4,3)
-                else
-                    d > b ? Values(3,1,4,2) : Values(3,2,4,1)
-                end
-            end
-        end
-    else
-        if a > c
-            if d > a
-                d > b ? Values(2,3,1,4) : Values(2,4,1,3)
-            else
-                d > c ? Values(3,4,1,2) : Values(3,4,2,1)
-            end
-        else
-            if b > c
-                if d > c
-                    d > b ? Values(1,3,2,4) : Values(1,4,2,3)
-                else
-                    d > a ? Values(1,4,3,2) : Values(2,4,3,1)
-                end
-            else
-                if d > b
-                    d > c ? Values(1,2,3,4) : Values(1,2,4,3)
-                else
-                    d > a ? Values(1,3,4,2) : Values(2,3,4,1)
-                end
-            end
-        end
-    end
-end
-
-function triangleinteger(r,c)
-    Int(r*(r-1)/2)+c
-end
-function triangleintegers(R,e1=true,e2=true,e3=true)
-    for r ∈ 1:R
-        for c ∈ 1:r
-            print(triangleinteger(e1 ? r : R-r+c,e2 ? c : r-c+1),",")
-        end
-        print("\n")
-    end
-end
-function trianglecoords(R,e1=true,e2=true,e3=true)
-    for r ∈ 1:R
-        for c ∈ 1:r
-            print((e1 ? r : R-r+c,e2 ? c : r-c+1),",")
-        end
-        print("\n")
-    end
-end=#
+import MeshTopology: refinement, refinetriangle, refinetetrahedron
+#import MeshTopology: _sortperm, triangleinteger, triangleintegers, trianglecoords
 

@@ -34,11 +34,11 @@ import Base: @pure, OneTo, getindex
 import LinearAlgebra: cross
 import ElasticArrays: resize_lastdim!
 import AbstractAnalysis
-import AbstractAnalysis: orbit, orbithold, Limit, orbiterror
+import AbstractAnalysis: orbit, orbithold, Limit, orbiterror, derivative
 import AbstractAnalysis: supnorm, infnorm, maxabs, minabs, residual, residuals, lipschitz
 import AbstractAnalysis: CountableVector, CountableArray, SequenceArray, FixedCycle
 
-export Values, Derivation, differential, codifferential, boundary
+export Values, Derivation, differential, codifferential, boundary, derivative
 export initmesh, pdegrad, det, graphbundle, divergence, grad, nabla
 export Limit, orbit, orbithold, orbiterror, supnorm, extract, assign!
 

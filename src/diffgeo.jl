@@ -405,6 +405,7 @@ weingarten(f::VectorField) = jacobian(unitnormal(f))
 Base.adjoint(f::IntervalMap) = jacobian(f)
 Base.adjoint(f::ScalarField) = jacobian(f)
 Base.adjoint(f::VectorField) = jacobian(f)
+Base.adjoint(f::TensorField{B,F,2} where B) where F<:AbstractComplex = derivative(f)
 
 tangent_slow(f::IntervalMap) = gradient_slow(f)
 tangent_slow(f::ScalarField) = tangent_slow(graph(f))

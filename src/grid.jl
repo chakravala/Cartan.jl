@@ -600,6 +600,16 @@ function unitgradient(f::TensorField,args...)
     return t/abs(t)
 end
 
+imagunit(x::Type{Complex{T}}) where T = Complex(zero(T),one(T))
+imagunit(x::Type{<:Couple{V,B} where V}) where B = B
+
+derivative(f::TensorField,args...) = gradient(f,args...)
+function derivative(f::TensorField{B,F,2} where B) where F<:AbstractComplex
+    gf = gradient(f)
+    i = imagunit(F)
+    (getindex.(gf,1)+getindex.(gf,2)/i)/2
+end
+
 import Base: @nloops, @nref, @ncall
 
 macro nthreads(N, itersym, rangeexpr, args...)
