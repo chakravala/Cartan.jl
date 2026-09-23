@@ -64,9 +64,9 @@ for fun ∈ (:Open,:Cylinder,:Mobius,:Wing,:Mirror,:Clamped,:Torus,:Hopf,:Klein,
         @eval begin
             export $typ
             $typ(p::ProductSpace) = $typ(PointArray(p))
-            #$typ(p::Values{N,<:AbstractVector} where N) = $typ(ProductSpace(p))
-            #$typ(p::T...) where T<:AbstractVector = $typ(ProductSpace(Values(p)))
-            #$typ(n::NTuple) = $typ(Values(n))
+            $typ(p::Values{N,<:AbstractVector} where N) = $typ(ProductSpace(p))
+            $typ(p::T...) where T<:AbstractVector = $typ(ProductSpace(Values(p)))
+            $typ(n::NTuple) = $typ(Values(n))
         end
     end
 end

@@ -619,9 +619,16 @@ function _nthreads(N::Int, itersym::Symbol, arraysym::Symbol, args::Expr...)
     @gensym d
     _nthreads(N, itersym, :($d->Base.axes($arraysym, $d)), args...)
 end
-function _nthreads(N::Int, itersym::Symbol, rangeexpr::Expr, args::Expr...)
-    ex = Base.Cartesian._nloops(N, itersym, rangeexpr, args...)
-    Expr(:block,ex.args[1],Expr(:macrocall,Symbol("@threads"),nothing,ex.args[2]))
+if VERSION<v"1.13"
+    function _nthreads(N::Int, itersym::Symbol, rangeexpr::Expr, args::Expr...)
+        ex = Base.Cartesian._nloops(N, itersym, rangeexpr, args...)
+        Expr(:block,ex.args[1],Expr(:macrocall,Symbol("@threads"),nothing,ex.args[2]))
+    end
+else
+    function _nthreads(N::Int, itersym::Symbol, rangeexpr::Expr, args::Expr...)
+        ex = Base.Cartesian._nloops(N, itersym, true, rangeexpr, args...)
+        Expr(:block,ex.args[1],Expr(:macrocall,Symbol("@threads"),nothing,ex.args[2]))
+    end
 end
 
 for fun ∈ (:_slow,:_fast,:_forw,:_back)
