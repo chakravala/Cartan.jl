@@ -1,7 +1,7 @@
 name = "Cartan"
 uuid = "e24af43f-9fd5-4672-9264-a75f3ae40eb2"
 authors = ["Michael Reed"]
-version = "0.4.16"
+version = "0.4.17"
 
 [deps]
 Requires = "ae029012-a4dd-5104-9daa-d747884805df"
@@ -15,6 +15,8 @@ MeshTopology = "31b8f0e9-dcd2-4439-9f8c-2c86b5403e47"
 
 [weakdeps]
 Makie = "ee78f7c6-11fb-53f2-987a-cfe4a2b5a57a"
+Gtk4Makie = "478199e7-b407-4926-87ea-7196203a28d8"
+GtkObservables = "8710efd8-4ad6-11eb-33ea-2d5ceb25a41c"
 UnicodePlots = "b8865327-cd53-5732-bb35-84acbb429228"
 Meshes = "eacbb407-ea5a-433e-ab97-5258b1ca43fa"
 GeometryBasics = "5c1252a2-5f33-56bf-86c9-59e7332b4326"
@@ -35,6 +37,7 @@ JacobiElliptic = "2a8b799e-c098-4961-872a-356c768d184c"
 
 [extensions]
 MakieExt = "Makie"
+Gtk4MakieExt = ["Gtk4Makie","GtkObservables"]
 UnicodePlotsExt = "UnicodePlots"
 MeshesExt = "Meshes"
 GeometryBasicsExt = "GeometryBasics"

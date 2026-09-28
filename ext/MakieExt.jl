@@ -157,6 +157,8 @@ for fun ∈ (:contour3d,:contour3d!)
     end
 end
 
+Makie.convert_arguments(P::Type{<:Lines},t::RealFunction) = (Real.(points(t)),Real.(fiber(t)))
+Makie.convert_arguments(P::Type{<:Lines},t::AbstractCurve) = (Makie.Point.(vec(fiber(t))),)
 for lines ∈ (:lines,:lines!,:linesegments,:linesegments!)
     @eval begin
         Makie.$lines(t::RectangleMap;args...) = Makie.$lines(boundarycomponents(t);args...)
@@ -170,7 +172,7 @@ for lines ∈ (:lines,:lines!,:linesegments,:linesegments!)
         end
         Makie.$lines(t::SpaceCurve,f::RealFunction;args...) = Makie.$lines(vec(fiber(t));color=Real.(vec(fiber(f))),args...)
         Makie.$lines(t::PlaneCurve,f::RealFunction=speed;args...) = Makie.$lines(vec(fiber(t));color=Real.(vec(fiber(f))),args...)
-        Makie.$lines(t::RealFunction,f::RealFunction=speed;args...) = Makie.$lines(Real.(points(t)),Real.(fiber(t));color=Real.(vec(fiber(f))),args...)
+        Makie.$lines(t::RealFunction,f::RealFunction;args...) = Makie.$lines(Real.(points(t)),Real.(fiber(t));color=Real.(vec(fiber(f))),args...)
         Makie.$lines(t::AbstractCurve,f::Function=speed;args...) = Makie.$lines(t,f(t);args...)
         Makie.$lines(t::ComplexMap{B,F,1},f::Function=speed;args...) where {B<:Coordinate{<:AbstractReal},F} = Makie.$lines(t,f(t);args...)
         Makie.$lines(t::ComplexMap{B,F,1},f::RealFunction;args...) where {B<:Coordinate{<:AbstractReal},F} = Makie.$lines(Cartan.realvalue.(fiber(t)),Cartan.imagvalue.(fiber(t));color=Real.(vec(fiber(f))),args...)

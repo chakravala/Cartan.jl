@@ -908,7 +908,8 @@ _orientedplane(p,v1,v2) = p.+[zero(v1) v1+v2; v1 v2]
 unorientedplane(p,v1,v2) = TensorField(base(OpenParameter(2,2)),_unorientedplane(p,v1,v2))
 orientedplane(p,v1,v2) = TensorField(base(OpenParameter(2,2)),_orientedplane(p,v1,v2))
 
-for fun ∈ (:unorientedpoly,:orientedpoly,:makietransform,:graylines,:graylines!,:raster)
+export gtkplot
+for fun ∈ (:unorientedpoly,:orientedpoly,:makietransform,:graylines,:graylines!,:raster,:gtkplot)
     @eval function $fun end
 end
 for fun ∈ (:linegraph,:tangentbundle,:normalbundle,:planesbundle,:arrowsbundle,:spacesbundle,:scaledbundle,:scaledfield,:scaledarrows,:scaledplanes,:scaledspaces,:planes,:spaces)
@@ -988,6 +989,7 @@ end
 @static if !isdefined(Base, :get_extension)
 function __init__()
     @require Makie="ee78f7c6-11fb-53f2-987a-cfe4a2b5a57a" include("../ext/MakieExt.jl")
+    @require Gtk4Makie="478199e7-b407-4926-87ea-7196203a28d8" include("../ext/Gtk4MakieExt.jl")
     @require UnicodePlots="b8865327-cd53-5732-bb35-84acbb429228" include("../ext/UnicodePlotsExt.jl")
     @require Meshes = "eacbb407-ea5a-433e-ab97-5258b1ca43fa" include("../ext/MeshesExt.jl")
     @require GeometryBasics = "5c1252a2-5f33-56bf-86c9-59e7332b4326" include("../ext/GeometryBasicsExt.jl")
