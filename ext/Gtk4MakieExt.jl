@@ -92,24 +92,20 @@ function Cartan.gtkplot(vh::Symbol,plt::Function,fun::Function,args...;kwargs...
     for s ∈ sl
         typeof(s) <: GtkObservables.Slider && (widget(s).draw_value = false)
     end
-    win = Gtk4.GtkWindow(string(plt)*": "*string(fun))
-    win[] = p = Gtk4.GtkPaned(vh;position=10,wide_handle=true,vexpand=true,resize_end_child=true,resize_start_child=false,shrink_start_child=false)
     params = Observable(getindex.(osl))
     y = @lift fun($params...)
     obj = plt(splitobservables(y)...;kwargs...)
-    p[1] = sliderbox(boxstring.(args),sl...)
-    p[2] = Gtk4Makie.GtkMakieWidget()
-    push!(p[1],plotbuttons(params,obj,osl))
-    push!(p[2],obj)
-    return win
+    bx = sliderbox(boxstring.(args),sl...)
+    push!(bx,plotbuttons(params,obj,osl))
+    Cartan.gtkplot(vh,obj,string(plt)*": "*string(fun),bx)
 end
 
 Cartan.gtkplot(obj::Gtk4Makie.Makie.FigureAxisPlot,str=string(typeof(obj.plot))) = Cartan.gtkplot(:v,obj,str)
 Cartan.gtkplot(vh::Symbol,plt::Function,args...;kwargs...) = Cartan.gtkplot(vh,plt(args...;kwargs...),string(plt))
-function Cartan.gtkplot(vh::Symbol,obj::Gtk4Makie.Makie.FigureAxisPlot,str=string(typeof(obj.plot)))
+function Cartan.gtkplot(vh::Symbol,obj::Gtk4Makie.Makie.FigureAxisPlot,str=string(typeof(obj.plot)),bx=sliderbox(()))
     win = Gtk4.GtkWindow(str)
     win[] = p = Gtk4.GtkPaned(vh;wide_handle=true,vexpand=true,resize_end_child=true,resize_start_child=false,shrink_start_child=false)
-    p[1] = sliderbox(())
+    p[1] = bx
     p[2] = Gtk4Makie.GtkMakieWidget()
     push!(p[2],obj)
     return win

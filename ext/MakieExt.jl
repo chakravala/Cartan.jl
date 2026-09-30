@@ -104,20 +104,17 @@ for fun ∈ (:mesh,:lines)
         Makie.$(Symbol(fun,:!))(t::LocalTensor,f;args...) = Makie.$(Symbol(fun,:!))(fiber(t);args...)
     end
 end
-for fun ∈ (:(Makie.scatter),:(Makie.scatter!),:(Makie.wireframe),:(Makie.wireframe!))
-    @eval $fun(t::TensorField{B,<:AbstractComplex} where B;args...) = $fun(vectorize(t);args...)
+Makie.convert_arguments(P::Type{<:Makie.Scatter},t::TensorField{B,<:AbstractComplex} where B) = Makie.convert_arguments(P,vectorize(t))
+Makie.convert_arguments(P::Type{<:Makie.Wireframe},t::TensorField{B,<:AbstractComplex} where B) = Makie.convert_arguments(P,vectorize(t))
+Makie.convert_arguments(P::Type{<:Makie.Arrows2D},t::TensorField{B,<:AbstractComplex} where B) = Makie.convert_arguments(P,vectorize(t))
+Makie.convert_arguments(P::Type{<:Makie.Arrows3D},t::TensorField{B,<:AbstractComplex} where B) = Makie.convert_arguments(P,vectorize(t))
+Makie.convert_arguments(P::Type{<:Makie.Mesh},t::TensorField{B,<:AbstractComplex,2} where B) = Makie.convert_arguments(P,vectorize(t))
+Makie.convert_arguments(P::Type{<:Makie.StreamPlot},t::TensorField{B,<:AbstractComplex,2} where B) = Makie.convert_arguments(P,vectorize(t))
+for fun ∈ (:scaledarrows,:scaledarrows!,:linegraph,:linegraph!)
+    @eval $fun(t::TensorField{B,<:AbstractComplex} where B,args...;kw...) = $fun(vectorize(t),args...;kw...)
 end
 for fun ∈ (:(Makie.arrows),:(Makie.arrows!),:(Makie.arrows2d),:(Makie.arrows2d!),:scaledarrows,:scaledarrows!,:linegraph,:linegraph!)
-    @eval begin
-        $fun(t::TensorField{B,<:AbstractComplex} where B,args...;kw...) = $fun(vectorize(t),args...;kw...)
-        $fun(M::TensorField{B,<:AbstractComplex} where B,t::TensorField{B,<:AbstractComplex} where B;args...) = $fun(vectorize(M),Real(angle(t));args...)
-    end
-end
-for fun ∈ (:mesh,:streamplot)
-    @eval begin
-        Makie.$fun(t::TensorField{B,<:AbstractComplex,2} where B,args...;kw...) = Makie.$fun(vectorize(t),args...;kw...)
-        Makie.$(Symbol(fun,:!))(t::TensorField{B,<:AbstractComplex,2} where B,args...;kw...) = Makie.$(Symbol(fun,:!))(vectorize(t),args...;kw...)
-    end
+    @eval $fun(M::TensorField{B,<:AbstractComplex} where B,t::TensorField{B,<:AbstractComplex} where B;args...) = $fun(vectorize(M),Real(angle(t));args...)
 end
 Makie.mesh(t::TensorField{B,<:AbstractComplex,2} where B,f::Function;args...) = Makie.mesh(vectorize(t),f(t);args...)
 Makie.mesh!(t::TensorField{B,<:AbstractComplex,2} where B,f::Function;args...) = Makie.mesh!(vectorize(t),f(t);args...)
@@ -159,6 +156,7 @@ end
 
 Makie.convert_arguments(P::Type{<:Lines},t::RealFunction) = (Real.(points(t)),Real.(fiber(t)))
 Makie.convert_arguments(P::Type{<:Lines},t::AbstractCurve) = (Makie.Point.(vec(fiber(t))),)
+Makie.convert_arguments(P::Type{<:Lines},t::ComplexMap{B,F,1} where {B,F}) = (Cartan.realvalue.(fiber(t)),Cartan.imagvalue.(fiber(t)))
 for lines ∈ (:lines,:lines!,:linesegments,:linesegments!)
     @eval begin
         Makie.$lines(t::RectangleMap;args...) = Makie.$lines(boundarycomponents(t);args...)
@@ -442,21 +440,21 @@ function Makie.streamplot!(t::TensorField{<:Coordinate{<:Chain},<:TensorOperator
     end
 end
 
-for fun ∈ (:volume,:volume!,:contour,:contour!,:voxels,:voxels!)
-    @eval function Makie.$fun(t::VolumeGrid;args...)
+for fun ∈ (:(Makie.Volume),:(Makie.Contour),:(Makie.Voxels))
+    @eval function Makie.convert_arguments(P::Type{<:$fun},t::VolumeGrid)
         p = points(t).v
-        Makie.$fun(Makie.:..(p[1][1],p[1][end]),Makie.:..(p[2][1],p[2][end]),Makie.:..(p[3][1],p[3][end]),Real.(fiber(resample(t)));args...)
+        (Makie.:..(p[1][1],p[1][end]),Makie.:..(p[2][1],p[2][end]),Makie.:..(p[3][1],p[3][end]),Real.(fiber(resample(t))))
     end
 end
-for fun ∈ (:volumeslices,:volumeslices!)
-    @eval Makie.$fun(t::VolumeGrid;args...) = Makie.$fun(points(t).v...,Real.(fiber(t));args...)
-end
+Makie.convert_arguments(P::Type{<:Makie.VolumeSlices},t::VolumeGrid) = (points(t).v...,Real.(fiber(t)))
+Makie.convert_arguments(P::Type{<:Makie.Surface},t::SurfaceGrid) = (points(t).v...,Real.(fiber(t)))
+Makie.convert_arguments(P::Type{<:Makie.Surface},t::TensorField{B,<:AbstractReal,2,<:FiberProductBundle} where B) = (TensorField(GridBundle(base(t)),fiber(t)),)
 for fun ∈ (:surface,:surface!)
     @eval begin
         Makie.$fun(t::SurfaceGrid;args...) = Makie.$fun(points(t).v...,Real.(fiber(t));color=fiber(Real(t)),args...)
         Makie.$fun(t::SurfaceGrid,f::Function;args...) = Makie.$fun(points(t).v...,Real.(fiber(t));color=Real.(abs.(fiber(f(Real(t))))),args...)
         Makie.$fun(t::ComplexMap{B,<:AbstractComplex,2,<:RealSpace{2}} where B;args...) = Makie.$fun(points(t).v...,Real.(radius.(fiber(t)));color=Real.(angle.(fiber(t))),colormap=:twilight,args...)
-        Makie.$fun(t::TensorField{B,<:AbstractReal,2,<:FiberProductBundle} where B;args...) = Makie.$fun(TensorField(GridBundle(base(t)),fiber(t)))
+        Makie.$fun(t::TensorField{B,<:AbstractReal,2,<:FiberProductBundle} where B;args...) = Makie.$fun(TensorField(GridBundle(base(t)),fiber(t));args...)
         function Makie.$fun(t::GradedField{G,B,F,2,<:RealSpace{2}} where G,f::Function=gradient_fast;args...) where {B,F<:Chain}
             x,y = points(t),value.(fiber(t))
             yi = Real.(getindex.(y,1))
@@ -469,36 +467,39 @@ for fun ∈ (:surface,:surface!)
         end
     end
 end
-for fun ∈ (:contour,:contour!,:contourf,:contourf!,:contour3d,:contour3d!)
-    @eval begin
-        Makie.$fun(t::ComplexMap{B,<:AbstractComplex,2,<:RealSpace{2}} where B;args...) = Makie.$fun(points(t).v...,Real.(radius.(fiber(t)));args...)
-    end
+for fun ∈ (:(Makie.Contour),:(Makie.Contourf),:(Makie.Contour3d))
+    @eval Makie.convert_arguments(P::Type{<:$fun},t::ComplexMap{B,<:AbstractComplex,2,<:RealSpace{2}} where B) = (points(t).v...,Real.(radius.(fiber(t))))
 end
-for fun ∈ (:heatmap,:heatmap!)
+Makie.convert_arguments(P::Type{<:Makie.Heatmap},t::ComplexMap{B,<:AbstractComplex,2,<:RealSpace{2}} where B) = (points(t).v...,Real.(angle.(fiber(t))))
+#=for fun ∈ (:heatmap,:heatmap!)
     @eval begin
         Makie.$fun(t::ComplexMap{B,<:AbstractComplex,2,<:RealSpace{2}} where B;args...) = Makie.$fun(points(t).v...,Real.(angle.(fiber(t)));colormap=:twilight,args...)
     end
-end
-for fun ∈ (:contour,:contour!,:contourf,:contourf!,:contour3d,:contour3d!,:heatmap,:heatmap!)
+end=#
+for fun ∈ (:(Makie.Contour),:(Makie.Contourf),:(Makie.Contour3d),:(Makie.Heatmap))
     @eval begin
-        Makie.$fun(t::TensorField{B,<:AbstractReal,2,<:RealSpace{2}} where B;args...) = Makie.$fun(points(t).v...,Real.(fiber(t));args...)
-        Makie.$fun(t::TensorField{B,<:AbstractReal,2,<:FiberProductBundle} where B;args...) = Makie.$fun(TensorField(GridBundle(base(t)),fiber(t)))
-        function Makie.$fun(t::TensorField{B,F,2,<:RealSpace{2}};args...) where {B,G,F<:Chain{V,G} where V}
-            x,y = points(t),value.(fiber(t))
-            out = Makie.$fun(x.v...,Real.(getindex.(y,1));args...)
-            for i ∈ 2:Grassmann.binomial(mdims(eltype(fiber(t))),G)
-                Makie.$(funsym(fun))(x.v...,Real.(getindex.(y,i));args...)
-            end
-            return out
-        end
+        Makie.convert_arguments(P::Type{<:$fun},t::TensorField{B,<:AbstractReal,2,<:RealSpace{2}} where B) = (points(t).v...,Real.(fiber(t)))
+        Makie.convert_arguments(P::Type{<:$fun},t::TensorField{B,<:AbstractReal,2,<:FiberProductBundle} where B) = Makie.convert_arguments(P,TensorField(GridBundle(base(t)),fiber(t)))
     end
 end
-for fun ∈ (:wireframe,:wireframe!)
+for fun ∈ (:contour,:contour!,:contourf,:contourf!,:contour3d,:contour3d!,:heatmap,:heatmap!)
+    @eval function Makie.$fun(t::TensorField{B,F,2,<:RealSpace{2}};args...) where {B,G,F<:Chain{V,G} where V}
+        x,y = points(t),value.(fiber(t))
+        out = Makie.$fun(x.v...,Real.(getindex.(y,1));args...)
+        for i ∈ 2:Grassmann.binomial(mdims(eltype(fiber(t))),G)
+            Makie.$(funsym(fun))(x.v...,Real.(getindex.(y,i));args...)
+        end
+        return out
+    end
+end
+Makie.convert_arguments(P::Type{<:Makie.Wireframe},t::SurfaceGrid) = Makie.convert_arguments(P,graph(t))
+Makie.convert_arguments(P::Type{<:Makie.Wireframe},t::TensorField{B,<:AbstractReal,2,<:FiberProductBundle} where B) = Makie.convert_arguments(P,TensorField(GridBundle(base(t)),fiber(t)))
+#=for fun ∈ (:wireframe,:wireframe!)
     @eval begin
         Makie.$fun(t::SurfaceGrid;args...) = Makie.$fun(graph(t);args...)#gridargs(t,Makie.$fun,args)...)
         Makie.$fun(t::TensorField{B,<:AbstractReal,2,<:FiberProductBundle} where B;args...) = Makie.$fun(TensorField(GridBundle(base(t)),fiber(t));args...)
     end
-end
+end=#
 
 import Cartan: point2chain, makietransform, streamargs
 quatf3vec(q) = q * Makie.Vec3f(0,0,1)
@@ -519,6 +520,17 @@ end
 
 to_interval(x) = Makie.ClosedInterval(x[1],x[end])
 
+#=Makie.convert_arguments(P::Type{<:Makie.StreamPlot},t::ScalarField{<:Coordinate{<:Chain},<:AbstractReal,N,<:RealSpace} where N) = Makie.convert_arguments(P,gradient_fast(t))
+Makie.convert_arguments(P::Type{<:Makie.StreamPlot},t::ScalarMap) = Makie.convert_arguments(P,gradient_fast(t))
+Makie.convert_arguments(P::Type{<:Makie.StreamPlot},t::VectorField{R,F,1,<:SimplexBundle} where {R,F}) = (p->Makie.Point(t(Chain(one(eltype(p)),p.data...))),)
+function Makie.convert_arguments(P::Type{<:Makie.StreamPlot},t::VectorField{<:Coordinate{<:Chain},F,N,<:RealSpace} where {F,N})
+    if Cartan.isrange(t)
+        ((p->Makie.Point(t(Chain(p.data...)))),points(t).v...)
+    else
+        ((p->Makie.Point(t(Chain(p.data...)))),to_interval.(split(points(t)))...)
+    end
+end
+Makie.convert_arguments(P::Type{<:Makie.StreamPlot},t::VectorField{B,<:AbstractReal,2,<:FiberProductBundle} where B) = Makie.convert_arguments(P,TensorField(GridBundle(base(t)),fiber(t)))=#
 for fun ∈ (:streamplot,:streamplot!)
     @eval begin
         #Makie.$fun(f::Function,t::Rectangle;args...) = Makie.$fun(f,t.v...;args...)
@@ -571,6 +583,13 @@ for (fun,fun2,fun3) ∈ ((:arrows,:arrows2d,:arrows3d),(:arrows!,:arrows2d!,:arr
         end
     end
 end
+for fun ∈ (:(Makie.Arrows2D),:(Makie.Arrows3D))
+    @eval begin
+        Makie.convert_arguments(P::Type{<:$fun},t::VectorField{<:Coordinate{<:Chain{W,L,F,2} where {W,L,F}},<:Chain{V,G,T,2} where {V,G,T},2,<:AlignedRegion{2}}) = (points(t).v...,getindex.(fiber(t),1),getindex.(fiber(t),2))
+        Makie.convert_arguments(P::Type{<:$fun},t::VectorField{<:Coordinate{<:Chain},<:Chain,2,<:RealSpace{2}}) = (Makie.Point.(vec(points(t))),Makie.Point.(vec(fiber(t))))
+        Makie.convert_arguments(P::Type{<:$fun},t::VectorField{<:Coordinate{<:Chain},F,N,<:GridBundle} where {F,N}) = (vec(Makie.Point.(points(t))),vec(Makie.Point.(fiber(t))))
+    end
+end
 for fun ∈ (:arrows2d,:arrows3d,:arrows2d!,:arrows3d!)
     @eval begin
         #Makie.$fun(t::ScalarField{<:Coordinate{<:Chain},F,2,<:RealSpace{2}} where F;args...) = Makie.$fun(vec(Makie.Point.(fiber(graph(Real(t))))),vec(Makie.Point.(fiber(normal(Real(t)))));args...)
@@ -598,27 +617,22 @@ end
 Makie.arrows(t::TensorField{B,F,N,<:SimplexBundle} where {B,F,N};args...) = Makie.arrows(Makie.Point.(↓(Manifold(base(t))).(points(t))),Makie.Point.(fiber(t));args...)
 Makie.arrows!(t::TensorField{B,F,N,<:SimplexBundle} where {B,F,N};args...) = Makie.arrows!(Makie.Point.(↓(Manifold(base(t))).(points(t))),Makie.Point.(fiber(t));args...)
 
-Makie.convert_arguments(P::Makie.PointBased, a::SimplexBundle) = Makie.convert_arguments(P, Vector(points(a)))
-Makie.convert_single_argument(a::LocalFiber) = convert_arguments(P,Point(a))
+Makie.convert_arguments(P::Makie.PointBased, a::SimplexBundle) = Makie.convert_arguments(P, vec(points(a)))
+Makie.convert_single_argument(a::LocalFiber) = Makie.convert_arguments(P,Makie.Point(a))
 
 #Makie.scatter(t::TensorField{B,F,N,<:SimplexBundle} where {B,F,N};args...) = Makie.scatter(submesh(base(t))[:,1],fiber(t);args...)
 #Makie.scatter!(t::TensorField{B,F,N,<:SimplexBundle} where {B,F,N};args...) = Makie.scatter!(submesh(base(t))[:,1],fiber(t);args...)
-Makie.scatter(p::RealFunction;args...) = Makie.scatter(points(p),fiber(p);args...)
-Makie.scatter!(p::RealFunction;args...) = Makie.scatter!(points(p),fiber(p);args...)
-Makie.scatter(p::TensorField;args...) = Makie.scatter(vec(fiber(p));args...)
-Makie.scatter!(p::TensorField;args...) = Makie.scatter!(vec(fiber(p));args...)
-Makie.scatter(p::SimplexBundle;args...) = Makie.scatter(submesh(p);args...)
-Makie.scatter!(p::SimplexBundle;args...) = Makie.scatter!(submesh(p);args...)
-Makie.scatter(p::FaceBundle;args...) = Makie.scatter(submesh(fiber(means(p)));args...)
-Makie.scatter!(p::FaceBundle;args...) = Makie.scatter!(submesh(fiber(means(p)));args...)
+Makie.convert_arguments(P::Type{<:Makie.Scatter},t::RealFunction) = (points(t),fiber(t))
+Makie.convert_arguments(P::Type{<:Makie.Scatter},t::TensorField) = (Makie.Point.(vec(fiber(t))),)
+Makie.convert_arguments(P::Type{<:Makie.Scatter},t::SimplexBundle) = (submesh(p),)
+Makie.convert_arguments(P::Type{<:Makie.Scatter},t::FaceBundle) = (submesh(fiber(means(p))),)
 
 Makie.text(p::SimplexBundle;args...) = Makie.text(submesh(p);text=string.(vertices(p)),args...)
 Makie.text!(p::SimplexBundle;args...) = Makie.text!(submesh(p);text=string.(vertices(p)),args...)
 Makie.text(p::FaceBundle;args...) = Makie.text(submesh(fiber(means(p)));text=string.(subelements(p)),args...)
 Makie.text!(p::FaceBundle;args...) = Makie.text!(submesh(fiber(means(p)));text=string.(subelements(p)),args...)
 
-Makie.lines(p::SimplexBundle;args...) = Makie.lines(Vector(points(p));args...)
-Makie.lines!(p::SimplexBundle;args...) = Makie.lines!(Vector(points(p));args...)
+Makie.convert_arguments(P::Type{<:Makie.Lines},t::SimplexBundle) = (Makie.Point.(vec(points(p))),)
 #Makie.lines(p::Vector{<:TensorAlgebra};args...) = Makie.lines(Makie.Point.(p);args...)
 #Makie.lines!(p::Vector{<:TensorAlgebra};args...) = Makie.lines!(Makie.Point.(p);args...)
 #Makie.lines(p::Vector{<:TensorTerm};args...) = Makie.lines(value.(p);args...)
@@ -807,30 +821,24 @@ function Makie.linesegments!(e::SimplexBundle;args...)
     Makie.linesegments!(Grassmann.pointpair.(e[immersion(e)],↓(Manifold(e)));args...)
 end
 
+for fun ∈ (:(Makie.Mesh),:(Makie.Wireframe))
+    @eval begin
+        Makie.convert_arguments(P::Type{<:$fun},M::GridBundle) = (Makie.GeometryBasics.Mesh(M),)
+        Makie.convert_arguments(P::Type{<:$fun},M::TensorField{B,<:Chain,2,<:GridBundle} where B) = Makie.convert_arguments(P,GridBundle(fiber(M)))
+    end
+end
+Makie.convert_arguments(P::Type{<:Makie.Wireframe},M::TensorField) = Makie.convert_arguments(P,base(M))
+
 #Makie.wireframe(t::ElementFunction;args...) = Makie.wireframe(value(base(t));color=Real.(fiber(t)),args...)
 #Makie.wireframe!(t::ElementFunction;args...) = Makie.wireframe!(value(base(t));color=Real.(fiber(t)),args...)
 Makie.wireframe(t::SimplexBundle;args...) = Makie.linesegments(edges(t);args...)
 Makie.wireframe!(t::SimplexBundle;args...) = Makie.linesegments!(edges(t);args...)
-for fun ∈ (:wireframe,:wireframe!)
-    @eval begin
-        Makie.$fun(M::GridBundle;args...) = Makie.$fun(Makie.GeometryBasics.Mesh(M);args...)
-        Makie.$fun(M::TensorField;args...) = Makie.$fun(base(M);args...)
-    end
-end
 for fun ∈ (:mesh,:mesh!)
     @eval Makie.$fun(M::GridBundle;args...) = Makie.$fun(Makie.GeometryBasics.Mesh(M);shading=mdims(M)≠2,backlight=1,args...)
 end
 
-Makie.wireframe(M::TensorField{B,<:Chain,2,<:GridBundle} where B;args...) = Makie.wireframe(GridBundle(fiber(M));args...)
-Makie.wireframe!(M::TensorField{B,<:Chain,2,<:GridBundle} where B;args...) = Makie.wireframe!(GridBundle(fiber(M));args...)
 Makie.wireframe(M::TensorField{B,<:Chain,3,<:GridBundle} where B;args...) = Makie.wireframe(boundarycomponents(M);args...)
 Makie.wireframe!(M::TensorField{B,<:Chain,3,<:GridBundle} where B;args...) = Makie.wireframe!(boundarycomponents(M);args...)
-function Makie.mesh(M::TensorField{B,<:Chain,2,<:GridBundle} where B;args...)
-    Makie.mesh(GridBundle(fiber(M));args...)
-end
-function Makie.mesh!(M::TensorField{B,<:Chain,2,<:GridBundle} where B;args...)
-    Makie.mesh!(GridBundle(fiber(M));args...)
-end
 function Makie.mesh(M::TensorField{B,<:Chain,3,<:GridBundle} where B;args...)
     Makie.mesh(boundarycomponents(M);args...)
 end
