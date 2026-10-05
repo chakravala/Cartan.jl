@@ -908,7 +908,7 @@ _orientedplane(p,v1,v2) = p.+[zero(v1) v1+v2; v1 v2]
 unorientedplane(p,v1,v2) = TensorField(base(OpenParameter(2,2)),_unorientedplane(p,v1,v2))
 orientedplane(p,v1,v2) = TensorField(base(OpenParameter(2,2)),_orientedplane(p,v1,v2))
 
-export gtkplot
+export gtkplot, gtkplay
 for fun ∈ (:unorientedpoly,:orientedpoly,:makietransform,:graylines,:graylines!,:raster,:gtkplot)
     @eval function $fun end
 end
@@ -919,6 +919,10 @@ for fun ∈ (:linegraph,:tangentbundle,:normalbundle,:planesbundle,:arrowsbundle
         export $fun, $(Symbol(fun,:!))
     end
 end
+
+gtkplay(args...;kwargs...) = gtkplot(args...;play=true,kwargs...)
+gtkplay(plt::Function,t::TensorField;kwargs...) = gtkplay(plt,x->t(x),split(points(t))[end];kwargs...)
+gtkplay(vh::Symbol,plt::Function,t::TensorField;kwargs...) = gtkplay(vh,plt,x->t(x),split(points(t))[end];kwargs...)
 
 point2chain(x,V=Submanifold(2)) = Chain(x[1],x[2])
 point3chain(x,V=Submanifold(3)) = Chain(x[1],x[2],x[3])

@@ -18,8 +18,15 @@ isdefined(Cartan, :Requires) ? (import Cartan: Gtk4Makie) : (using Gtk4Makie)
 using GtkObservables
 import Gtk4Makie: Gtk4
 
+ranges(x::Real) = ranges(x=>range(min(2x,iszero(x) ? -1 : 0),max(2x,iszero(x) ? 1 : 0),101))
+ranges(x::AbstractRange) = float(x)
+ranges(x::Pair{<:Real,<:AbstractRange}) = float(last(x))
+ranges(x::Pair{String}) = ranges(last(x))
+ranges(x::Pair{String,Bool}) = ranges(last(x))
+ranges(x::Bool) = 0:1
+
 slidertoggles(x::Real) = slidertoggles(x=>range(min(2x,iszero(x) ? -1 : 0),max(2x,iszero(x) ? 1 : 0),101))
-slidertoggles(x::AbstractRange) = slider(float(x))
+slidertoggles(x::AbstractRange) = slider(float(x),snap=true)
 slidertoggles(x::Pair{<:Real,<:AbstractRange}) = slider(float(last(x)),value=first(x),snap=true)
 slidertoggles(x::Pair{String}) = slidertoggles(last(x))
 slidertoggles(x::Pair{String,Bool}) = togglebutton(last(x),label=first(x))
@@ -33,7 +40,7 @@ boxstring(x::Pair{String,Pair{<:Real,<:AbstractRange}}) = first(x)*" ∈ ["*stri
 boxstring(x::Pair{<:Real,<:AbstractRange}) = string(first(x))*" ∈ ["*string(first(last(x)))*", "*string(last(last(x)))*"]"
 boxstring(x) = ""
 
-function sliderbox(str::NTuple,args...)
+function sliderbox(str::NTuple,args)
     bx = Gtk4.GtkBox(:v)
     for i ∈ 1:length(args)
         !isempty(str[i]) && push!(bx,Gtk4.GtkLabel(str[i];halign=Gtk4.Align_START,margin_start=10))
@@ -82,11 +89,46 @@ function plotbuttons(params,obj,osl)
     return bx
 end
 
+function playbuttons(params,r,osl)
+    k = Observable(1)
+    dt = Observable(0.1)
+    N = Observable(50)
+    play = togglebutton(false; label="Play")
+    tb1 = textbox(typeof(k[]); observable=observable(k))
+    tb2 = textbox(typeof(dt[]); observable=observable(dt))
+    tb3 = textbox(typeof(N[]); observable=observable(N))
+    tb1.widget.width_chars = 2
+    tb2.widget.width_chars = 4
+    tb3.widget.width_chars = 4
+    tb1.widget.width_request = 2
+    tb2.widget.width_request = 4
+    tb3.widget.width_request = 4
+    i = Ref(0)
+    on(play) do is_play
+        is_play || return
+        ok,odt,n = k[],dt[],N[]
+        ri = range(r[ok][1],r[ok][end],n)
+        @async while play[]
+            i[] = i[] ≥ n ? 1 : i[]+1
+            osl[ok][] = ri[i[]]
+            params[] = getindex.(osl)
+            sleep(odt)
+        end
+    end
+    bx = Gtk4.GtkBox(:h)
+    push!(bx,tb1)
+    push!(bx,play)
+    push!(bx,tb2)
+    push!(bx,tb3)
+    return bx
+end
+
 splitobservables(x::Observable) = (x,)
 splitobservables(x::Observable{<:Tuple}) = ([(@lift $x[i]) for i ∈ 1:length(x[])]...,)
 
 Cartan.gtkplot(plt::Function,args...;kwargs...) = Cartan.gtkplot(:h,plt,args...;kwargs...)
-function Cartan.gtkplot(vh::Symbol,plt::Function,fun::Function,args...;kwargs...)
+Cartan.gtkplot(plt::Function,fun::Function,arg;kwargs...) = Cartan.gtkplot(:v,plt,fun,arg;kwargs...)
+function Cartan.gtkplot(vh::Symbol,plt::Function,fun::Function,args...;play=false,kwargs...)
     sl = slidertoggles.(args)
     osl = observable.(sl)
     for s ∈ sl
@@ -95,8 +137,9 @@ function Cartan.gtkplot(vh::Symbol,plt::Function,fun::Function,args...;kwargs...
     params = Observable(getindex.(osl))
     y = @lift fun($params...)
     obj = plt(splitobservables(y)...;kwargs...)
-    bx = sliderbox(boxstring.(args),sl...)
+    bx = sliderbox(boxstring.(args),sl)
     push!(bx,plotbuttons(params,obj,osl))
+    play && push!(bx,playbuttons(params,ranges.(args),osl))
     Cartan.gtkplot(vh,obj,string(plt)*": "*string(fun),bx)
 end
 

@@ -16,6 +16,8 @@ module GeometryBasicsExt
 using Grassmann, Cartan
 isdefined(Cartan, :Requires) ? (import Cartan: GeometryBasics) : (using GeometryBasics)
 
+GeometryBasics.Rect(x::ProductSpace) = GeometryBasics.Rect(GeometryBasics.Vec(first.(split(x))...),GeometryBasics.Vec(last.(split(x)).-first.(split(x))...))
+
 (m::GridBundle{1})(t::GeometryBasics.Point) = m(t[1])
 (m::GridBundle{2})(t::GeometryBasics.Point) = m(t[1],t[2])
 (m::GridBundle{3})(t::GeometryBasics.Point) = m(t[1],t[2],t[3])

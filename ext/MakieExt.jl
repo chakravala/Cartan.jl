@@ -520,17 +520,11 @@ end
 
 to_interval(x) = Makie.ClosedInterval(x[1],x[end])
 
-#=Makie.convert_arguments(P::Type{<:Makie.StreamPlot},t::ScalarField{<:Coordinate{<:Chain},<:AbstractReal,N,<:RealSpace} where N) = Makie.convert_arguments(P,gradient_fast(t))
+Makie.convert_arguments(P::Type{<:Makie.StreamPlot},t::ScalarField{<:Coordinate{<:Chain},<:AbstractReal,N,<:RealSpace} where N) = Makie.convert_arguments(P,gradient_fast(t))
 Makie.convert_arguments(P::Type{<:Makie.StreamPlot},t::ScalarMap) = Makie.convert_arguments(P,gradient_fast(t))
-Makie.convert_arguments(P::Type{<:Makie.StreamPlot},t::VectorField{R,F,1,<:SimplexBundle} where {R,F}) = (p->Makie.Point(t(Chain(one(eltype(p)),p.data...))),)
-function Makie.convert_arguments(P::Type{<:Makie.StreamPlot},t::VectorField{<:Coordinate{<:Chain},F,N,<:RealSpace} where {F,N})
-    if Cartan.isrange(t)
-        ((p->Makie.Point(t(Chain(p.data...)))),points(t).v...)
-    else
-        ((p->Makie.Point(t(Chain(p.data...)))),to_interval.(split(points(t)))...)
-    end
-end
-Makie.convert_arguments(P::Type{<:Makie.StreamPlot},t::VectorField{B,<:AbstractReal,2,<:FiberProductBundle} where B) = Makie.convert_arguments(P,TensorField(GridBundle(base(t)),fiber(t)))=#
+Makie.convert_arguments(P::Type{<:Makie.StreamPlot},t::VectorField{R,F,1,<:SimplexBundle} where {R,F}) = (p->Makie.Point(t(Chain(one(eltype(p)),p.data...))),Makie.Rect(points(t)))
+Makie.convert_arguments(P::Type{<:Makie.StreamPlot},t::VectorField{<:Coordinate{<:Chain},F,N,<:RealSpace} where {F,N}) = ((p->Makie.Point(t(Chain(p.data...)))),Makie.Rect(points(t)))
+Makie.convert_arguments(P::Type{<:Makie.StreamPlot},t::VectorField{B,<:AbstractReal,2,<:FiberProductBundle} where B) = Makie.convert_arguments(P,TensorField(GridBundle(base(t)),fiber(t)))
 for fun ∈ (:streamplot,:streamplot!)
     @eval begin
         #Makie.$fun(f::Function,t::Rectangle;args...) = Makie.$fun(f,t.v...;args...)
@@ -546,7 +540,6 @@ for fun ∈ (:streamplot,:streamplot!)
             end
         end
         Makie.$fun(m::VectorField{<:Coordinate{<:Chain},F,N,<:RealSpace} where {F,N},dims::Union{<:Makie.ClosedInterval,<:AbstractRange}...;args...) = Makie.$fun(p->Makie.Point(m(Chain(p.data...))),dims...;streamargs(m,args)...)
-        Makie.$fun(t::TensorField{B,<:AbstractReal,2,<:FiberProductBundle} where B;args...) = Makie.$fun(TensorField(GridBundle(base(t)),fiber(t));args...)
         function Makie.$fun(M::VectorField,m::VectorField{<:Coordinate{<:Chain{V}},<:Chain,2,<:RealSpace{2}};args...) where V
             dim = mdims(fibertype(M)) ≠ 2
             kwargs = streamargs(dim,args)
@@ -585,9 +578,9 @@ for (fun,fun2,fun3) ∈ ((:arrows,:arrows2d,:arrows3d),(:arrows!,:arrows2d!,:arr
 end
 for fun ∈ (:(Makie.Arrows2D),:(Makie.Arrows3D))
     @eval begin
-        Makie.convert_arguments(P::Type{<:$fun},t::VectorField{<:Coordinate{<:Chain{W,L,F,2} where {W,L,F}},<:Chain{V,G,T,2} where {V,G,T},2,<:AlignedRegion{2}}) = (points(t).v...,getindex.(fiber(t),1),getindex.(fiber(t),2))
-        Makie.convert_arguments(P::Type{<:$fun},t::VectorField{<:Coordinate{<:Chain},<:Chain,2,<:RealSpace{2}}) = (Makie.Point.(vec(points(t))),Makie.Point.(vec(fiber(t))))
-        Makie.convert_arguments(P::Type{<:$fun},t::VectorField{<:Coordinate{<:Chain},F,N,<:GridBundle} where {F,N}) = (vec(Makie.Point.(points(t))),vec(Makie.Point.(fiber(t))))
+        Makie.convert_arguments(P::Type{<:$fun},t::VectorField{<:Coordinate{<:Chain{W,L,F,2} where {W,L,F}},<:Chain{V,G,T,2} where {V,G,T},2,<:AlignedRegion{2}}) = Makie.convert_arguments(P,points(t).v...,getindex.(fiber(t),1),getindex.(fiber(t),2))
+        Makie.convert_arguments(P::Type{<:$fun},t::VectorField{<:Coordinate{<:Chain},<:Chain,2,<:RealSpace{2}}) = Makie.convert_arguments(P,Makie.Point.(vec(points(t))),Makie.Point.(vec(fiber(t))))
+        Makie.convert_arguments(P::Type{<:$fun},t::VectorField{<:Coordinate{<:Chain},F,N,<:GridBundle} where {F,N}) = Makie.convert_argument(P,vec(Makie.Point.(points(t))),vec(Makie.Point.(fiber(t))))
     end
 end
 for fun ∈ (:arrows2d,:arrows3d,:arrows2d!,:arrows3d!)
