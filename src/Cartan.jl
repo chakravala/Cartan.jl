@@ -247,6 +247,8 @@ function Base.setindex!(m::TensorField,s::LocalTensor,i::Vararg{Int})
     return s
 end
 
+Base.getindex(m::IntervalMap,x::AbstractRange) = TensorField(base(m)[x],fiber(m)[x])
+
 import AbstractAnalysis: extract, assign!
 
 #extract(x::TensorField{B,F,1},i) = (@inbounds LocalTensor(points(x)[i],x[i]))
@@ -908,8 +910,8 @@ _orientedplane(p,v1,v2) = p.+[zero(v1) v1+v2; v1 v2]
 unorientedplane(p,v1,v2) = TensorField(base(OpenParameter(2,2)),_unorientedplane(p,v1,v2))
 orientedplane(p,v1,v2) = TensorField(base(OpenParameter(2,2)),_orientedplane(p,v1,v2))
 
-export gtkplot, gtkplay
-for fun ∈ (:unorientedpoly,:orientedpoly,:makietransform,:graylines,:graylines!,:raster,:gtkplot)
+export gtkplot, gtkplay, gtkplotmd
+for fun ∈ (:unorientedpoly,:orientedpoly,:makietransform,:graylines,:graylines!,:raster,:gtkplot,:gtkplotmd)
     @eval function $fun end
 end
 for fun ∈ (:linegraph,:tangentbundle,:normalbundle,:planesbundle,:arrowsbundle,:spacesbundle,:scaledbundle,:scaledfield,:scaledarrows,:scaledplanes,:scaledspaces,:planes,:spaces)

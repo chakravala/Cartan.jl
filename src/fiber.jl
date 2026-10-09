@@ -231,6 +231,7 @@ PointArray(dom::AbstractArray,fun::Function) = PointArray(dom, fun.(dom))
 
 totalnodes(m::PointArray) = length(m)
 nodes(m::PointArray) = length(m)
+bundle(m::PointArray) = m.id
 
 """
     points(m) -> AbstractArray{P}
@@ -259,14 +260,14 @@ function PointCloud(p::AbstractVector,g::AbstractVector)
     push!(point_metric_cache,g)
     PointCloud(length(point_cache),p,g)
 end
+
 function clearpointcache!()
     for P ∈ 1:length(point_cache)
-        deletebundle!(P)
+        clearpointcache!(P)
     end
 end
-bundle(m::PointArray) = m.id
-deletebundle!(m::PointCloud) = deletepointcloud!(bundle(m))
-function deletepointcloud!(P::Int)
+clearpointcache!(m::PointCloud) = clearpointcache!(bundle(m))
+function clearpointcache!(P::Int)
     point_cache[P] = [Chain{Submanifold(0),0,Int}(Values(0))]
     point_metric_cache[P] = [Chain{Submanifold(0),0,Int}(Values(0))]
     nothing
@@ -285,6 +286,7 @@ Base.broadcast(f,t::PointArray) = PointArray(f.(points(t)),f.(metricextensor(t))
 Base.broadcast(f,t::PointCloud) = PointCloud(f.(points(t)),f.(metricextensor(t)))
 resize_lastdim!(m::Global,i) = m
 
+getindex(m::PointArray,i::AbstractRange) = PointArray(0,points(m)[i],isinduced(m) ? fiber(m) : fiber(m)[i])
 getindex(m::PointCloud,i::ImmersedTopology) = points(m)[i]
 
 function (m::PointArray)(i::Vararg{Union{Int,Colon}})
@@ -498,6 +500,8 @@ Base.broadcast(f,t::GridBundle) = GridBundle(f.(coordinates(t)))
 Base.getindex(m::GridBundle,i::Vararg{Int}) = getindex(coordinates(m),i...)
 Base.getindex(m::GridBundle,i::Vararg{Union{Int,Colon}}) = GridBundle(getindex(base(m),i...),immersion(m)(i...))
 Base.setindex!(m::GridBundle,s,i::Vararg{Int}) = setindex!(coordinates(m),s,i...)
+
+Base.getindex(m::GridBundle,i::AbstractVector) = GridBundle(coordinates(m)[i])
 
 export Grid
 const Grid = GridBundle

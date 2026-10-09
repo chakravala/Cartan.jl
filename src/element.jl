@@ -397,6 +397,31 @@ function submesh!(m::PointCloud)
     length(submesh_cache) ≥ B && (submesh_cache[B] = Array{Any,2}(undef,0,0))
 end
 
+function clearmatlab! end
+function cleartriangle! end
+exist_matlab_cache = false
+exist_triangle_cache = false
+
+function clearcache!()
+    clearpointcache!()
+    exist_matlab_cache && clearmatlab!()
+    exist_triangle_cache && cleartriangle!()
+    clearcache!(array_cache)
+    clearcache!(array_top_cache)
+    clearcache!(submesh_cache)
+end
+
+function clearcache!(cache)
+    for P ∈ 1:length(cache)
+        clearcache!(cache,P)
+    end
+end
+clearcache!(cache,m::PointCloud) = clearcache!(cache,bundle(m))
+function clearcache!(cache,P::Int)
+    cache[P] = Array{Any,2}(undef,0,0)
+    nothing
+end
+
 function Base.findfirst(P::GradedVector{V},M::SimplexBundle) where V
     p = fullpoints(M); t = immersion(M)
     for i ∈ 1:length(t)

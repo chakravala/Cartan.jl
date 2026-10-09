@@ -20,13 +20,15 @@ import Cartan: initmeshes, totalmesh, totalmeshes, totalmeshdata
 const matlab_cache = (Array{T,2} where T)[]
 const matlab_top_cache = (Array{T,2} where T)[]
 function matlab(p::Array{T,2} where T,B)
+    Cartan.exist_matlab_cache = true
     for k ∈ length(matlab_cache):B
         push!(matlab_cache,Array{Any,2}(undef,0,0))
     end
     matlab_cache[B] = p
 end
 function matlab_top(p::Array{T,2} where T,B)
-        for k ∈ length(matlab_top_cache):B
+    Cartan.exist_matlab_cache = true
+    for k ∈ length(matlab_top_cache):B
         push!(matlab_top_cache,Array{Any,2}(undef,0,0))
     end
     matlab_top_cache[B] = p
@@ -49,6 +51,12 @@ function matlab(p::SimplexTopology)
         return matlab_top_cache[B]
     end
 end
+
+function Cartan.clearmatlab!()
+    Cartan.clearcache!(matlab_cache)
+    Cartan.clearcache!(matlab_top_cache)
+end
+
 Cartan.initmesh(g,args...) = initmeshall(g,args...)[Cartan.list(1,3)]
 initmeshall(g::Matrix{Int},args...) = initmeshall(Matrix{Float64}(g),args...)
 function initmeshall(g,args...)

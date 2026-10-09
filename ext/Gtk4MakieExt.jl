@@ -49,6 +49,7 @@ boxstring(x) = ""
 
 function sliderbox(str::NTuple,args)
     bx = Gtk4.GtkBox(:v)
+    isempty(args) && (return bx)
     for i ∈ 1:length(args)
         !isempty(str[i]) && push!(bx,Gtk4.GtkLabel("$i) "*str[i];halign=Gtk4.Align_START,margin_start=10))
         push!(bx,args[i])
@@ -56,7 +57,13 @@ function sliderbox(str::NTuple,args)
             push!(bx,textbox(typeof(args[i][]); observable=observable(args[i])))
         end
     end
-    return bx
+    scroll = Gtk4.GtkScrolledWindow()
+    scroll.vexpand = true
+    scroll.hexpand = true
+    scroll.hscrollbar_policy = Gtk4.PolicyType_NEVER
+    scroll.vscrollbar_policy = Gtk4.PolicyType_AUTOMATIC
+    scroll.child = bx
+    return scroll
 end
 
 makielimits!(ax::Gtk4Makie.Makie.Axis) = Gtk4Makie.Makie.autolimits!(ax)
@@ -131,7 +138,7 @@ splitobservables(x::Observable{<:Tuple}) = ([(@lift $x[i]) for i ∈ 1:length(x[
 
 Cartan.gtkplot(plt::Function,args...;kwargs...) = Cartan.gtkplot(:h,plt,args...;kwargs...)
 Cartan.gtkplot(plt::Function,fun::Function,arg;kwargs...) = Cartan.gtkplot(:v,plt,fun,arg;kwargs...)
-Cartan.gtkplot(vh::Symbol,plt::Function,fun::Function,args...;kwargs...) = Cartan.gtkplot(vh,plt,fun,args)
+Cartan.gtkplot(vh::Symbol,plt::Function,fun::Function,args...;kwargs...) = Cartan.gtkplot(vh,plt,fun,args;kwargs...)
 function Cartan.gtkplot(vh::Symbol,plt::Function,fun::Function,args::Tuple;play=false,kwargs...)
     sl = no_slider_value!(slidertoggles.(args))
     osl = observable.(sl)
@@ -140,8 +147,8 @@ function Cartan.gtkplot(vh::Symbol,plt::Function,fun::Function,args::Tuple;play=
     y = @lift fun($params...)
     obj = plt(splitobservables(y)...;kwargs...)
     bx = sliderbox(boxstring.(args),sl)
-    push!(bx,plotbuttons(update,obj,osl))
-    play && push!(bx,playbuttons(update,ranges.(args),osl))
+    push!(bx.child.child,plotbuttons(update,obj,osl))
+    play && push!(bx.child.child,playbuttons(update,ranges.(args),osl))
     Cartan.gtkplot(vh,obj,string(plt)*": "*string(fun),bx)
 end
 
@@ -169,8 +176,8 @@ function Cartan.gtkplot(vh::Symbol,plt::Function,fun1::Function,args1::Tuple,fun
     y2 = @lift fun2($y1,$params2...)
     obj = plt(splitobservables(y2)...;kwargs...)
     bx = sliderbox(boxstring.(args),(sl1...,sl2...))
-    push!(bx,plotbuttons(update,obj,osl))
-    play && push!(bx,playbuttons(update,ranges.(args),(osl1...,osl2...),length(sl1)+1))
+    push!(bx.child.child,plotbuttons(update,obj,osl))
+    play && push!(bx.child.child,playbuttons(update,ranges.(args),(osl1...,osl2...),length(sl1)+1))
     Cartan.gtkplot(vh,obj,string(plt)*": "*string(fun1)*", "*string(fun2),bx)
 end
 
@@ -203,11 +210,11 @@ function Cartan.gtkplot(vh::Symbol,plt::Function,fun1::Function,args1::Tuple,fun
     end
     y1 = @lift fun1($params1...)
     y2 = @lift fun2($y1,$params2...)
-    y3 = @lift fun2($y2,$params3...)
+    y3 = @lift fun3($y2,$params3...)
     obj = plt(splitobservables(y3)...;kwargs...)
     bx = sliderbox(boxstring.(args),(sl1...,sl2...,sl3...))
-    push!(bx,plotbuttons(update,obj,osl))
-    play && push!(bx,playbuttons(update,ranges.(args),(osl1...,osl2...,osl3...),length(sl1)+length(sl2)+1))
+    push!(bx.child.child,plotbuttons(update,obj,osl))
+    play && push!(bx.child.child,playbuttons(update,ranges.(args),(osl1...,osl2...,osl3...),length(sl1)+length(sl2)+1))
     Cartan.gtkplot(vh,obj,string(plt)*": "*string(fun1)*", "*string(fun2)*", "*string(fun3),bx)
 end
 

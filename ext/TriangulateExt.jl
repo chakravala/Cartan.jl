@@ -19,12 +19,14 @@ isdefined(Cartan, :Requires) ? (import Cartan: Triangulate) : (using Triangulate
 const triangle_point_cache = (Array{T,2} where T)[]
 const triangle_simplex_cache = (Array{T,2} where T)[]
 function triangle_point(p::Array{T,2} where T,B)
+    Cartan.exist_triangle_cache = true
     for k ∈ length(triangle_point_cache):B
         push!(triangle_point_cache,Array{Any,2}(undef,0,0))
     end
     triangle_point_cache[B] = p
 end
 function triangle_simplex(p::Array{T,2} where T,B)
+    Cartan.exist_triangle_cache = true
     for k ∈ length(triangle_simplex_cache):B
         push!(triangle_simplex_cache,Array{Any,2}(undef,0,0))
     end
@@ -49,6 +51,12 @@ function triangle(p::SimplexTopology)
 end
 triangle(p::Vector{<:Chain{V,1,T} where V}) where T = Cartan.array(p)'[2:end,:]
 triangle(p::Vector{<:Values}) = Cint.(Cartan.array(p)')
+
+function Cartan.cleartriangle!()
+    Cartan.clearcache!(triangle_point_cache)
+    Cartan.clearcache!(triangle_simplex_cache)
+end
+
 function Triangulate.TriangulateIO(e::SimplexBundle,h=nothing)
     triin=Triangulate.TriangulateIO()
     triin.pointlist=triangle(fullcoordinates(e))
