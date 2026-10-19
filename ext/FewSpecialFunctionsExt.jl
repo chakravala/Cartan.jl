@@ -18,13 +18,13 @@ isdefined(Cartan, :Requires) ? (import Cartan: FewSpecialFunctions) : (using Few
 
 # U,V,MacrumQ,dQdb,debye_function
 
-for fun ∈ (:η,:FresnelC,:FresnelS,:FresnelE,:Ci_complex)
+for fun ∈ (:η,:FresnelC,:FresnelS,:FresnelE,:Ci_complex,:dawson)
     @eval begin
         FewSpecialFunctions.$fun(x::TensorField) = TensorField(base(x), FewSpecialFunctions.$fun.(fiber(x)))
         FewSpecialFunctions.$fun(x::LocalTensor) = LocalTensor(base(x), FewSpecialFunctions.$fun(fiber(x)))
     end
 end
-for fun ∈ (:C,:η,:U,:V,:FermiDiracIntegral,:FermiDiracIntegralNorm,:Clausen)
+for fun ∈ (:C,:η,:U,:V,:W,:U_scaled,:V_scaled,:dU,:dV,:dW,:ParabolicCylinderD,:dParabolicCylinderD,:FermiDiracIntegral,:FermiDiracIntegralNorm,:Clausen,:voigt,:BoseEinsteinIntegral,:BoseEinsteinIntegralNorm)
     @eval begin
         FewSpecialFunctions.$fun(x,y::TensorField) = TensorField(base(y), FewSpecialFunctions.$fun.(x,fiber(y)))
         FewSpecialFunctions.$fun(x,y::LocalTensor) = LocalTensor(base(y), FewSpecialFunctions.$fun(x,fiber(y)))
@@ -34,7 +34,7 @@ for fun ∈ (:C,:η,:U,:V,:FermiDiracIntegral,:FermiDiracIntegralNorm,:Clausen)
         FewSpecialFunctions.$fun(x::LocalTensor,y::LocalTensor) = LocalTensor(base(x), FewSpecialFunctions.$fun(fiber(x),fiber(y)))
     end
 end
-for fun ∈ (:F,:G,:H⁺,:H⁻,:MarcumQ,:dQdb,:F_clausen,:f_n,:debye_function)
+for fun ∈ (:F,:G,:H⁺,:H⁻,:θ,:MarcumQ,:dQdb,:F_clausen,:f_n,:debye_function,:WhittakerM,:WhittakerW,:dWhittakerM,:dWhittakerW)
     @eval begin
         FewSpecialFunctions.$fun(x,y,z::TensorField) = TensorField(base(z), FewSpecialFunctions.$fun.(x,y,fiber(z)))
         FewSpecialFunctions.$fun(x,y,z::LocalTensor) = LocalTensor(base(z), FewSpecialFunctions.$fun(x,y,fiber(z)))
