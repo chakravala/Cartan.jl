@@ -39,8 +39,9 @@ updatetopology(t::IntervalMap) = isclosed(t) ? TorusTopology(t) : t
 #(::Derivation)(t::TensorField) = getnabla(t)
 function getnabla(t::TensorField)
     W = Manifold(t)
-    n = ndims(t)
-    V = tangent(Grassmann.supermanifold(W),1,n)(list(n+1,2n))
+    sW = Grassmann.supermanifold(W)
+    n,m = ndims(t),mdims(sW)
+    V = tangent(sW,1,n)(list(m+1,m+n))
     Chain{W}(Values{n,Any}(Λ(V).b[2:n+1]...))
 end
 

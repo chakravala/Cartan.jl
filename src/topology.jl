@@ -438,6 +438,7 @@ localfiber(x) = x
 localfiber(x::LocalTensor) = fiber(x)
 
 (m::TensorNested)(x::LocalTensor) = LocalTensor(base(x),m(fiber(x)))
+(m::Projector)(x::LocalTensor) = LocalTensor(base(x),m(fiber(x)))
 @inline Base.:<<(a::LocalFiber,b::LocalFiber) = contraction(b,~a)
 @inline Base.:>>(a::LocalFiber,b::LocalFiber) = contraction(~a,b)
 @inline Base.:<(a::LocalFiber,b::LocalFiber) = contraction(b,a)

@@ -355,6 +355,7 @@ for op ∈ (:+,:-,:&,:∧,:∨,:min,:max,:div,:rem,:mod,:mod1,:ldexp)
     end
 end
 (m::TensorNested)(t::TensorField) = TensorField(base(t), m.(fiber(t)))
+(m::Projector)(t::TensorField) = TensorField(base(t), m.(fiber(t)))
 (m::TensorField{B,<:TensorNested} where B)(t::TensorField) = m⋅t
 @inline Base.:<<(a::FiberBundle,b::FiberBundle) = contraction(b,~a)
 @inline Base.:>>(a::FiberBundle,b::FiberBundle) = contraction(~a,b)
@@ -515,6 +516,16 @@ SimplexBundle(t::EndomorphismField,n::Int...) = SimplexBundle(resample(t,n...))
 AbstractAnalysis.supnorm(x::TensorField) = maximum(norm,fiber(x))
 AbstractAnalysis.infnorm(x::TensorField) = minimum(norm,fiber(x))
 
+function orbit(f,x,n::AbstractVector{<:AbstractFloat})
+    xs = ElasticArray{fibertype(localfiber(x)),1}(undef,length(n))
+    xi = x
+    assign!(xs,1,fiber(localfiber(xi)))
+    for i ∈ 2:length(n)
+        xi = f(xi)
+        assign!(xs,i,fiber(localfiber(xi)))
+    end
+    return TensorField(n,SequenceArray(xs,(u,k) -> f(extract(u,k-1))))
+end
 function orbit(f,x::TensorField,n::AbstractVector{<:AbstractFloat})
     xs = ElasticArray{fibertype(localfiber(x)),ndims(x)+1}(undef,size(x)...,length(n))
     xi = x

@@ -1051,7 +1051,7 @@ function gradient2_chebyshevfft(v::AbstractArray{T,3} where T,i)
 end
 
 for fun ∈ (:laplacian_chebyshevfft,:gradient,:gradient_fft,:gradient_rfft,:gradient_chebyshevfft,:gradient2_chebyshevfft,:gradient_slow,:gradient_fast,:gradient_forw,:gradient_back)
-    @eval $fun(v::LocalTensor) = $fun(fiber(v))
+    @eval $fun(v::LocalTensor) = LocalTensor(base(v),$fun(fiber(v)))
 end
 laplacian_chebyshevfft(v::AbstractVector) = gradient2_chebyshevfft(v)
 laplacian_chebyshevfft(v::AbstractMatrix) = gradient2_chebyshevfft(v,1)+gradient2_chebyshevfft(v,2)
